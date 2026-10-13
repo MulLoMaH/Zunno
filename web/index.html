@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Zunno Auth Test</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; }
+    section { margin-bottom: 24px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    input { padding: 8px; margin-right: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 8px 16px; background: #2b6; color: #fff; border: 0; border-radius: 4px; cursor: pointer; margin-right: 8px; }
+    button:hover { background: #295; }
+    button.danger { background: #c44; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 4px; overflow: auto; max-height: 320px; font-size: 12px; }
+    .row { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Zunno Auth Test</h1>
+
+  <section>
+    <h2>Register</h2>
+    <div class="row">
+      <input id="reg-phone" placeholder="+79991234567" value="+79991112233">
+      <input id="reg-password" type="password" placeholder="password" value="secret123">
+    </div>
+    <div class="row">
+      <input id="reg-name" placeholder="Full name" value="Test User">
+      <input id="reg-age" type="number" placeholder="Age" value="25" style="width:80px">
+    </div>
+    <button onclick="register()">Register</button>
+  </section>
+
+  <section>
+    <h2>Login</h2>
+    <div class="row">
+      <input id="login-phone" placeholder="+79991234567" value="+79991112233">
+      <input id="login-password" type="password" placeholder="password" value="secret123">
+    </div>
+    <button onclick="login()">Login</button>
+  </section>
+
+  <section>
+    <h2>Actions</h2>
+    <button onclick="refresh()">Refresh</button>
+    <button onclick="getUsers()">GET /users</button>
+    <button class="danger" onclick="logout()">Logout</button>
+  </section>
+
+  <section>
+    <h2>Access Token</h2>
+    <pre id="token">(not logged in)</pre>
+  </section>
+
+  <section>
+    <h2>Response</h2>
+    <pre id="output">(nothing yet)</pre>
+  </section>
+
+  <script>
+    let accessToken = '';
+
+    async function api(method, path, body, withAuth) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (withAuth && accessToken) {
+        headers['Authorization'] = 'Bearer ' + accessToken;
+      }
+      const res = await fetch('/api/v1' + path, {
+        method,
+        headers,
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+      return { status: res.status, data };
+    }
+
+    function show(label, result) {
+      document.getElementById('output').textContent =
+        `[${label}] status=${result.status}\n\n` + JSON.stringify(result.data, null, 2);
+    }
+
+    function setToken(t) {
+      accessToken = t || '';
+      document.getElementById('token').textContent = accessToken || '(not logged in)';
+    }
+
+    async function register() {
+      const body = {
+        phone_number: document.getElementById('reg-phone').value,
+        password:     document.getElementById('reg-password').value,
+        full_name:    document.getElementById('reg-name').value,
+        age:          parseInt(document.getElementById('reg-age').value, 10),
+      };
+      const r = await api('POST', '/auth/register', body);
+      if (r.data && r.data.access_token) setToken(r.data.access_token);
+      show('register', r);
+    }
+
+    async function login() {
+      const body = {
+        phone_number: document.getElementById('login-phone').value,
+        password:     document.getElementById('login-password').value,
+      };
+      const r = await api('POST', '/auth/login', body);
+      if (r.data && r.data.access_token) setToken(r.data.access_token);
+      show('login', r);
+    }
+
+    async function refresh() {
+      const r = await api('POST', '/auth/refresh');
+      if (r.data && r.data.access_token) setToken(r.data.access_token);
+      show('refresh', r);
+    }
+
+    async function getUsers() {
+      const r = await api('GET', '/users', null, true);
+      show('get users', r);
+    }
+
+    async function logout() {
+      const r = await api('POST', '/auth/logout');
+      setToken('');
+      show('logout', r);
+    }
+  </script>
+</body>
+</html>
