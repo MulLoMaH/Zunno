@@ -56,6 +56,20 @@ func (h *HTTPResponseHendler) ErrorResponse(err error, msg string) {
 		errors.Is(err, core_errors.ErrInvalidToken):
 		statusCode = http.StatusUnauthorized
 		logFunc = h.log.Debug
+	case errors.Is(err, core_errors.ErrForbidden),
+		errors.Is(err, core_errors.ErrNotGroupMember),
+		errors.Is(err, core_errors.ErrNotGroupAdmin):
+		statusCode = http.StatusForbidden
+		logFunc = h.log.Debug
+
+	case errors.Is(err, core_errors.ErrGroupNotFound),
+		errors.Is(err, core_errors.ErrInviteNotFound):
+		statusCode = http.StatusNotFound
+		logFunc = h.log.Debug
+
+	case errors.Is(err, core_errors.ErrAlreadyMember):
+		statusCode = http.StatusConflict
+		logFunc = h.log.Warn
 	default:
 		statusCode = http.StatusInternalServerError
 		logFunc = h.log.Error

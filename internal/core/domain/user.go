@@ -62,6 +62,23 @@ func NewUserResponse(
 }
 
 func (u *User) Validate() error {
+	if err := u.ValidateProfile(); err != nil {
+		return err
+	}
+
+	passwordHashLength := len([]rune(u.PasswordHash))
+	if passwordHashLength < 8 || passwordHashLength > 100 {
+		return fmt.Errorf(
+			"password hash must be between 8 and 100 characters %d: %w",
+			passwordHashLength,
+			core_errors.ErrInvalidArgument,
+		)
+	}
+
+	return nil
+}
+
+func (u *User) ValidateProfile() error {
 	fullNameLength := len([]rune(u.FullName))
 	if fullNameLength < 3 || fullNameLength > 100 {
 		return fmt.Errorf(
@@ -91,15 +108,6 @@ func (u *User) Validate() error {
 	if u.Age < 18 || u.Age > 100 {
 		return fmt.Errorf(
 			"age must be between 18 and 100: %w",
-			core_errors.ErrInvalidArgument,
-		)
-	}
-
-	passwordHashLength := len([]rune(u.PasswordHash))
-	if passwordHashLength < 8 || passwordHashLength > 100 {
-		return fmt.Errorf(
-			"password hash must be between 8 and 100 characters %d: %w",
-			passwordHashLength,
 			core_errors.ErrInvalidArgument,
 		)
 	}

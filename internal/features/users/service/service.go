@@ -16,6 +16,8 @@ type UsersRepository interface {
 	GetUsers(ctx context.Context, limit *int, offset *int) ([]domain.User, error)
 	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
 	FindByPhone(ctx context.Context, phoneNumber string) (domain.User, error)
+	UpdateUser(ctx context.Context, user domain.User, expectedVersion int64) (domain.User, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 func NewUserService(UsersRepository UsersRepository) *UserService {
