@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	core_kafka "github.com/MulLoMaH/Zunno/internal/core/kafka"
 	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
 	core_pgx_pool "github.com/MulLoMaH/Zunno/internal/core/repository/postgres/conn"
 	core_redis_conn "github.com/MulLoMaH/Zunno/internal/core/repository/redis"
@@ -19,6 +21,19 @@ import (
 	auth_redis_repository "github.com/MulLoMaH/Zunno/internal/features/auth/repository/redis"
 	auth_service "github.com/MulLoMaH/Zunno/internal/features/auth/service"
 	auth_transport_http "github.com/MulLoMaH/Zunno/internal/features/auth/transport/http"
+	goals_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/goals/repository/postgres"
+	goal_service "github.com/MulLoMaH/Zunno/internal/features/goals/service"
+	goal_transport_http "github.com/MulLoMaH/Zunno/internal/features/goals/transport/http"
+	groups_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/groups/repository/postgres"
+	group_service "github.com/MulLoMaH/Zunno/internal/features/groups/service"
+	group_transport_http "github.com/MulLoMaH/Zunno/internal/features/groups/transport/http"
+	budget_kafka "github.com/MulLoMaH/Zunno/internal/features/joint_budget/kafka"
+	budget_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/joint_budget/repository/postgres"
+	budget_service "github.com/MulLoMaH/Zunno/internal/features/joint_budget/service"
+	budget_transport_http "github.com/MulLoMaH/Zunno/internal/features/joint_budget/transport/http"
+	plans_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/plans/repository/postgres"
+	plan_service "github.com/MulLoMaH/Zunno/internal/features/plans/service"
+	plan_transport_http "github.com/MulLoMaH/Zunno/internal/features/plans/transport/http"
 
 	users_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/users/repository/postgres"
 	user_service "github.com/MulLoMaH/Zunno/internal/features/users/service"
@@ -77,6 +92,18 @@ func main() {
 	usersService := user_service.NewUserService(usersRepository)
 	userTransportHTTP := user_transport_http.NewUsersHTTPHandler(usersService)
 
+	// --- Groups ---
+	logger.Debug("initializing feature", zap.String("feature", "groups"))
+	groupsRepository := groups_postgres_repository.NewGroupsRepository(pool)
+	groupsService := group_service.NewGroupService(groupsRepository, usersRepository)
+	groupsTransportHTTP := group_transport_http.NewGroupsHTTPHandler(groupsService)
+
+	// --- Goal ---
+	logger.Debug("initializing feature", zap.String("feature", "goals"))
+	goalsRepository := goals_postgres_repository.NewGoalsRepository(pool)
+	goalsService := goal_service.NewGoalService(goalsRepository)
+	goalsTransportHTTP := goal_transport_http.NewGoalsHTTPHandler(goalsService)
+
 	// --- Auth feature ---
 	logger.Debug("initializing feature", zap.String("feature", "auth"))
 	refreshRepository := auth_redis_repository.NewRefreshRepository(redisClient)
@@ -102,6 +129,7 @@ func main() {
 	apiV1Router.RegisterRoutes(authTransportHTTP.Routes()...)
 
 	// Защищённые — добавляем JWTAuth на каждый route
+	// User
 	jwtMw := core_http_middleware.JWTAuth(tokenManager)
 	userRoutes := userTransportHTTP.Routes()
 	for i := range userRoutes {
@@ -109,7 +137,67 @@ func main() {
 	}
 	apiV1Router.RegisterRoutes(userRoutes...)
 
+	// Group
+	groupContextMw := core_http_middleware.GroupContext(groupsService)
+	groupRoutes := groupsTransportHTTP.Routes()
+	for i := range groupRoutes {
+		groupRoutes[i].Middlewares = append(groupRoutes[i].Middlewares, jwtMw)
+
+		// GroupContext — только для роутов с {id} в path
+		if strings.Contains(groupRoutes[i].Path, "{id}") {
+			groupRoutes[i].Middlewares = append(groupRoutes[i].Middlewares, groupContextMw)
+		}
+	}
+	apiV1Router.RegisterRoutes(groupRoutes...)
+
+	// Goal
+	goalRoutes := goalsTransportHTTP.Routes()
+	for i := range goalRoutes {
+		goalRoutes[i].Middlewares = append(goalRoutes[i].Middlewares, jwtMw)
+
+		if strings.Contains(goalRoutes[i].Path, "{id}") {
+			goalRoutes[i].Middlewares = append(goalRoutes[i].Middlewares, groupContextMw)
+		}
+	}
+	apiV1Router.RegisterRoutes(goalRoutes...)
+
+	// --- Kafka ---
+	logger.Debug("initializing kafka")
+	kafkaCfg := core_kafka.NewConfigMust()
+	kafkaProducer := core_kafka.NewProducer(kafkaCfg)
+
+	budgetRepo := budget_postgres_repository.NewBudgetRepository(pool)
+	budgetSvc := budget_service.NewBudgetService(budgetRepo, kafkaProducer)
+	budgetHTTP := budget_transport_http.NewBudgetHTTPHandler(budgetSvc)
+
+	budgetRoutes := budgetHTTP.Routes()
+	for i := range budgetRoutes {
+		budgetRoutes[i].Middlewares = append(budgetRoutes[i].Middlewares, jwtMw, groupContextMw)
+	}
+	apiV1Router.RegisterRoutes(budgetRoutes...)
+
+	logger.Debug("initializing feature", zap.String("feature", "plans"))
+	plansRepository := plans_postgres_repository.NewPlansRepository(pool)
+	plansService := plan_service.NewPlanService(plansRepository)
+	plansTransportHTTP := plan_transport_http.NewPlansHTTPHandler(plansService)
+
+	// Консьюмер
+	statsHandler := budget_kafka.NewHandler(budgetRepo)
+	kafkaConsumer := core_kafka.NewConsumer(kafkaCfg, statsHandler.Handle)
+
+	planRoutes := plansTransportHTTP.Routes()
+	for i := range planRoutes {
+		planRoutes[i].Middlewares = append(planRoutes[i].Middlewares, jwtMw, groupContextMw)
+	}
+	apiV1Router.RegisterRoutes(planRoutes...)
+
 	httpServer.RegisterApiRouters(apiV1Router)
+
+	go func() {
+		if err := kafkaConsumer.Run(ctx); err != nil {
+			logger.Error("kafka consumer stopped", zap.Error(err))
+		}
+	}()
 
 	httpServer.RegisterStatic("/", "web")
 	if err := httpServer.Run(ctx); err != nil {

@@ -61,7 +61,13 @@ func (h *HTTPResponseHendler) ErrorResponse(err error, msg string) {
 		errors.Is(err, core_errors.ErrNotGroupAdmin):
 		statusCode = http.StatusForbidden
 		logFunc = h.log.Debug
-
+	case errors.Is(err, core_errors.ErrStatsTimeout):
+		statusCode = http.StatusGatewayTimeout
+		logFunc = h.log.Warn
+	case errors.Is(err, core_errors.ErrPlanNotFound),
+		errors.Is(err, core_errors.ErrChecklistNotFound):
+		statusCode = http.StatusNotFound
+		logFunc = h.log.Debug
 	case errors.Is(err, core_errors.ErrGroupNotFound),
 		errors.Is(err, core_errors.ErrInviteNotFound):
 		statusCode = http.StatusNotFound
