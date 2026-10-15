@@ -99,9 +99,9 @@ services:
 
       # Auth
       JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECURE: "false"
+      COOKIE_SECURE: "true"
     ports:
-      - "80:6060"
+      - "127.0.0.1:6060:6060"
     volumes:
       - ${PROJECT_ROOT}/out/logs:/app/out/logs
     mem_limit: 200m
