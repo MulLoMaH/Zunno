@@ -98,11 +98,17 @@ func main() {
 	groupsService := group_service.NewGroupService(groupsRepository, usersRepository)
 	groupsTransportHTTP := group_transport_http.NewGroupsHTTPHandler(groupsService)
 
-	// --- Goal ---
+	// --- Goals ---
 	logger.Debug("initializing feature", zap.String("feature", "goals"))
 	goalsRepository := goals_postgres_repository.NewGoalsRepository(pool)
 	goalsService := goal_service.NewGoalService(goalsRepository)
 	goalsTransportHTTP := goal_transport_http.NewGoalsHTTPHandler(goalsService)
+
+	// --- Plans ---
+	logger.Debug("initializing feature", zap.String("feature", "plans"))
+	plansRepository := plans_postgres_repository.NewPlansRepository(pool)
+	plansService := plan_service.NewPlanService(plansRepository)
+	plansTransportHTTP := plan_transport_http.NewPlansHTTPHandler(plansService)
 
 	// --- Auth feature ---
 	logger.Debug("initializing feature", zap.String("feature", "auth"))
@@ -128,40 +134,58 @@ func main() {
 	// Публичные
 	apiV1Router.RegisterRoutes(authTransportHTTP.Routes()...)
 
-	// Защищённые — добавляем JWTAuth на каждый route
-	// User
+	// --- JWT middleware ---
 	jwtMw := core_http_middleware.JWTAuth(tokenManager)
+
+	// --- User routes ---
 	userRoutes := userTransportHTTP.Routes()
 	for i := range userRoutes {
 		userRoutes[i].Middlewares = append(userRoutes[i].Middlewares, jwtMw)
 	}
 	apiV1Router.RegisterRoutes(userRoutes...)
 
-	// Group
+	// --- Group routes ---
+	// ВАЖНО:
+	// - jwtMw навешивается на все групповые роуты.
+	// - groupContextMw (проверка "юзер — активный участник группы")
+	//   навешивается ТОЛЬКО на роуты с {id}, КРОМЕ /join.
+	//   На /join юзер ещё не участник — middleware бы его не пропустил.
+	//   Также исключаем /invite, /leave, /members/{userId}/... на будущее.
 	groupContextMw := core_http_middleware.GroupContext(groupsService)
 	groupRoutes := groupsTransportHTTP.Routes()
 	for i := range groupRoutes {
 		groupRoutes[i].Middlewares = append(groupRoutes[i].Middlewares, jwtMw)
 
-		// GroupContext — только для роутов с {id} в path
-		if strings.Contains(groupRoutes[i].Path, "{id}") {
+		path := groupRoutes[i].Path
+		if strings.Contains(path, "{id}") &&
+			!strings.HasSuffix(path, "/join") &&
+			!strings.HasSuffix(path, "/invite") {
 			groupRoutes[i].Middlewares = append(groupRoutes[i].Middlewares, groupContextMw)
 		}
 	}
 	apiV1Router.RegisterRoutes(groupRoutes...)
 
-	// Goal
+	// --- Goal routes ---
 	goalRoutes := goalsTransportHTTP.Routes()
 	for i := range goalRoutes {
 		goalRoutes[i].Middlewares = append(goalRoutes[i].Middlewares, jwtMw)
-
 		if strings.Contains(goalRoutes[i].Path, "{id}") {
 			goalRoutes[i].Middlewares = append(goalRoutes[i].Middlewares, groupContextMw)
 		}
 	}
 	apiV1Router.RegisterRoutes(goalRoutes...)
 
-	// --- Kafka ---
+	// --- Plan routes ---
+	planRoutes := plansTransportHTTP.Routes()
+	for i := range planRoutes {
+		planRoutes[i].Middlewares = append(planRoutes[i].Middlewares, jwtMw)
+		if strings.Contains(planRoutes[i].Path, "{id}") {
+			planRoutes[i].Middlewares = append(planRoutes[i].Middlewares, groupContextMw)
+		}
+	}
+	apiV1Router.RegisterRoutes(planRoutes...)
+
+	// --- Kafka + Budget ---
 	logger.Debug("initializing kafka")
 	kafkaCfg := core_kafka.NewConfigMust()
 	kafkaProducer := core_kafka.NewProducer(kafkaCfg)
@@ -176,22 +200,9 @@ func main() {
 	}
 	apiV1Router.RegisterRoutes(budgetRoutes...)
 
-	logger.Debug("initializing feature", zap.String("feature", "plans"))
-	plansRepository := plans_postgres_repository.NewPlansRepository(pool)
-	plansService := plan_service.NewPlanService(plansRepository)
-	plansTransportHTTP := plan_transport_http.NewPlansHTTPHandler(plansService)
-
-	// Консьюмер
+	// Kafka consumer — в горутине, не блокирует старт
 	statsHandler := budget_kafka.NewHandler(budgetRepo)
 	kafkaConsumer := core_kafka.NewConsumer(kafkaCfg, statsHandler.Handle)
-
-	planRoutes := plansTransportHTTP.Routes()
-	for i := range planRoutes {
-		planRoutes[i].Middlewares = append(planRoutes[i].Middlewares, jwtMw, groupContextMw)
-	}
-	apiV1Router.RegisterRoutes(planRoutes...)
-
-	httpServer.RegisterApiRouters(apiV1Router)
 
 	go func() {
 		if err := kafkaConsumer.Run(ctx); err != nil {
@@ -199,7 +210,10 @@ func main() {
 		}
 	}()
 
+	// Регистрируем роутер и статику
+	httpServer.RegisterApiRouters(apiV1Router)
 	httpServer.RegisterStatic("/", "web")
+
 	if err := httpServer.Run(ctx); err != nil {
 		logger.Error("HTTP server run error", zap.Error(err))
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	core_errors "github.com/MulLoMaH/Zunno/internal/core/errors"
+	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	"github.com/google/uuid"
 )
 
@@ -16,19 +16,20 @@ func (r *GroupsRepository) JoinGroup(
 	defer cancel()
 
 	query := `
-		UPDATE zunno.memberships
-		SET status = 'active'
-		WHERE user_id = $1 AND group_id = $2 AND status = 'pending'
+		INSERT INTO zunno.memberships (user_id, group_id, role, status)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, group_id)
+		DO UPDATE SET status = EXCLUDED.status
 	`
 
-	tag, err := r.pool.Exec(ctx, query, userID, groupID)
+	_, err := r.pool.Exec(ctx, query,
+		userID,
+		groupID,
+		domain.GroupRoleMember,
+		domain.MembershipStatusActive,
+	)
 	if err != nil {
-		return fmt.Errorf("update membership: %w", err)
+		return fmt.Errorf("join group: %w", err)
 	}
-
-	if tag.RowsAffected() == 0 {
-		return core_errors.ErrInviteNotFound
-	}
-
 	return nil
 }
