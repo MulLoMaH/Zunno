@@ -42,6 +42,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_HEAP_OPTS: "-Xmx128m -Xms128m"
+      KAFKA_LOG_CLEANER_ENABLE: "false"
     volumes:
       - ${PROJECT_ROOT}/out/kafka_data:/var/lib/kafka/data
     restart: unless-stopped
