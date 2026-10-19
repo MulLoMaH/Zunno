@@ -113,7 +113,7 @@ func main() {
 	// --- Auth feature ---
 	logger.Debug("initializing feature", zap.String("feature", "auth"))
 	refreshRepository := auth_redis_repository.NewRefreshRepository(redisClient)
-	authSvc := auth_service.NewAuthService(usersService, tokenManager, refreshRepository)
+	authSvc := auth_service.NewAuthService(usersService, groupsService, tokenManager, refreshRepository)
 	cookieSecure := os.Getenv("COOKIE_SECURE") == "true"
 	authTransportHTTP := auth_transport_http.NewAuthHTTPHandler(authSvc, refreshTTL, cookieSecure)
 

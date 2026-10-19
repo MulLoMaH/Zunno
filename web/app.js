@@ -606,21 +606,53 @@ function renderSidebarGroups() {
     return;
   }
 
-  for (const g of state.groups) {
+  // Ищем личную группу (она создается автоматически при регистрации)
+  const personalGroup = state.groups.find((g) => g.name === 'Моё' || g.name === 'Личное');
+  const otherGroups = state.groups.filter((g) => g !== personalGroup);
+
+  // 1. Блок "Личное"
+  if (personalGroup) {
+    box.appendChild(
+      el('div', { class: 'text-xs text-3', style: 'padding: 8px 10px 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;' }, ['Личное'])
+    );
     box.appendChild(
       el(
         'button',
         {
           type: 'button',
-          class: 'sidebar-group-item' + (g.id === state.activeGroupId ? ' is-active' : ''),
-          onclick: () => switchGroup(g.id),
+          class: 'sidebar-group-item' + (personalGroup.id === state.activeGroupId ? ' is-active' : ''),
+          onclick: () => switchGroup(personalGroup.id),
         },
         [
-          el('span', { class: 'dot' }),
-          el('span', { class: 'sidebar-group-item-name' }, [g.name]),
+          el('span', { class: 'dot', style: 'background: var(--primary);' }),
+          el('span', { class: 'sidebar-group-item-name', style: 'font-weight: 500;' }, [personalGroup.name]),
         ]
       )
     );
+    box.appendChild(el('div', { style: 'height: 1px; background: var(--border); margin: 8px 10px;' }));
+  }
+
+  // 2. Блок "Мои группы"
+  if (otherGroups.length) {
+    box.appendChild(
+      el('div', { class: 'text-xs text-3', style: 'padding: 8px 10px 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;' }, ['Мои группы'])
+    );
+    for (const g of otherGroups) {
+      box.appendChild(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'sidebar-group-item' + (g.id === state.activeGroupId ? ' is-active' : ''),
+            onclick: () => switchGroup(g.id),
+          },
+          [
+            el('span', { class: 'dot' }),
+            el('span', { class: 'sidebar-group-item-name' }, [g.name]),
+          ]
+        )
+      );
+    }
   }
 }
 
@@ -808,21 +840,24 @@ async function renderDashboard(container) {
 
   const me = members.find(m => m.user_id === state.user.id);
   const isAdmin = me && me.role === 'admin';
+  const isPersonalGroup = g.name === 'Моё' || g.name === 'Личное';
 
-  container.appendChild(
-    el('div', { class: 'section' }, [
-      sectionHead(
-        'Участники',
-        `${members.length} ${plural(members.length, 'человек', 'человека', 'человек')} в группе`,
-        el('button', {
-          type: 'button',
-          class: 'btn btn-ghost btn-sm',
-          onclick: () => openInviteModal(g),
-        }, ['Пригласить'])
-      ),
-      el('div', { class: 'list' }, members.map((m, i) => stagger(renderMemberRow(m, isAdmin), i))),
-    ])
-  );
+  if (!isPersonalGroup) {
+    container.appendChild(
+      el('div', { class: 'section' }, [
+        sectionHead(
+          'Участники',
+          `${members.length} ${plural(members.length, 'человек', 'человека', 'человек')} в группе`,
+          el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => openInviteModal(g),
+          }, ['Пригласить'])
+        ),
+        el('div', { class: 'list' }, members.map((m, i) => stagger(renderMemberRow(m, isAdmin), i))),
+      ])
+    );
+  }
 
   const upcoming = plans
     .filter((p) => !p.is_done)
