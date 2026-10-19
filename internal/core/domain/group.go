@@ -29,3 +29,20 @@ type Membership struct {
 	Status   string
 	JoinedAt time.Time
 }
+
+type GroupMember struct {
+    UserID      uuid.UUID
+    GroupID     uuid.UUID
+    Role        string
+    Status      string
+    JoinedAt    time.Time
+    FullName    string
+    PhoneNumber string
+}
+
+
+type Invitation struct {
+	GroupID   uuid.UUID
+	GroupName string
+	Role      string
+}

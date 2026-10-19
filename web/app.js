@@ -625,6 +625,9 @@ function renderSidebarGroups() {
 
 function renderTopbarGroup() {
   const g = activeGroup();
+  const btn = $('#group-settings-btn');
+  
+  if (btn) btn.style.display = g ? 'inline-flex' : 'none';
 
   const nameEl = $('#topbar-group-name');
   const metaEl = $('#topbar-group-meta');
@@ -748,7 +751,7 @@ async function renderDashboard(container) {
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const [summary, plans, members] = await Promise.all([
+  const [summary, plans, members, invitations] = await Promise.all([
     apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`)
       .then((r) => r.data)
       .catch(() => null),
@@ -758,7 +761,12 @@ async function renderDashboard(container) {
     apiCall('GET', `/groups/${g.id}/members`)
       .then((r) => r.data || [])
       .catch(() => []),
+    apiCall('GET', '/invitations')
+      .then((r) => r.data || [])
+      .catch(() => []),
   ]);
+
+  renderInvitationsBanner(container, invitations);
 
   const spent = summary?.total_spent || 0;
   const limit = summary?.total_limit || 0;
@@ -790,6 +798,9 @@ async function renderDashboard(container) {
     );
   }
 
+  const me = members.find(m => m.user_id === state.user.id);
+  const isAdmin = me && me.role === 'admin';
+
   container.appendChild(
     el('div', { class: 'section' }, [
       sectionHead(
@@ -801,7 +812,7 @@ async function renderDashboard(container) {
           onclick: () => openInviteModal(g),
         }, ['Пригласить'])
       ),
-      el('div', { class: 'list' }, members.map((m, i) => stagger(renderMemberRow(m), i))),
+      el('div', { class: 'list' }, members.map((m, i) => stagger(renderMemberRow(m, isAdmin), i))),
     ])
   );
 
@@ -893,13 +904,80 @@ function statTile(label, value, variant) {
   ]);
 }
 
-function renderMemberRow(m) {
+
+function openMemberActionsModal(m) {
+  const g = activeGroup();
+  if (!g) return;
+
+  const isTargetAdmin = m.role === 'admin';
+  const actions = [
+    el('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-block mb-8',
+      onclick: async () => {
+        closeModal();
+        try {
+          const newRole = isTargetAdmin ? 'member' : 'admin';
+          await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, { role: newRole });
+          toast('Роль изменена', 'success');
+          renderActiveView();
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      }
+    }, [isTargetAdmin ? 'Разжаловать до участника' : 'Сделать админом']),
+    el('button', {
+      type: 'button',
+      class: 'btn btn-danger btn-block',
+      onclick: () => {
+        closeModal();
+        confirmDelete(`Вы уверены, что хотите исключить ${m.full_name || 'участника'}?`, async () => {
+          try {
+            await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
+            toast('Участник исключен', 'success');
+            renderActiveView();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        });
+      }
+    }, ['Исключить из группы'])
+  ];
+
+  openModal({
+    title: m.full_name || 'Участник',
+    body: el('div', { style: 'display: flex; flex-direction: column;' }, actions),
+    saveLabel: 'Закрыть',
+    onSave: async () => {}
+  });
+}
+
+function renderMemberRow(m, isAdmin) {
   const isMe = state.user && m.user_id === state.user.id;
 
   const roleTag =
     m.role === 'admin'
       ? el('span', { class: 'tag tag-primary' }, ['Админ'])
       : el('span', { class: 'tag tag-mute' }, ['Участник']);
+
+  const displayName = isMe ? 'Вы' : (m.full_name || 'Без имени');
+  const subLine = isMe
+    ? (m.phone_number ? `${m.phone_number} · это вы` : 'это вы')
+    : (m.phone_number || `ID: ${shortId(m.user_id)}`);
+
+  const actions = [];
+  // Кнопка управления участником для админа (нельзя управлять собой и владельцем)
+  const g = activeGroup();
+  if (isAdmin && !isMe && g && m.user_id !== g.owner_id) {
+    actions.push(
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        title: 'Управление',
+        onclick: () => openMemberActionsModal(m),
+      }, ['⋮'])
+    );
+  }
 
   return el('div', { class: 'item' }, [
     el(
@@ -908,14 +986,150 @@ function renderMemberRow(m) {
         class: 'avatar-sm',
         style: `background:${colorFromId(m.user_id)}`,
       },
-      [initials(shortId(m.user_id).slice(0, 2))]
+      [initials(m.full_name || shortId(m.user_id).slice(0, 2))]
     ),
     el('div', { class: 'item-main' }, [
-      el('div', { class: 'item-title' }, [isMe ? 'Вы' : `Участник ${shortId(m.user_id)}`]),
-      el('div', { class: 'item-sub' }, [`Присоединился ${fmtDate(m.joined_at)}`]),
+      el('div', { class: 'item-title' }, [displayName]),
+      el('div', { class: 'item-sub' }, [`${subLine} · ${fmtDate(m.joined_at)}`]),
     ]),
     roleTag,
+    actions.length ? el('div', { class: 'item-actions' }, actions) : null,
+  ].filter(Boolean));
+}
+
+
+function openGroupSettingsModal() {
+  const g = activeGroup();
+  if (!g) return;
+
+  const isOwner = g.owner_id === state.user?.id;
+  const actions = [
+    el('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-block mb-8',
+      onclick: () => { closeModal(); openRenameGroupModal(g); }
+    }, ['Переименовать группу']),
+    el('button', {
+      type: 'button',
+      class: 'btn btn-danger-ghost btn-block mb-8',
+      onclick: () => {
+        closeModal();
+        confirmDelete('Вы уверены, что хотите покинуть группу?', async () => {
+          try {
+            await apiCall('POST', `/groups/${g.id}/leave`);
+            toast('Вы покинули группу', 'success');
+            await bootstrapApp();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        });
+      }
+    }, ['Покинуть группу']),
+  ];
+
+  if (isOwner) {
+    actions.push(
+      el('button', {
+        type: 'button',
+        class: 'btn btn-danger btn-block',
+        onclick: () => {
+          closeModal();
+          confirmDelete('УДАЛИТЬ ГРУППУ? Это действие необратимо. Все данные будут потеряны.', async () => {
+            try {
+              await apiCall('DELETE', `/groups/${g.id}`);
+              toast('Группа удалена', 'success');
+              await bootstrapApp();
+            } catch (err) {
+              toast(err.message, 'error');
+            }
+          });
+        }
+      }, ['Удалить группу'])
+    );
+  }
+
+  openModal({
+    title: 'Настройки группы',
+    body: el('div', { style: 'display: flex; flex-direction: column;' }, actions),
+    saveLabel: 'Закрыть',
+    onSave: async () => {}
+  });
+}
+
+function openRenameGroupModal(g) {
+  const input = el('input', {
+    class: 'input',
+    type: 'text',
+    value: g.name,
+    required: true,
+    maxlength: 100,
+    style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);'
+  });
+
+  openModal({
+    title: 'Переименовать группу',
+    body: el('div', {}, [
+      el('p', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, ['Новое название:']),
+      input
+    ]),
+    saveLabel: 'Сохранить',
+    onSave: async () => {
+      const newName = input.value.trim();
+      if (!newName) throw new Error('Введите название');
+      try {
+        await apiCall('PATCH', `/groups/${g.id}`, { name: newName, version: g.version });
+        toast('Группа переименована', 'success');
+        await bootstrapApp();
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
+      }
+    }
+  });
+}
+
+
+function renderInvitationsBanner(container, invitations) {
+  if (!invitations || invitations.length === 0) return;
+  
+  const g = activeGroup(); // просто для контекста
+
+  const banner = el('div', { class: 'card mb-16', style: 'background: var(--primary-soft); border-color: var(--primary);' }, [
+    el('div', { class: 'card-title', style: 'color: var(--primary); margin-bottom: 12px;' }, ['Вас пригласили в группы:']),
+    ...invitations.map(inv => 
+      el('div', { class: 'row-between', style: 'margin-bottom: 8px; padding: 8px; background: var(--surface-2); border-radius: 8px;' }, [
+        el('div', {}, [
+          el('div', { style: 'font-weight: 600;' }, [inv.group_name]),
+          el('div', { class: 'text-xs text-3' }, [`Роль: ${inv.role === 'admin' ? 'Админ' : 'Участник'}`])
+        ]),
+        el('div', { class: 'row gap-8' }, [
+          el('button', { 
+            type: 'button', 
+            class: 'btn btn-primary btn-sm',
+            onclick: async () => {
+              try {
+                await apiCall('POST', `/groups/${inv.group_id}/join`);
+                toast('Вы присоединились к группе', 'success');
+                await bootstrapApp();
+              } catch (err) { toast(err.message, 'error'); }
+            }
+          }, ['Принять']),
+          el('button', { 
+            type: 'button', 
+            class: 'btn btn-ghost btn-sm',
+            onclick: async () => {
+              try {
+                await apiCall('POST', `/groups/${inv.group_id}/decline`);
+                toast('Приглашение отклонено', 'success');
+                await bootstrapApp(); // Перезагружаем, чтобы баннер исчез
+              } catch (err) { toast(err.message, 'error'); }
+            }
+          }, ['Отклонить'])
+        ])
+      ])
+    )
   ]);
+  container.appendChild(banner);
 }
 
 function noGroupBanner() {
@@ -1568,6 +1782,11 @@ async function renderProfile(container) {
       ]),
       el('button', {
         type: 'button',
+        class: 'btn btn-ghost btn-block mt-8',
+        onclick: openChangePasswordModal,
+      }, ['Сменить пароль']),
+      el('button', {
+        type: 'button',
         class: 'btn btn-danger btn-block mt-12',
         onclick: openDeleteAccountModal,
       }, ['Удалить аккаунт']),
@@ -2090,6 +2309,32 @@ function openCreateChecklistModal(g, p) {
    MODALS · PROFILE
    ============================================================= */
 
+
+function openChangePasswordModal() {
+  const oldPwd = el('input', { class: 'input', type: 'password', placeholder: 'Текущий пароль', style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;' });
+  const newPwd = el('input', { class: 'input', type: 'password', placeholder: 'Новый пароль (мин. 8 символов)', style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);' });
+
+  openModal({
+    title: 'Смена пароля',
+    body: el('div', {}, [
+      el('p', { class: 'text-sm text-2', style: 'margin-bottom: 12px;' }, ['Введите старый и новый пароль.']),
+      oldPwd,
+      newPwd
+    ]),
+    saveLabel: 'Сохранить',
+    onSave: async () => {
+      if (!oldPwd.value || !newPwd.value) throw new Error('Заполните все поля');
+      try {
+        await apiCall('PATCH', '/users/me/password', { old_password: oldPwd.value, new_password: newPwd.value });
+        toast('Пароль успешно изменён', 'success');
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
+      }
+    }
+  });
+}
+
 function openDeleteAccountModal() {
   openModal({
     title: 'Удалить аккаунт?',
@@ -2502,6 +2747,14 @@ function initApp() {
       }
     }
   });
+
+  const groupSettingsBtn = $('#group-settings-btn');
+  if (groupSettingsBtn) {
+    groupSettingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openGroupSettingsModal();
+    });
+  }
 }
 
 async function main() {

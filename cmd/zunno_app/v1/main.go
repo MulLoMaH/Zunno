@@ -205,10 +205,24 @@ func main() {
 	kafkaConsumer := core_kafka.NewConsumer(kafkaCfg, statsHandler.Handle)
 
 	go func() {
-		if err := kafkaConsumer.Run(ctx); err != nil {
-			logger.Error("kafka consumer stopped", zap.Error(err))
-		}
-	}()
+    const retryDelay = 10 * time.Second
+    for {
+        err := kafkaConsumer.Run(ctx)
+        if ctx.Err() != nil {
+            // graceful shutdown
+            return
+        }
+        logger.Error("kafka consumer stopped, retrying",
+            zap.Error(err),
+            zap.Duration("retry_in", retryDelay),
+        )
+        select {
+        case <-ctx.Done():
+            return
+        case <-time.After(retryDelay):
+        }
+    }
+}()
 
 	// Регистрируем роутер и статику
 	httpServer.RegisterApiRouters(apiV1Router)

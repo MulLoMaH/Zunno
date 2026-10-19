@@ -58,3 +58,33 @@ func membershipsDTOsFromDomains(ms []domain.Membership) []MembershipDTOResponse 
 	}
 	return out
 }
+
+type GroupMemberDTOResponse struct {
+	UserID      uuid.UUID `json:"user_id"`
+	GroupID     uuid.UUID `json:"group_id"`
+	Role        string    `json:"role"`
+	Status      string    `json:"status"`
+	JoinedAt    time.Time `json:"joined_at"`
+	FullName    string    `json:"full_name"`
+	PhoneNumber string    `json:"phone_number"`
+}
+
+func memberDTOFromDomain(m domain.GroupMember) GroupMemberDTOResponse {
+	return GroupMemberDTOResponse{
+		UserID:      m.UserID,
+		GroupID:     m.GroupID,
+		Role:        m.Role,
+		Status:      m.Status,
+		JoinedAt:    m.JoinedAt,
+		FullName:    m.FullName,
+		PhoneNumber: m.PhoneNumber,
+	}
+}
+
+func membersDTOsFromDomains(members []domain.GroupMember) []GroupMemberDTOResponse {
+	out := make([]GroupMemberDTOResponse, len(members))
+	for i, m := range members {
+		out[i] = memberDTOFromDomain(m)
+	}
+	return out
+}

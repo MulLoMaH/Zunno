@@ -12,6 +12,7 @@ type UserService struct {
 }
 
 type UsersRepository interface {
+	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, newHash string) error
 	CreateUser(ctx context.Context, user domain.User) (domain.User, error)
 	GetUsers(ctx context.Context, limit *int, offset *int) ([]domain.User, error)
 	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)

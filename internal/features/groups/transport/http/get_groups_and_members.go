@@ -17,12 +17,13 @@ func (h *GroupsHTTPHandler) GetGroups(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
 	if !ok {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims in context")
 		return
 	}
+
 	userID, err := uuid.Parse(claims.UserID)
 	if err != nil {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "invalid user id")
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "invalid user id in claims")
 		return
 	}
 
@@ -42,26 +43,29 @@ func (h *GroupsHTTPHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
 	if !ok {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims in context")
 		return
 	}
+
 	requesterID, err := uuid.Parse(claims.UserID)
 	if err != nil {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "invalid user id")
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "invalid user id in claims")
 		return
 	}
 
-	groupID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "invalid group id")
+	// Получаем ID группы из контекста (middleware GroupContext уже проверил доступ)
+	info, ok := core_http_middleware.GroupInfoFrom(ctx)
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info in context")
 		return
 	}
 
-	members, err := h.groupService.GetGroupMembers(ctx, requesterID, groupID)
+	members, err := h.groupService.GetGroupMembers(ctx, requesterID, info.GroupID)
 	if err != nil {
 		responseHandler.ErrorResponse(err, "get members")
 		return
 	}
 
-	responseHandler.JSONResponse(membershipsDTOsFromDomains(members), http.StatusOK)
+	// Вот тут используем новую функцию
+	responseHandler.JSONResponse(membersDTOsFromDomains(members), http.StatusOK)
 }

@@ -15,6 +15,7 @@ type UsersHTTPHandler struct {
 }
 
 type UserService interface {
+	ChangePassword(ctx context.Context, userID uuid.UUID, oldPwd, newPwd string) error
 	CreateUser(ctx context.Context, user domain.User) (domain.User, error)
 	GetUsers(ctx context.Context, limit *int, offset *int) ([]domain.User, error)
 	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
@@ -30,6 +31,12 @@ func NewUsersHTTPHandler(userService UserService) *UsersHTTPHandler {
 }
 func (h *UsersHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
+		{
+			Method:  http.MethodPatch,
+			Path:    "/users/me/password",
+			Handler: h.ChangePassword,
+		},
+
 		// {
 		// 	Method:  http.MethodPost,
 		// 	Path:    "/users",
