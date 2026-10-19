@@ -8,6 +8,7 @@ import (
 )
 
 type GoalCategoryModel struct {
+	Position int
 	ID      uuid.UUID
 	Version int64
 	GroupID uuid.UUID
@@ -15,6 +16,7 @@ type GoalCategoryModel struct {
 }
 
 type GoalItemModel struct {
+	Position int
 	ID          uuid.UUID
 	Version     int64
 	CategoryID  uuid.UUID
@@ -27,6 +29,7 @@ type GoalItemModel struct {
 
 func categoryFromModel(m GoalCategoryModel) domain.GoalCategory {
 	return domain.GoalCategory{
+		Position: m.Position,
 		ID:      m.ID,
 		Version: m.Version,
 		GroupID: m.GroupID,
@@ -36,6 +39,7 @@ func categoryFromModel(m GoalCategoryModel) domain.GoalCategory {
 
 func itemFromModel(m GoalItemModel) domain.GoalItem {
 	return domain.GoalItem{
+		Position: m.Position,
 		ID:          m.ID,
 		Version:     m.Version,
 		CategoryID:  m.CategoryID,

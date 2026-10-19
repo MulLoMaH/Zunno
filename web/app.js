@@ -1297,6 +1297,68 @@ function startOnboardingTour(force = false) {
   driverObj.drive();
 }
 
+
+/* =============================================================
+   DRAG & DROP (SortableJS)
+   ============================================================= */
+
+function initSortableItems(categoryID, containerEl) {
+  if (!window.Sortable || !containerEl) return;
+
+  new window.Sortable(containerEl, {
+    animation: 200,
+    delay: 200,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 4,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: async (evt) => {
+      const g = activeGroup();
+      if (!g) return;
+
+      const ids = Array.from(containerEl.children)
+        .filter(node => node.dataset.itemId)
+        .map(node => node.dataset.itemId);
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/goal-categories/${categoryID}/items/reorder`, { ids });
+        toast('Порядок сохранён', 'success', 1500);
+      } catch (err) {
+        toast(err.message, 'error');
+        renderActiveView(); // откатываем
+      }
+    },
+  });
+}
+
+function initSortableCategories(groupID, containerEl) {
+  if (!window.Sortable || !containerEl) return;
+
+  new window.Sortable(containerEl, {
+    animation: 200,
+    delay: 200,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 4,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: async (evt) => {
+      const ids = Array.from(containerEl.children)
+        .filter(node => node.dataset.catId)
+        .map(node => node.dataset.catId);
+
+      try {
+        await apiCall('POST', `/groups/${groupID}/goal-categories/reorder`, { ids });
+        toast('Порядок сохранён', 'success', 1500);
+      } catch (err) {
+        toast(err.message, 'error');
+        renderActiveView();
+      }
+    },
+  });
+}
+
 function noGroupBanner() {
   return el('div', { class: 'card' }, [
     el('div', { class: 'empty' }, [
@@ -1361,6 +1423,9 @@ async function renderGoals(container) {
 
   cards.forEach((card, i) => grid.appendChild(stagger(card, i)));
   container.appendChild(grid);
+
+  // Включаем Drag & Drop для категорий
+  setTimeout(() => initSortableCategories(g.id, grid), 100);
 }
 
 async function renderGoalCategoryCard(g, c) {
@@ -1371,13 +1436,20 @@ async function renderGoalCategoryCard(g, c) {
   const done = items.filter((i) => i.done).length;
   const pct = items.length ? (done / items.length) * 100 : 0;
 
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card', 'data-cat-id': c.id });
 
   card.appendChild(
     el('div', { class: 'card-head' }, [
-      el('div', {}, [
-        el('div', { class: 'card-title' }, [c.name]),
-        el('div', { class: 'card-subtitle' }, [items.length ? `${done} / ${items.length}` : 'Пусто']),
+      el('div', { class: 'row', style: 'gap: 6px;' }, [
+        el('div', {
+          class: 'drag-handle',
+          style: 'cursor: grab; padding: 4px 6px; color: var(--text-3); user-select: none; touch-action: none;',
+          title: 'Перетащить категорию',
+        }, ['⋮⋮']),
+        el('div', {}, [
+          el('div', { class: 'card-title' }, [c.name]),
+          el('div', { class: 'card-subtitle' }, [items.length ? `${done} / ${items.length}` : 'Пусто']),
+        ]),
       ]),
       el('div', { class: 'item-actions' }, [
         el('button', {
@@ -1424,7 +1496,8 @@ async function renderGoalCategoryCard(g, c) {
 
     list.appendChild(
       stagger(
-        el('div', { class: 'item' + (it.done ? ' is-done' : '') }, [
+        el('div', { class: 'item' + (it.done ? ' is-done' : ''), 'data-item-id': it.id }, [
+          el('div', { class: 'drag-handle', style: 'cursor: grab; padding: 4px 6px; color: var(--text-3); user-select: none; touch-action: none;' }, ['⋮⋮']),
           check,
           el('div', { class: 'item-main' }, [
             el('div', { class: 'item-title' }, [it.title]),
@@ -1457,6 +1530,9 @@ async function renderGoalCategoryCard(g, c) {
   }
 
   card.appendChild(list);
+
+  // Включаем Drag & Drop для элементов
+  setTimeout(() => initSortableItems(c.id, list), 100);
 
   card.appendChild(
     el('button', {

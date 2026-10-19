@@ -20,13 +20,13 @@ func (r *GoalsRepository) CreateGoalItem(
 	defer cancel()
 
 	query := `
-		INSERT INTO zunno.goal_items (category_id, title, description)
-		VALUES ($1, $2, $3)
-		RETURNING id, version, category_id, title, description, done, created_at, done_at
+		INSERT INTO zunno.goal_items (category_id, title, description, position)
+		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position), -1) + 1 FROM zunno.goal_items WHERE category_id = $1))
+		RETURNING id, version, category_id, title, description, done, created_at, done_at, position
 	`
 	var m GoalItemModel
 	err := r.pool.QueryRow(ctx, query, item.CategoryID, item.Title, item.Description).Scan(
-		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt,
+		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt, &m.Position,
 	)
 	if err != nil {
 		return domain.GoalItem{}, fmt.Errorf("create goal item: %w", err)
@@ -42,10 +42,10 @@ func (r *GoalsRepository) GetGoalItems(
 	defer cancel()
 
 	query := `
-		SELECT id, version, category_id, title, description, done, created_at, done_at
+		SELECT id, version, category_id, title, description, done, created_at, done_at, position
 		FROM zunno.goal_items
 		WHERE category_id = $1
-		ORDER BY created_at ASC
+		ORDER BY position ASC, created_at ASC
 	`
 	rows, err := r.pool.Query(ctx, query, categoryID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r *GoalsRepository) GetGoalItems(
 	var items []domain.GoalItem
 	for rows.Next() {
 		var m GoalItemModel
-		if err := rows.Scan(&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt, &m.Position); err != nil {
 			return nil, fmt.Errorf("scan item: %w", err)
 		}
 		items = append(items, itemFromModel(m))
@@ -75,13 +75,13 @@ func (r *GoalsRepository) GetGoalItem(
 	defer cancel()
 
 	query := `
-		SELECT id, version, category_id, title, description, done, created_at, done_at
+		SELECT id, version, category_id, title, description, done, created_at, done_at, position
 		FROM zunno.goal_items
 		WHERE id = $1
 	`
 	var m GoalItemModel
 	err := r.pool.QueryRow(ctx, query, itemID).Scan(
-		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt,
+		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt, &m.Position,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {
@@ -107,11 +107,11 @@ func (r *GoalsRepository) MarkGoalItemDone(
 		    done_at = CASE WHEN $1 THEN now() ELSE NULL END,
 		    version = version + 1
 		WHERE id = $2 AND version = $3
-		RETURNING id, version, category_id, title, description, done, created_at, done_at
+		RETURNING id, version, category_id, title, description, done, created_at, done_at, position
 	`
 	var m GoalItemModel
 	err := r.pool.QueryRow(ctx, query, done, itemID, expectedVersion).Scan(
-		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt,
+		&m.ID, &m.Version, &m.CategoryID, &m.Title, &m.Description, &m.Done, &m.CreatedAt, &m.DoneAt, &m.Position,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {

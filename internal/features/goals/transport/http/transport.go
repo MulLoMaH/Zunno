@@ -14,6 +14,8 @@ type GoalsHTTPHandler struct {
 }
 
 type GoalService interface {
+	ReorderGoalItems(ctx context.Context, groupID, categoryID uuid.UUID, itemIDs []uuid.UUID) error
+	ReorderGoalCategories(ctx context.Context, groupID uuid.UUID, categoryIDs []uuid.UUID) error
 	CreateGoalCategory(ctx context.Context, groupID uuid.UUID, name string) (domain.GoalCategory, error)
 	GetGoalCategories(ctx context.Context, groupID uuid.UUID) ([]domain.GoalCategory, error)
 	UpdateGoalCategory(ctx context.Context, groupID, categoryID uuid.UUID, name string, expectedVersion int64) (domain.GoalCategory, error)
@@ -31,6 +33,17 @@ func NewGoalsHTTPHandler(goalService GoalService) *GoalsHTTPHandler {
 
 func (h *GoalsHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
+		{
+			Method:  http.MethodPost,
+			Path:    "/groups/{id}/goal-categories/reorder",
+			Handler: h.ReorderCategories,
+		},
+		{
+			Method:  http.MethodPost,
+			Path:    "/groups/{id}/goal-categories/{catId}/items/reorder",
+			Handler: h.ReorderItems,
+		},
+
 		{
 			Method:  http.MethodPost,
 			Path:    "/groups/{id}/goal-categories",

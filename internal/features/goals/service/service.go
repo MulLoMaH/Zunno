@@ -13,6 +13,8 @@ type GoalService struct {
 }
 
 type GoalsRepository interface {
+	ReorderGoalItems(ctx context.Context, categoryID uuid.UUID, itemIDs []uuid.UUID) error
+	ReorderGoalCategories(ctx context.Context, groupID uuid.UUID, categoryIDs []uuid.UUID) error
 	CreateGoalCategory(ctx context.Context, cat domain.GoalCategory) (domain.GoalCategory, error)
 	GetGoalCategories(ctx context.Context, groupID uuid.UUID) ([]domain.GoalCategory, error)
 	GetGoalCategory(ctx context.Context, categoryID uuid.UUID) (domain.GoalCategory, error)

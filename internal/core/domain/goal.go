@@ -7,10 +7,11 @@ import (
 )
 
 type GoalCategory struct {
-	ID      uuid.UUID
-	Version int64
-	GroupID uuid.UUID
-	Name    string
+	ID       uuid.UUID
+	Version  int64
+	GroupID  uuid.UUID
+	Name     string
+	Position int
 }
 
 type GoalItem struct {
@@ -22,4 +23,5 @@ type GoalItem struct {
 	Done        bool
 	CreatedAt   time.Time
 	DoneAt      *time.Time
+	Position    int
 }
