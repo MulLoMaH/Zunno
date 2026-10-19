@@ -13,6 +13,7 @@ import (
 )
 
 type UpdateUserInput struct {
+	Currency string
 	FullName    string
 	Age         int
 	PhoneNumber string
@@ -29,6 +30,7 @@ func (s *UserService) UpdateMe(
 		FullName:    in.FullName,
 		Age:         in.Age,
 		PhoneNumber: in.PhoneNumber,
+		Currency:    in.Currency,
 	}
 
 	if err := user.ValidateProfile(); err != nil {

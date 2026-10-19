@@ -17,6 +17,7 @@ type BudgetService struct {
 }
 
 type BudgetRepository interface {
+	ExportTransactions(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.ExportTransactionRow, error)
 	DeleteTransaction(ctx context.Context, groupID, txID uuid.UUID) error
 	GetAnalytics(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.AnalyticsItem, error)
 	GetMembersSpent(ctx context.Context, groupID uuid.UUID, from, to time.Time) ([]domain.MemberSpent, error)

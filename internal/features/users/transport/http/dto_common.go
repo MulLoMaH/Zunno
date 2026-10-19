@@ -13,6 +13,7 @@ type UserDTOResponse struct {
 	FullName    string    `json:"full_name"`
 	Age         int       `json:"age"`
 	PhoneNumber string    `json:"phone_number"`
+	Currency    string    `json:"currency"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -23,6 +24,7 @@ func userDTOFromDomain(user domain.User) UserDTOResponse {
 		FullName:    user.FullName,
 		Age:         user.Age,
 		PhoneNumber: user.PhoneNumber,
+		Currency:    user.Currency,
 		CreatedAt:   user.CreatedAt,
 	}
 }

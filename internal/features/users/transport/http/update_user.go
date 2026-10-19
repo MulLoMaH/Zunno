@@ -16,6 +16,7 @@ type UpdateMeRequest struct {
 	FullName    string `json:"full_name"`
 	Age         int    `json:"age"`
 	PhoneNumber string `json:"phone_number"`
+	Currency    string `json:"currency"`
 	Version     int64  `json:"version"`
 }
 
@@ -48,6 +49,7 @@ func (h *UsersHTTPHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		FullName:    req.FullName,
 		Age:         req.Age,
 		PhoneNumber: req.PhoneNumber,
+		Currency:    req.Currency,
 		Version:     req.Version,
 	})
 	if err != nil {

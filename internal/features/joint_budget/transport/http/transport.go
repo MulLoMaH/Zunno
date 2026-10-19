@@ -18,6 +18,7 @@ type BudgetHTTPHandler struct {
 }
 
 type BudgetService interface {
+	ExportTransactions(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.ExportTransactionRow, error)
 	DeleteTransaction(ctx context.Context, groupID, txID uuid.UUID) error
 	GetAnalytics(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.AnalyticsItem, error)
 	GetMembersSpent(ctx context.Context, groupID uuid.UUID, month string) ([]domain.MemberSpent, error)
@@ -56,6 +57,12 @@ func NewBudgetHTTPHandler(budgetService BudgetService) *BudgetHTTPHandler {
 
 func (h *BudgetHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
+		{
+			Method:  http.MethodGet,
+			Path:    "/groups/{id}/transactions/export",
+			Handler: h.ExportTransactions,
+		},
+
 		{
 			Method:  http.MethodDelete,
 			Path:    "/groups/{id}/transactions/{txId}",

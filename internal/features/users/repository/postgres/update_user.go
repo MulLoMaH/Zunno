@@ -24,7 +24,7 @@ func (r *UsersRepository) UpdateUser(
 		    age           = $2,
 		    phone_number  = $3,
 		    version       = version + 1
-		WHERE id = $4 AND version = $5
+		WHERE id = $5 AND version = $6
 		RETURNING id, version, full_name, age, phone_number, created_at
 	`
 

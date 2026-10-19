@@ -69,9 +69,10 @@ function stagger(node, index) {
 
 function fmtMoney(n) {
   if (n == null || Number.isNaN(Number(n))) return '—';
+  const currency = state.user?.currency || 'RUB';
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
-    currency: 'RUB',
+    currency: currency,
     maximumFractionDigits: 2,
   }).format(Number(n));
 }
@@ -544,6 +545,7 @@ async function bootstrapApp() {
     renderTopbarUser();
 
     showScreen('app');
+    renderFAB();
     await renderActiveView();
 
     // Первый вход — запускаем тур
@@ -1359,6 +1361,329 @@ function initSortableCategories(groupID, containerEl) {
   });
 }
 
+
+/* =============================================================
+   FAB (Floating Action Button) — быстрый ввод траты
+   ============================================================= */
+
+function renderFAB() {
+  if (document.getElementById('zunno-fab')) return;
+  
+  const btn = el('button', {
+    type: 'button',
+    class: 'fab',
+    id: 'zunno-fab',
+    'aria-label': 'Быстрое добавление',
+    'data-tip': 'Быстро добавить трату',
+    onclick: () => openQuickTransactionModal(),
+  }, ['+']);
+  
+  document.body.appendChild(btn);
+}
+
+function hideFAB() {
+  const btn = document.getElementById('zunno-fab');
+  if (btn) btn.remove();
+}
+
+function openQuickTransactionModal() {
+  const g = activeGroup();
+  if (!g) {
+    toast('Сначала создайте или выберите группу', 'error');
+    return;
+  }
+
+  // Загружаем категории
+  apiCall('GET', `/groups/${g.id}/categories`).then(res => {
+    const cats = res.data || [];
+    if (!cats.length) {
+      toast('Сначала создайте категорию в бюджете', 'error');
+      return;
+    }
+
+    const amountInput = el('input', {
+      type: 'number',
+      step: '0.01',
+      min: '0.01',
+      required: true,
+      placeholder: 'Сумма в ₽',
+      class: 'input',
+      style: 'width: 100%; padding: 14px; font-size: 20px; text-align: center; font-weight: 600; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;',
+    });
+
+    const presets = [100, 500, 1000, 5000];
+    const presetsRow = el('div', { class: 'row', style: 'gap: 6px; margin-bottom: 16px; flex-wrap: wrap;' },
+      presets.map(p => el('button', {
+        type: 'button',
+        class: 'preset-btn',
+        onclick: () => {
+          amountInput.value = p;
+          amountInput.focus();
+        },
+      }, [`${p} ₽`]))
+    );
+
+    const catSelect = el('select', {
+      class: 'input',
+      required: true,
+      style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;',
+    }, cats.map(c => el('option', { value: c.id }, [c.name])));
+
+    const typeSelect = el('select', {
+      class: 'input',
+      style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;',
+    }, [
+      el('option', { value: 'expense' }, ['💸 Расход']),
+      el('option', { value: 'income' }, ['💰 Доход']),
+    ]);
+
+    const descInput = el('input', {
+      type: 'text',
+      placeholder: 'Описание (необязательно)',
+      maxlength: '255',
+      class: 'input',
+      style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);',
+    });
+
+    openModal({
+      title: '⚡ Быстрая запись',
+      body: el('div', {}, [
+        amountInput,
+        presetsRow,
+        typeSelect,
+        catSelect,
+        descInput,
+      ]),
+      saveLabel: 'Добавить',
+      onSave: async () => {
+        const amount = parseFloat(amountInput.value);
+        if (!amount || amount <= 0) throw new Error('Введите сумму');
+        
+        try {
+          await apiCall('POST', `/groups/${g.id}/transactions`, {
+            category_id: catSelect.value,
+            amount: amount,
+            type: typeSelect.value,
+            date: new Date().toISOString(),
+            description: descInput.value.trim(),
+          });
+          toast('Добавлено!', 'success');
+          renderActiveView();
+        } catch (err) {
+          toast(err.message, 'error');
+          throw err;
+        }
+      },
+    });
+  }).catch(err => toast(err.message, 'error'));
+}
+
+
+/* =============================================================
+   CALENDAR (Level 5)
+   ============================================================= */
+
+let calendarState = {
+  view: 'list', // 'list' | 'calendar'
+  month: new Date().getMonth(),
+  year: new Date().getFullYear(),
+};
+
+function renderCalendar(g, plans) {
+  const year = calendarState.year;
+  const month = calendarState.month;
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = (firstDay.getDay() + 6) % 7; // понедельник = 0
+  const daysInMonth = lastDay.getDate();
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  // Заголовок
+  const monthName = firstDay.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  const head = el('div', { class: 'calendar-head' }, [
+    el('div', { class: 'calendar-title' }, [monthName.charAt(0).toUpperCase() + monthName.slice(1)]),
+    el('div', { class: 'calendar-nav' }, [
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        onclick: () => { calendarState.month--; if (calendarState.month < 0) { calendarState.month = 11; calendarState.year--; } renderActiveView(); },
+      }, ['◀']),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        onclick: () => { const n = new Date(); calendarState.month = n.getMonth(); calendarState.year = n.getFullYear(); renderActiveView(); },
+      }, ['●']),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        onclick: () => { calendarState.month++; if (calendarState.month > 11) { calendarState.month = 0; calendarState.year++; } renderActiveView(); },
+      }, ['▶']),
+    ]),
+  ]);
+
+  // Заголовки дней недели
+  const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const weekdayRow = el('div', { class: 'calendar-grid' }, [
+    ...weekdays.map(d => el('div', { class: 'calendar-weekday' }, [d])),
+  ]);
+
+  // Дни
+  const grid = el('div', { class: 'calendar-grid' });
+
+  // Пустые ячейки до первого дня
+  for (let i = 0; i < startWeekday; i++) {
+    grid.appendChild(el('div', { style: 'opacity: 0;' }));
+  }
+
+  // Дни месяца
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const dayPlans = plans.filter(p => {
+      const pd = new Date(p.event_date);
+      return pd.getFullYear() === year && pd.getMonth() === month && pd.getDate() === d;
+    });
+
+    const isToday = isCurrentMonth && today.getDate() === d;
+
+    const dayCell = el('div', {
+      class: 'calendar-day' + (isToday ? ' today' : ''),
+      onclick: () => {
+        // Открываем модалку создания события на этот день
+        openCreatePlanModalWithDate(g, date);
+      },
+    }, [
+      el('div', { class: 'calendar-day-num' }, [String(d)]),
+      ...dayPlans.slice(0, 3).map(p =>
+        el('div', {
+          class: 'calendar-event' + (p.is_done ? ' done' : ''),
+          title: p.title,
+          onclick: (e) => {
+            e.stopPropagation();
+            // Клик по событию — открываем детали/редактирование
+            openEditPlanModal(g, p);
+          },
+        }, [p.title])
+      ),
+      dayPlans.length > 3 ? el('div', { class: 'calendar-more' }, [`+${dayPlans.length - 3}`]) : null,
+    ].filter(Boolean));
+
+    grid.appendChild(dayCell);
+  }
+
+  const calendar = el('div', { class: 'calendar' }, [head, weekdayRow, grid]);
+  return calendar;
+}
+
+function openEditPlanModal(g, plan) {
+  // Простая модалка — показать детали и кнопку «Открыть»
+  openModal({
+    title: plan.title,
+    body: el('div', {}, [
+      el('div', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, [fmtDateTime(plan.event_date)]),
+      plan.description ? el('div', { class: 'text-sm', style: 'margin-bottom: 8px;' }, [plan.description]) : null,
+    ].filter(Boolean)),
+    saveLabel: 'Закрыть',
+    onSave: async () => {},
+  });
+}
+
+
+function openCreatePlanModalWithDate(g, date) {
+  openModal({
+    title: 'Новое событие',
+    body: el('div', {}, [
+      field('Название', el('input', { name: 'title', required: true, maxlength: 200, placeholder: 'Пикник в парке' })),
+      field('Описание', el('textarea', { name: 'description', placeholder: 'Необязательно' })),
+      field('Дата и время', el('input', { name: 'event_date', type: 'datetime-local', value: toLocalInput(date.toISOString()), required: true })),
+    ]),
+    onSave: async (fd) => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/plans`, {
+          title: fd.get('title').trim(),
+          description: fd.get('description').trim(),
+          event_date: fromLocalInput(fd.get('event_date')),
+        });
+        toast('Событие создано', 'success');
+        await renderActiveView();
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
+      }
+    },
+  });
+}
+
+
+/* =============================================================
+   SWIPE GESTURES (Level 7.2)
+   ============================================================= */
+
+function makeSwipeable(node, onSwipeLeft) {
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let isDragging = false;
+  let isHorizontal = null; // null = ещё не определили, true = горизонтальный, false = вертикальный
+
+  const content = node.querySelector('.swipeable-content') || node;
+  const THRESHOLD = 80; // пикселей для срабатывания
+
+  node.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    currentX = 0;
+    isDragging = false;
+    isHorizontal = null;
+  }, { passive: true });
+
+  node.addEventListener('touchmove', (e) => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+
+    // Определяем направление на первом значимом движении
+    if (isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      isHorizontal = Math.abs(dx) > Math.abs(dy);
+    }
+
+    // Если вертикальный — не мешаем прокрутке
+    if (!isHorizontal) return;
+
+    // Свайп только влево (dx < 0)
+    if (dx >= 0) return;
+
+    isDragging = true;
+    currentX = dx;
+    node.classList.add('dragging');
+
+    // Ограничиваем сдвиг
+    const offset = Math.max(dx, -120);
+    content.style.transform = `translateX(${offset}px)`;
+  }, { passive: true });
+
+  node.addEventListener('touchend', () => {
+    if (!isDragging) return;
+
+    node.classList.remove('dragging');
+
+    if (currentX < -THRESHOLD) {
+      // Сработал свайп — удаляем
+      content.style.transform = 'translateX(-100%)';
+      setTimeout(() => {
+        if (onSwipeLeft) onSwipeLeft();
+      }, 200);
+    } else {
+      // Возврат на место
+      content.style.transform = 'translateX(0)';
+    }
+
+    isDragging = false;
+    isHorizontal = null;
+  });
+}
+
 function noGroupBanner() {
   return el('div', { class: 'card' }, [
     el('div', { class: 'empty' }, [
@@ -1630,11 +1955,36 @@ async function renderBudget(container) {
       sectionHead(
         'Категории',
         `${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}`,
-        el('button', {
-          type: 'button',
-          class: 'btn btn-primary btn-sm',
-          onclick: () => openCreateCategoryModal(g),
-        }, ['+ Категория'])
+        el('div', { class: 'row', style: 'gap: 8px;' }, [
+          el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => {
+              const url = `/api/v1/groups/${g.id}/transactions/export`;
+              fetch(url, { headers: { 'Authorization': `Bearer ${state.token}` } })
+                .then(res => {
+                  if (!res.ok) throw new Error('Ошибка экспорта');
+                  return res.blob();
+                })
+                .then(blob => {
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `zunno-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  URL.revokeObjectURL(link.href);
+                  toast('CSV скачан', 'success');
+                })
+                .catch(err => toast(err.message, 'error'));
+            },
+          }, ['📥 CSV']),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-primary btn-sm',
+            onclick: () => openCreateCategoryModal(g),
+          }, ['+ Категория']),
+        ]),
       ),
       cats.length
         ? el(
@@ -1766,7 +2116,7 @@ function renderTransactionRow(t, cats) {
   const isMe = state.user && t.user_id === state.user.id;
   const g = activeGroup();
 
-  return el('div', { class: 'item', 'data-tx-id': t.id }, [
+  const content = el('div', { class: 'item swipeable-content', 'data-tx-id': t.id }, [
     el('div', { class: 'flex-1' }, [
       el('div', { class: 'item-title' }, [t.description || cat?.name || 'Без описания']),
       el('div', { class: 'item-sub' }, [
@@ -1781,30 +2131,41 @@ function renderTransactionRow(t, cats) {
       class: 'icon-btn sm',
       'data-tip': 'Удалить транзакцию',
       style: 'width: 28px; height: 28px; border-radius: 6px; color: var(--text-3);',
-      onclick: () => {
-        if (!g) return;
-        // Оптимистично убираем из DOM
-        const parent = document.querySelector(`[data-tx-id="${t.id}"]`);
-        if (parent) parent.style.display = 'none';
-        
-        deleteWithUndo({
-          label: `Транзакция «${t.description || 'Без описания'}»`,
-          onConfirm: async () => {
-            try {
-              await apiCall('DELETE', `/groups/${g.id}/transactions/${t.id}`);
-              renderActiveView();
-            } catch (err) {
-              toast(err.message, 'error');
-              if (parent) parent.style.display = '';
-            }
-          },
-          onCancel: () => {
-            if (parent) parent.style.display = '';
-          }
-        });
-      }
+      onclick: () => handleDeleteTransaction(t, g),
     }, ['✕']),
   ]);
+
+  const wrapper = el('div', { class: 'swipeable' }, [
+    el('div', { class: 'swipeable-actions' }, [
+      el('div', { class: 'swipe-action' }, ['Удалить']),
+    ]),
+    content,
+  ]);
+
+  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g));
+  return wrapper;
+}
+
+function handleDeleteTransaction(t, g) {
+  if (!g) return;
+  const parent = document.querySelector(`[data-tx-id="${t.id}"]`);
+  if (parent) parent.closest('.swipeable').style.display = 'none';
+  
+  deleteWithUndo({
+    label: `Транзакция «${t.description || 'Без описания'}»`,
+    onConfirm: async () => {
+      try {
+        await apiCall('DELETE', `/groups/${g.id}/transactions/${t.id}`);
+        renderActiveView();
+      } catch (err) {
+        toast(err.message, 'error');
+        if (parent) parent.closest('.swipeable').style.display = '';
+      }
+    },
+    onCancel: () => {
+      if (parent) parent.closest('.swipeable').style.display = '';
+    }
+  });
 }
 
 /* =============================================================
@@ -1829,17 +2190,49 @@ async function renderPlans(container) {
     .then((r) => r.data || [])
     .catch(() => []);
 
+  // Заголовок с переключателем Список / Календарь
+  const toggle = el('div', { class: 'view-toggle' }, [
+    el('button', {
+      type: 'button',
+      class: calendarState.view === 'list' ? 'active' : '',
+      onclick: () => { calendarState.view = 'list'; renderActiveView(); },
+    }, ['Список']),
+    el('button', {
+      type: 'button',
+      class: calendarState.view === 'calendar' ? 'active' : '',
+      onclick: () => { calendarState.view = 'calendar'; renderActiveView(); },
+    }, ['Календарь']),
+  ]);
+
   container.appendChild(
-    sectionHead(
-      'События',
-      `${plans.length} ${plural(plans.length, 'событие', 'события', 'событий')}`,
-      el('button', {
-        type: 'button',
-        class: 'btn btn-primary btn-sm',
-        onclick: () => openCreatePlanModal(g),
-      }, ['+ Событие'])
-    )
+    el('div', { class: 'section-head' }, [
+      el('div', {}, [
+        el('div', { class: 'section-title' }, ['События']),
+        el('div', { class: 'section-desc' }, [`${plans.length} ${plural(plans.length, 'событие', 'события', 'событий')}`]),
+      ]),
+      el('div', { class: 'row', style: 'gap: 8px;' }, [
+        toggle,
+        el('button', {
+          type: 'button',
+          class: 'btn btn-primary btn-sm',
+          onclick: () => openCreatePlanModal(g),
+        }, ['+ Событие']),
+      ]),
+    ])
   );
+
+  // Если выбран вид "Календарь" — рендерим календарь и выходим
+  if (calendarState.view === 'calendar') {
+    // Загружаем события на текущий отображаемый месяц (с запасом)
+    const calFrom = new Date(calendarState.year, calendarState.month - 1, 1).toISOString();
+    const calTo = new Date(calendarState.year, calendarState.month + 2, 0).toISOString();
+    const calPlans = await apiCall('GET', `/groups/${g.id}/plans?from=${calFrom}&to=${calTo}`)
+      .then((r) => r.data || [])
+      .catch(() => []);
+
+    container.appendChild(renderCalendar(g, calPlans));
+    return;
+  }
 
   if (!plans.length) {
     container.appendChild(
@@ -2051,6 +2444,7 @@ async function renderProfile(container) {
                 full_name: String(fd.get('full_name') || '').trim(),
                 age: Number(fd.get('age')),
                 phone_number: String(fd.get('phone_number') || '').trim(),
+                currency: String(fd.get('currency') || 'RUB').trim(),
                 version: u.version,
               });
 
@@ -2093,6 +2487,13 @@ async function renderProfile(container) {
               required: true,
             })
           ),
+          field('Валюта', el('select', { name: 'currency' }, [
+            el('option', { value: 'RUB', selected: u.currency === 'RUB' || !u.currency }, ['₽ Рубль']),
+            el('option', { value: 'USD', selected: u.currency === 'USD' }, ['$ Доллар']),
+            el('option', { value: 'EUR', selected: u.currency === 'EUR' }, ['€ Евро']),
+            el('option', { value: 'KZT', selected: u.currency === 'KZT' }, ['₸ Тенге']),
+            el('option', { value: 'BYN', selected: u.currency === 'BYN' }, ['Br Белорусский рубль']),
+          ])),
           el('button', { type: 'submit', class: 'btn btn-primary btn-block mt-8' }, ['Сохранить']),
         ]
       ),
@@ -2119,6 +2520,15 @@ async function renderProfile(container) {
         class: 'btn btn-ghost btn-block mt-8',
         onclick: () => startOnboardingTour(true),
       }, ['Пройти тур заново']),
+      el('button', {
+        type: 'button',
+        class: 'btn btn-block mt-8',
+        style: 'background: #229ED9; color: #fff; border: none; font-weight: 600;',
+        onclick: () => {
+          if (!state.user) return;
+          window.open(`https://t.me/zunno_notify_bot?start=${state.user.id}`, '_blank');
+        },
+      }, ['✈ Привязать Telegram']),
       el('button', {
         type: 'button',
         class: 'btn btn-danger btn-block mt-12',
@@ -3177,3 +3587,48 @@ async function main() {
 }
 
 main();
+
+
+/* =============================================================
+   PWA Service Worker
+   ============================================================= */
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('[PWA] SW зарегистрирован'))
+      .catch((err) => console.warn('[PWA] Ошибка SW:', err));
+  });
+}
+
+
+/* =============================================================
+   THEME INIT (Level 7)
+   ============================================================= */
+
+(function initTheme() {
+  const saved = localStorage.getItem('zunno-theme');
+  const theme = saved || getPreferredTheme();
+  applyTheme(theme);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        toggleTheme();
+        // Обновляем иконку на кнопке
+        const current = document.documentElement.dataset.theme;
+        btn.textContent = current === 'dark' ? '🌙' : '☀️';
+      });
+    }
+  });
+
+  // Если DOM уже загружен, обновляем иконку сразу
+  setTimeout(() => {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      const current = document.documentElement.dataset.theme;
+      btn.textContent = current === 'dark' ? '🌙' : '☀️';
+    }
+  }, 100);
+})();
