@@ -545,6 +545,11 @@ async function bootstrapApp() {
 
     showScreen('app');
     await renderActiveView();
+
+    // Первый вход — запускаем тур
+    if (!localStorage.getItem('zunno-onboarded')) {
+      setTimeout(() => startOnboardingTour(false), 500);
+    }
   } catch (err) {
     toast(err.message || 'Не удалось загрузить данные', 'error');
 
@@ -976,7 +981,7 @@ function renderMemberRow(m, isAdmin) {
       el('button', {
         type: 'button',
         class: 'icon-btn sm',
-        title: 'Управление',
+        'data-tip': 'Управление участником: роль, исключение',
         onclick: () => openMemberActionsModal(m),
       }, ['⋮'])
     );
@@ -1133,6 +1138,128 @@ function renderInvitationsBanner(container, invitations) {
     )
   ]);
   container.appendChild(banner);
+}
+
+
+/* =============================================================
+   ONBOARDING TOUR (driver.js)
+   ============================================================= */
+
+function startOnboardingTour(force = false) {
+  if (!window.driver || !window.driver.js) {
+    console.warn('driver.js не загружен');
+    return;
+  }
+
+  // Если тур уже проходили и не форсим — выходим
+  if (!force && localStorage.getItem('zunno-onboarded') === '1') {
+    return;
+  }
+
+  const steps = [
+    {
+      popover: {
+        title: 'Добро пожаловать в Zunno! 👋',
+        description: 'Это короткий тур по приложению. Займёт 30 секунд. Можно пропустить в любой момент.',
+        nextBtnText: 'Поехали',
+        prevBtnText: 'Назад',
+        doneBtnText: 'Начать',
+      },
+    },
+  ];
+
+  // Навигация (если существует)
+  if (document.querySelector('.sidebar-nav')) {
+    steps.push({
+      element: '.sidebar-nav',
+      popover: {
+        title: 'Навигация',
+        description: 'Здесь переключение между разделами: <b>Обзор</b>, <b>Цели</b>, <b>Бюджет</b>, <b>Планы</b> и <b>Профиль</b>.',
+        side: 'right',
+        align: 'start',
+      },
+    });
+  }
+
+  // Активная группа
+  if (document.querySelector('#topbar-group-btn')) {
+    steps.push({
+      element: '#topbar-group-btn',
+      popover: {
+        title: 'Активная группа',
+        description: 'Здесь показана текущая группа. Клик — открыть список групп и переключиться.',
+        side: 'bottom',
+        align: 'start',
+      },
+    });
+  }
+
+  // Шестерёнка (настройки группы)
+  if (document.querySelector('#group-settings-btn')) {
+    steps.push({
+      element: '#group-settings-btn',
+      popover: {
+        title: 'Настройки группы ⚙',
+        description: 'Переименовать, покинуть или удалить группу. Доступно только в контексте группы.',
+        side: 'bottom',
+        align: 'end',
+      },
+    });
+  }
+
+  // Создать / присоединиться
+  if (document.querySelector('#btn-new-group') || document.querySelector('#btn-join-group')) {
+    steps.push({
+      element: document.querySelector('#btn-new-group') ? '#btn-new-group' : '#btn-join-group',
+      popover: {
+        title: 'Создать или присоединиться',
+        description: 'Создайте свою группу или присоединитесь к существующей по ID (его пришлёт админ).',
+        side: 'right',
+        align: 'end',
+      },
+    });
+  }
+
+  // Профиль
+  if (document.querySelector('#topbar-user-btn')) {
+    steps.push({
+      element: '#topbar-user-btn',
+      popover: {
+        title: 'Ваш профиль',
+        description: 'Здесь смена пароля, редактирование профиля и выход из аккаунта.',
+        side: 'bottom',
+        align: 'end',
+      },
+    });
+  }
+
+  // Финальный шаг
+  steps.push({
+    popover: {
+      title: 'Готово! 🎉',
+      description: 'Тур завершён. Если что-то забудете — в профиле есть кнопка «Пройти тур заново».',
+      nextBtnText: 'Понятно',
+    },
+  });
+
+  const driverObj = window.driver.js.driver({
+    showProgress: true,
+    progressText: '{{current}} из {{total}}',
+    nextBtnText: 'Далее',
+    prevBtnText: 'Назад',
+    doneBtnText: 'Завершить',
+    allowClose: true,
+    overlayColor: 'rgba(0, 0, 0, 0.75)',
+    stagePadding: 8,
+    stageRadius: 12,
+    popoverClass: 'zunno-tour-popover',
+    onDestroyed: () => {
+      localStorage.setItem('zunno-onboarded', '1');
+    },
+    steps,
+  });
+
+  driverObj.drive();
 }
 
 function noGroupBanner() {
@@ -1526,17 +1653,46 @@ function renderCategoryCard(g, c, summary) {
 function renderTransactionRow(t, cats) {
   const cat = cats.find((c) => c.id === t.category_id);
   const isMe = state.user && t.user_id === state.user.id;
+  const g = activeGroup();
 
-  return el('div', { class: 'item' }, [
+  return el('div', { class: 'item', 'data-tx-id': t.id }, [
     el('div', { class: 'flex-1' }, [
       el('div', { class: 'item-title' }, [t.description || cat?.name || 'Без описания']),
       el('div', { class: 'item-sub' }, [
         `${cat ? cat.name : 'Без категории'} · ${fmtDateTime(t.date)}${isMe ? ' · вы' : ''}`,
       ]),
     ]),
-    el('div', { class: `mono ${t.type === 'income' ? 'amount-positive' : 'amount-negative'}` }, [
+    el('div', { class: `mono ${t.type === 'income' ? 'amount-positive' : 'amount-negative'}`, style: 'margin-right: 8px;' }, [
       `${t.type === 'income' ? '+' : '−'}${fmtMoney(t.amount)}`
     ]),
+    el('button', {
+      type: 'button',
+      class: 'icon-btn sm',
+      'data-tip': 'Удалить транзакцию',
+      style: 'width: 28px; height: 28px; border-radius: 6px; color: var(--text-3);',
+      onclick: () => {
+        if (!g) return;
+        // Оптимистично убираем из DOM
+        const parent = document.querySelector(`[data-tx-id="${t.id}"]`);
+        if (parent) parent.style.display = 'none';
+        
+        deleteWithUndo({
+          label: `Транзакция «${t.description || 'Без описания'}»`,
+          onConfirm: async () => {
+            try {
+              await apiCall('DELETE', `/groups/${g.id}/transactions/${t.id}`);
+              renderActiveView();
+            } catch (err) {
+              toast(err.message, 'error');
+              if (parent) parent.style.display = '';
+            }
+          },
+          onCancel: () => {
+            if (parent) parent.style.display = '';
+          }
+        });
+      }
+    }, ['✕']),
   ]);
 }
 
@@ -1849,6 +2005,11 @@ async function renderProfile(container) {
       }, ['Сменить пароль']),
       el('button', {
         type: 'button',
+        class: 'btn btn-ghost btn-block mt-8',
+        onclick: () => startOnboardingTour(true),
+      }, ['Пройти тур заново']),
+      el('button', {
+        type: 'button',
         class: 'btn btn-danger btn-block mt-12',
         onclick: openDeleteAccountModal,
       }, ['Удалить аккаунт']),
@@ -1977,7 +2138,49 @@ function closeModal() {
   if (root) root.innerHTML = '';
 }
 
-async function confirmDelete(message, onConfirm) {
+async 
+/* =============================================================
+   UNDO DELETE (5 seconds buffer)
+   ============================================================= */
+
+function deleteWithUndo({ label, onConfirm, onCancel }) {
+  // Показываем тост с кнопкой «Отменить»
+  const root = $('#toasts');
+  if (!root) {
+    // Fallback: если тостов нет — просто удаляем сразу
+    onConfirm();
+    return;
+  }
+
+  const icons = { warning: '⚠', success: '✓' };
+  const node = el('div', { class: 'toast toast-warning', role: 'status' }, [
+    el('div', { class: 'toast-ico' }, [icons.warning]),
+    el('div', { class: 'toast-msg', style: 'flex: 1;' }, [`${label} удалено`]),
+    el('button', {
+      type: 'button',
+      class: 'btn btn-xs',
+      style: 'background: transparent; border: 1px solid currentColor; color: inherit; padding: 2px 8px; font-size: 11px; border-radius: 6px; margin-left: 4px;',
+      onclick: () => {
+        clearTimeout(timer);
+        node.classList.add('hide');
+        setTimeout(() => node.remove(), 240);
+        if (onCancel) onCancel();
+        toast('Отменено', 'info', 1500);
+      },
+    }, ['Отменить']),
+  ]);
+
+  root.appendChild(node);
+
+  // Через 5 секунд — реальное удаление
+  const timer = setTimeout(() => {
+    node.classList.add('hide');
+    setTimeout(() => node.remove(), 240);
+    onConfirm();
+  }, 5000);
+}
+
+function confirmDelete(message, onConfirm) {
   openModal({
     title: 'Подтверждение',
     body: el('div', { class: 'text-2' }, [message]),
@@ -2710,7 +2913,33 @@ function moveCommandSelection(delta) {
    INIT
    ============================================================= */
 
+
+/* =============================================================
+   TOOLTIPS (Long-press on mobile)
+   ============================================================= */
+
+function initTooltips() {
+  // На мобильных устройствах hover не работает, поэтому используем long-press (400ms)
+  let touchTimer;
+  
+  document.addEventListener('touchstart', (e) => {
+    const target = e.target.closest('[data-tip]');
+    if (!target) return;
+    
+    touchTimer = setTimeout(() => {
+      const text = target.getAttribute('data-tip');
+      if (text) toast(text, 'info', 3000);
+      // Вибрация для тактильной отдачи (если поддерживается)
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => clearTimeout(touchTimer));
+  document.addEventListener('touchmove', () => clearTimeout(touchTimer));
+}
+
 function initApp() {
+  initTooltips();
   initAuthScreen();
 
   $$('.nav-item').forEach((n) => {

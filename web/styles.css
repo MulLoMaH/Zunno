@@ -2070,3 +2070,159 @@ kbd {
 .text-danger { color: var(--danger, #f87171); }
 .progress-fill.success { background: var(--success, #34d399); }
 .progress-fill.danger { background: var(--danger, #f87171); }
+
+/* ===== Onboarding Tour (driver.js) ===== */
+.zunno-tour-popover {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+.zunno-tour-popover .driver-popover-title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+
+.zunno-tour-popover .driver-popover-description {
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+  color: var(--text-2) !important;
+}
+
+.zunno-tour-popover .driver-popover-footer button {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-shadow: none !important;
+}
+
+.zunno-tour-popover .driver-popover-footer button:hover {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+}
+
+.zunno-tour-popover .driver-popover-progress-text {
+  font-size: 11px !important;
+  color: var(--text-3) !important;
+}
+
+/* ===== Tooltips (Inline hints) ===== */
+[data-tip] {
+  position: relative;
+  cursor: help;
+}
+
+@media (hover: hover) {
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 1000;
+    color: var(--text);
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  [data-tip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--border-strong);
+    z-index: 1000;
+    pointer-events: none;
+    animation: fadeIn 0.15s ease-out;
+  }
+}
+
+/* ===== Micro-animations (Level 2) ===== */
+
+/* 1. Кнопки «пружинят» при нажатии */
+.btn, .icon-btn, .nav-item, .sidebar-group-item, .mobile-nav-item {
+  transition: transform 0.1s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.btn:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.nav-item:active,
+.sidebar-group-item:active,
+.mobile-nav-item:active {
+  transform: scale(0.96);
+}
+
+/* 2. Плавное появление карточек и элементов списка */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card, .stat, .item, .skeleton {
+  animation: cardIn 0.3s var(--ease) both;
+}
+
+/* Задержка для красивого «каскада» (stagger уже ставит animationDelay в JS) */
+
+/* 3. Чекбоксы отмечаются с bounce */
+@keyframes checkBounce {
+  0%   { transform: rotate(-45deg) scale(0); }
+  50%  { transform: rotate(-45deg) scale(1.25); }
+  100% { transform: rotate(-45deg) scale(1); }
+}
+
+.check.on::after {
+  animation: checkBounce 0.25s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+}
+
+/* 4. Плавное появление тостов */
+@keyframes toastSlide {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast {
+  animation: toastSlide 0.25s var(--ease) both;
+}
+
+/* 5. Модалка появляется с лёгким масштабом */
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal {
+  animation: modalPop 0.25s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+}
+
+/* Отключаем анимации, если пользователь просил «меньше движения» (доступность) */
+@media (prefers-reduced-motion: reduce) {
+  .card, .stat, .item, .skeleton, .toast, .modal {
+    animation: none !important;
+  }
+  .btn:active, .icon-btn:active {
+    transform: none !important;
+  }
+}
