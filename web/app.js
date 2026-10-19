@@ -777,7 +777,7 @@ function renderError(container, err) {
 
 async function renderDashboard(container) {
   const g = activeGroup();
-
+  
   container.innerHTML = '';
 
   if (!g) {
@@ -790,7 +790,7 @@ async function renderDashboard(container) {
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const [summary, plans, members, invitations] = await Promise.all([
+  const [summary, membersSpent, plans, members, invitations] = await Promise.all([
     apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`)
       .then((r) => r.data)
       .catch(() => null),
@@ -1000,46 +1000,25 @@ function openMemberActionsModal(m) {
 function renderMemberRow(m, isAdmin) {
   const isMe = state.user && m.user_id === state.user.id;
 
-  const roleTag =
-    m.role === 'admin'
-      ? el('span', { class: 'tag tag-primary' }, ['Админ'])
-      : el('span', { class: 'tag tag-mute' }, ['Участник']);
+  const roleTag = m.role === 'admin'
+    ? el('span', { class: 'tag tag-primary' }, ['Админ'])
+    : el('span', { class: 'tag tag-mute' }, ['Участник']);
 
   const displayName = isMe ? 'Вы' : (m.full_name || 'Без имени');
   const subLine = isMe
     ? (m.phone_number ? `${m.phone_number} · это вы` : 'это вы')
     : (m.phone_number || `ID: ${shortId(m.user_id)}`);
 
-  const actions = [];
-  // Кнопка управления участником для админа (нельзя управлять собой и владельцем)
-  const g = activeGroup();
-  if (isAdmin && !isMe && g && m.user_id !== g.owner_id) {
-    actions.push(
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': 'Управление участником: роль, исключение',
-        onclick: () => openMemberActionsModal(m),
-      }, ['⋮'])
-    );
-  }
-
   return el('div', { class: 'item' }, [
-    el(
-      'div',
-      {
-        class: 'avatar-sm',
-        style: `background:${colorFromId(m.user_id)}`,
-      },
-      [initials(m.full_name || shortId(m.user_id).slice(0, 2))]
-    ),
+    el('div', { class: 'avatar-sm', style: `background:${colorFromId(m.user_id)}` }, [
+      initials(m.full_name || shortId(m.user_id).slice(0, 2))
+    ]),
     el('div', { class: 'item-main' }, [
       el('div', { class: 'item-title' }, [displayName]),
       el('div', { class: 'item-sub' }, [`${subLine} · ${fmtDate(m.joined_at)}`]),
     ]),
     roleTag,
-    actions.length ? el('div', { class: 'item-actions' }, actions) : null,
-  ].filter(Boolean));
+  ]);
 }
 
 
@@ -2659,7 +2638,15 @@ function closeModal() {
   if (root) root.innerHTML = '';
 }
 
-async 
+async function confirmDelete(message, onConfirm) {
+  openModal({
+    title: 'Подтверждение',
+    body: el('div', { class: 'text-dim' }, [message]),
+    saveLabel: 'Удалить',
+    onSave: async () => { await onConfirm(); },
+  });
+}
+
 /* =============================================================
    UNDO DELETE (5 seconds buffer)
    ============================================================= */
@@ -3593,13 +3580,7 @@ main();
    PWA Service Worker
    ============================================================= */
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(() => console.log('[PWA] SW зарегистрирован'))
-      .catch((err) => console.warn('[PWA] Ошибка SW:', err));
-  });
-}
+// Service Worker disabled for debug
 
 
 /* =============================================================

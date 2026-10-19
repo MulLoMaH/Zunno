@@ -35,6 +35,9 @@ func (h *BudgetHTTPHandler) ExportTransactions(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 
+	// Устанавливаем статус 200, чтобы middleware не паниковал
+	w.WriteHeader(http.StatusOK)
+
 	// BOM для корректного открытия в Excel (русские символы)
 	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF})
 

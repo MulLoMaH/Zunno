@@ -42,7 +42,7 @@ func (r *GoalsRepository) GetGoalCategories(
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, name
+		SELECT id, version, group_id, name, position
 		FROM zunno.goal_categories
 		WHERE group_id = $1
 		ORDER BY position ASC, name ASC
@@ -75,7 +75,7 @@ func (r *GoalsRepository) GetGoalCategory(
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, name
+		SELECT id, version, group_id, name, position
 		FROM zunno.goal_categories
 		WHERE id = $1
 	`
