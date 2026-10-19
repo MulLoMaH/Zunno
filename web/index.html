@@ -9,11 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap"
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="/styles.css?v=20" />
+  <link rel="stylesheet" href="/styles.css?v=30" />
   <link rel="stylesheet" href="/vendor/driver.css" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/svg+xml" href="/icon.svg" />
@@ -26,14 +26,17 @@
 </head>
 <body>
   <div id="preloader" class="preloader" aria-hidden="true">
-    <div class="preloader-dot"></div>
-    <div class="preloader-dot"></div>
-    <div class="preloader-dot"></div>
+    <div class="preloader-orbit">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
   </div>
 
   <div id="toasts" class="toasts" aria-live="polite" aria-atomic="true"></div>
   <div id="modal-root"></div>
-  <div id="sheet-root"></div>
+  <div id="popover-root"></div>
+  <div id="tooltip-root"></div>
 
   <div
     id="command-palette"
@@ -44,7 +47,7 @@
   >
     <div class="cmdk-panel glass-strong">
       <div class="cmdk-search">
-        <span class="cmdk-icon" aria-hidden="true">⌕</span>
+        <span data-icon="search" data-size="sm"></span>
         <input
           id="command-input"
           type="text"
@@ -65,10 +68,10 @@
         type="button"
         class="icon-btn auth-theme-btn"
         data-theme-toggle
-        title="Переключить тему"
+        data-tip="Переключить тему"
         aria-label="Переключить тему"
       >
-        🌙
+        <span data-theme-icon></span>
       </button>
 
       <div class="auth-brand">
@@ -108,7 +111,10 @@
             />
           </label>
 
-          <button type="submit" class="btn btn-primary btn-lg btn-block">Войти</button>
+          <button type="submit" class="btn btn-primary btn-lg btn-block">
+            <span data-icon="login"></span>
+            <span>Войти</span>
+          </button>
         </form>
 
         <form id="form-register" class="form hidden" novalidate>
@@ -164,64 +170,79 @@
             />
           </label>
 
-          <button type="submit" class="btn btn-primary btn-lg btn-block">Создать аккаунт</button>
+          <button type="submit" class="btn btn-primary btn-lg btn-block">
+            <span data-icon="sparkles"></span>
+            <span>Создать аккаунт</span>
+          </button>
         </form>
       </div>
     </div>
   </main>
 
   <!-- APP -->
-  <div id="screen-app" class="screen-app hidden">
+  <div id="screen-app" class="screen-app hidden" data-sidebar="expanded">
     <aside class="sidebar glass-strong">
       <div class="sidebar-head">
         <img src="/icon.svg" alt="" class="brand-logo sm" aria-hidden="true" />
-        <div class="sidebar-brand-text">
+        <div class="brand-text">
           <div class="brand-title">Zunno</div>
           <div class="brand-sub">Совместный бюджет и планы</div>
         </div>
+        <button
+          type="button"
+          id="sidebar-collapse"
+          class="icon-btn sm desktop-only"
+          data-tip="Свернуть меню"
+          aria-label="Свернуть меню"
+        >
+          <span data-icon="panelLeft"></span>
+        </button>
       </div>
 
       <nav class="sidebar-nav" aria-label="Основная навигация">
-        <div class="nav-section-label">Работа</div>
+        <div class="nav-section-label nav-label">Работа</div>
 
-        <button type="button" class="nav-item is-active" data-view="dashboard">
-          <span class="nav-icon" aria-hidden="true">◧</span>
-          <span>Обзор</span>
+        <button type="button" class="nav-item is-active" data-view="dashboard" data-tip="Обзор">
+          <span data-icon="dashboard"></span>
+          <span class="nav-label">Обзор</span>
         </button>
 
-        <button type="button" class="nav-item" data-view="goals">
-          <span class="nav-icon" aria-hidden="true">◆</span>
-          <span>Цели</span>
+        <button type="button" class="nav-item" data-view="goals" data-tip="Цели">
+          <span data-icon="target"></span>
+          <span class="nav-label">Цели</span>
         </button>
 
-        <button type="button" class="nav-item" data-view="budget">
-          <span class="nav-icon" aria-hidden="true">≡</span>
-          <span>Бюджет</span>
+        <button type="button" class="nav-item" data-view="budget" data-tip="Бюджет">
+          <span data-icon="wallet"></span>
+          <span class="nav-label">Бюджет</span>
         </button>
 
-        <button type="button" class="nav-item" data-view="plans">
-          <span class="nav-icon" aria-hidden="true">◷</span>
-          <span>Планы</span>
+        <button type="button" class="nav-item" data-view="plans" data-tip="Планы">
+          <span data-icon="calendar"></span>
+          <span class="nav-label">Планы</span>
         </button>
 
-        <div class="nav-section-label">Аккаунт</div>
+        <div class="nav-section-label nav-label">Аккаунт</div>
 
-        <button type="button" class="nav-item" data-view="profile">
-          <span class="nav-icon" aria-hidden="true">○</span>
-          <span>Профиль</span>
+        <button type="button" class="nav-item" data-view="profile" data-tip="Профиль">
+          <span data-icon="user"></span>
+          <span class="nav-label">Профиль</span>
         </button>
       </nav>
 
       <div class="sidebar-group-block">
-        <div class="sidebar-label">Группы</div>
+        <div class="sidebar-label nav-label">Группы</div>
         <div id="sidebar-group-list" class="sidebar-group-list"></div>
 
         <div class="sidebar-group-actions">
-          <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-new-group">
-            + Создать группу
+          <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-new-group" data-tip="Создать группу">
+            <span data-icon="plus" data-size="sm"></span>
+            <span class="nav-label">Создать группу</span>
           </button>
-          <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-join-group">
-            Присоединиться
+
+          <button type="button" class="btn btn-ghost btn-sm btn-block" id="btn-join-group" data-tip="Присоединиться по ID">
+            <span data-icon="login" data-size="sm"></span>
+            <span class="nav-label">Присоединиться</span>
           </button>
         </div>
       </div>
@@ -231,53 +252,49 @@
 
     <main class="main">
       <header class="topbar glass-strong">
-        <button type="button" class="topbar-group-btn" id="topbar-group-btn">
+        <button type="button" class="group-pill" id="group-switcher-btn" data-tip="Переключить группу">
           <span class="group-avatar" id="topbar-group-avatar" aria-hidden="true">?</span>
-          <span class="topbar-group-info">
-            <span class="topbar-group-name" id="topbar-group-name">—</span>
-            <span class="topbar-group-meta" id="topbar-group-meta"></span>
+          <span class="group-pill-info">
+            <span class="group-pill-name" id="topbar-group-name">—</span>
+            <span class="group-pill-meta" id="topbar-group-meta"></span>
           </span>
-          <span class="caret" aria-hidden="true">▾</span>
+          <span class="group-pill-caret" data-icon="chevronDown" data-size="sm"></span>
         </button>
 
         <div class="topbar-actions">
           <button
             type="button"
-            class="icon-btn theme-toggle"
+            class="icon-btn badge-btn"
+            id="invitations-btn"
+            data-tip="Приглашения"
+            aria-label="Приглашения"
+          >
+            <span data-icon="bell"></span>
+            <span id="invitation-badge" class="badge hidden">0</span>
+          </button>
+
+          <button
+            type="button"
+            class="icon-btn hide-xs"
+            id="command-btn"
+            data-tip="Команды (Ctrl+K)"
+            aria-label="Командная палитра"
+          >
+            <span data-icon="command"></span>
+          </button>
+
+          <button
+            type="button"
+            class="icon-btn"
             id="theme-toggle-btn"
             data-theme-toggle
-            title="Переключить тему"
+            data-tip="Переключить тему"
             aria-label="Переключить тему"
           >
-            🌙
+            <span data-theme-icon></span>
           </button>
 
-          <button
-            type="button"
-            class="icon-btn"
-            id="group-settings-btn"
-            data-tip="Настройки группы"
-            title="Настройки группы"
-            style="display: none"
-          >
-            ⚙
-          </button>
-
-          <button type="button" class="icon-btn" id="command-btn" title="Команды (Ctrl+K)">
-            ⌘
-          </button>
-
-          <button
-            type="button"
-            class="icon-btn"
-            id="topbar-copy-id"
-            data-tip="Скопировать ID группы"
-            title="Скопировать ID группы"
-          >
-            ⧉
-          </button>
-
-          <button type="button" class="avatar-btn" id="topbar-user-btn" title="Профиль"></button>
+          <button type="button" class="avatar-btn" id="user-menu-btn" data-tip="Меню пользователя" aria-label="Меню пользователя"></button>
         </div>
       </header>
 
@@ -286,34 +303,63 @@
 
     <nav class="mobile-nav" aria-label="Мобильная навигация">
       <button type="button" class="mobile-nav-item is-active" data-view="dashboard">
-        <span class="mobile-nav-icon" aria-hidden="true">◧</span>
+        <span data-icon="dashboard" data-size="sm"></span>
         <span class="mobile-nav-label">Обзор</span>
       </button>
 
       <button type="button" class="mobile-nav-item" data-view="goals">
-        <span class="mobile-nav-icon" aria-hidden="true">◆</span>
+        <span data-icon="target" data-size="sm"></span>
         <span class="mobile-nav-label">Цели</span>
       </button>
 
       <button type="button" class="mobile-nav-item" data-view="budget">
-        <span class="mobile-nav-icon" aria-hidden="true">≡</span>
+        <span data-icon="wallet" data-size="sm"></span>
         <span class="mobile-nav-label">Бюджет</span>
       </button>
 
       <button type="button" class="mobile-nav-item" data-view="plans">
-        <span class="mobile-nav-icon" aria-hidden="true">◷</span>
+        <span data-icon="calendar" data-size="sm"></span>
         <span class="mobile-nav-label">Планы</span>
       </button>
 
       <button type="button" class="mobile-nav-item" data-view="profile">
-        <span class="mobile-nav-icon" aria-hidden="true">○</span>
+        <span data-icon="user" data-size="sm"></span>
         <span class="mobile-nav-label">Профиль</span>
       </button>
     </nav>
   </div>
 
-  <script src="/vendor/driver.js?v=20"></script>
-  <script src="/vendor/sortable.min.js?v=20"></script>
-  <script src="/app.js?v=20"></script>
+  <!-- FAB -->
+  <div id="fab" class="fab-wrap" aria-label="Быстрые действия">
+    <div class="fab-menu" id="fab-menu">
+      <button type="button" class="fab-item" data-action="expense">
+        <span class="fab-label">Расход</span>
+        <span class="fab-icon danger"><span data-icon="arrowDownCircle" data-size="sm"></span></span>
+      </button>
+
+      <button type="button" class="fab-item" data-action="income">
+        <span class="fab-label">Доход</span>
+        <span class="fab-icon success"><span data-icon="arrowUpCircle" data-size="sm"></span></span>
+      </button>
+
+      <button type="button" class="fab-item" data-action="plan">
+        <span class="fab-label">Событие</span>
+        <span class="fab-icon accent"><span data-icon="calendarPlus" data-size="sm"></span></span>
+      </button>
+
+      <button type="button" class="fab-item" data-action="goal">
+        <span class="fab-label">Цель</span>
+        <span class="fab-icon primary"><span data-icon="target" data-size="sm"></span></span>
+      </button>
+    </div>
+
+    <button type="button" id="fab-main" class="fab-main" aria-label="Быстрые действия" aria-expanded="false">
+      <span data-icon="plus"></span>
+    </button>
+  </div>
+
+  <script src="/vendor/driver.js?v=30"></script>
+  <script src="/vendor/sortable.min.js?v=30"></script>
+  <script src="/app.js?v=30"></script>
 </body>
 </html>

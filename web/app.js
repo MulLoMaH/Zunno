@@ -1,5 +1,5 @@
 /* =============================================================
-   ZUNNO · SPA
+   ZUNNO · Premium SPA
    Glassmorphism / Neumorphism edition
    ============================================================= */
 'use strict';
@@ -15,20 +15,47 @@ const state = {
   view: 'dashboard',
 };
 
-const commandState = {
-  open: false,
-  filtered: [],
-  selected: 0,
+const ui = {
+  modalPrevFocus: null,
+  popover: null,
+  tooltipEl: null,
+  fabOpen: false,
+  command: {
+    open: false,
+    filtered: [],
+    selected: 0,
+  },
+  tour: null,
 };
 
-let activeTour = null;
-let modalPrevFocus = null;
+let viewAnimators = [];
+let calendarState = {
+  view: 'list',
+  month: new Date().getMonth(),
+  year: new Date().getFullYear(),
+};
 
 /* =============================================================
    DOM HELPERS
    ============================================================= */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function appendContent(parent, content) {
+  if (content == null || content === false) return;
+
+  if (Array.isArray(content)) {
+    content.forEach((child) => appendContent(parent, child));
+    return;
+  }
+
+  if (content instanceof Node) {
+    parent.appendChild(content);
+    return;
+  }
+
+  parent.appendChild(document.createTextNode(String(content)));
+}
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -49,12 +76,7 @@ function el(tag, attrs = {}, children = []) {
     }
   }
 
-  const items = Array.isArray(children) ? children : [children];
-  for (const child of items) {
-    if (child == null || child === false) continue;
-    node.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
-  }
-
+  appendContent(node, children);
   return node;
 }
 
@@ -66,29 +88,22 @@ function svgEl(tag, attrs = {}, children = []) {
     if (key === 'text') {
       node.textContent = value;
     } else {
-      node.setAttribute(key, value);
+      node.setAttribute(key, value === true ? '' : value);
     }
   }
 
-  const items = Array.isArray(children) ? children : [children];
-  for (const child of items) {
-    if (child == null || child === false) continue;
-    node.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
-  }
-
+  appendContent(node, children);
   return node;
-}
-
-function normalizeNode(input) {
-  if (input instanceof Node) return input;
-  if (Array.isArray(input)) return el('div', {}, input);
-  return document.createTextNode(String(input ?? ''));
 }
 
 function stagger(node, index) {
   if (!node) return node;
-  node.style.animationDelay = `${Math.min(index, 18) * 40}ms`;
+  node.style.animationDelay = `${Math.min(index, 18) * 42}ms`;
   return node;
+}
+
+function staggerChildren(container) {
+  Array.from(container.children).forEach((node, index) => stagger(node, index));
 }
 
 function debounce(fn, delay = 300) {
@@ -100,8 +115,136 @@ function debounce(fn, delay = 300) {
 }
 
 function isVisible(selector) {
-  const node = document.querySelector(selector);
+  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
   return !!node && node.offsetParent !== null;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function animateLater(fn) {
+  viewAnimators.push(fn);
+}
+
+function flushAnimators() {
+  const animators = viewAnimators;
+  viewAnimators = [];
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      animators.forEach((fn) => {
+        try {
+          fn();
+        } catch {
+          // ignore animation errors
+        }
+      });
+    });
+  });
+}
+
+/* =============================================================
+   ICONS
+   ============================================================= */
+const ICONS = {
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  dashboard:
+    '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  wallet:
+    '<path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M16 12h2"/><path d="M3 9h18"/>',
+  calendar:
+    '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>',
+  calendarPlus:
+    '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18M12 13v6M9 16h6"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+  users:
+    '<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M19 21v-1a5 5 0 0 0-3-4.58"/>',
+  settings:
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  bell:
+    '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  command:
+    '<path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun:
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  trash:
+    '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  copy:
+    '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  drag:
+    '<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>',
+  more:
+    '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  logout:
+    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  login:
+    '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+  invite:
+    '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  download:
+    '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+  list:
+    '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  sparkles:
+    '<path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>',
+  trendUp:
+    '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+  arrowUpCircle:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 16V8M8 12l4-4 4 4"/>',
+  arrowDownCircle:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12l4 4 4-4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
+  alert:
+    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  key:
+    '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 6 3 3"/><path d="m19 3 2 2"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+};
+
+function icon(name, size = 20) {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24',
+    width: size,
+    height: size,
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.8',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+
+  svg.innerHTML = ICONS[name] || ICONS.info;
+  return svg;
+}
+
+function hydrateIcons(root = document) {
+  $$('[data-icon]', root).forEach((node) => {
+    if (node.dataset.hydrated === '1') return;
+
+    const name = node.dataset.icon;
+    const size = node.dataset.size === 'sm' ? 18 : node.dataset.size === 'lg' ? 24 : 20;
+
+    node.innerHTML = '';
+    node.appendChild(icon(name, size));
+    node.dataset.hydrated = '1';
+  });
 }
 
 /* =============================================================
@@ -199,6 +342,10 @@ function initials(name) {
   );
 }
 
+function firstName(fullName) {
+  return String(fullName || '').trim().split(/\s+/)[0] || 'друг';
+}
+
 function shortId(id) {
   return id ? String(id).slice(0, 8) : '—';
 }
@@ -237,6 +384,33 @@ function plural(n, one, few, many) {
   return many;
 }
 
+function formatMonthLabel(value) {
+  const raw = String(value || '');
+  const match = raw.match(/^(\d{4})-(\d{2})/);
+  if (match) {
+    const d = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+    return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+  }
+
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+  }
+
+  return raw;
+}
+
+function monthSortValue(value) {
+  const raw = String(value || '');
+  const match = raw.match(/^(\d{4})-(\d{2})/);
+  if (match) return Number(match[1]) * 100 + Number(match[2]);
+
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) return d.getFullYear() * 100 + d.getMonth();
+
+  return 0;
+}
+
 function setBusy(busy) {
   const preloader = $('#preloader');
   if (preloader) preloader.classList.toggle('hide', !busy);
@@ -255,11 +429,15 @@ function applyTheme(theme) {
   localStorage.setItem('zunno-theme', theme);
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.textContent = theme === 'dark' ? '🌙' : '☀️';
     btn.setAttribute(
       'aria-label',
       theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
     );
+  });
+
+  $$('[data-theme-icon]').forEach((slot) => {
+    slot.innerHTML = '';
+    slot.appendChild(icon(theme === 'dark' ? 'moon' : 'sun'));
   });
 
   const meta = $('meta[name="theme-color"]');
@@ -279,10 +457,10 @@ function toast(message, type = 'info', timeout = 3600) {
   if (!root) return;
 
   const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '!',
-    info: 'ℹ',
+    success: 'check',
+    error: 'x',
+    warning: 'alert',
+    info: 'info',
   };
 
   const node = el(
@@ -292,7 +470,7 @@ function toast(message, type = 'info', timeout = 3600) {
       role: type === 'error' ? 'alert' : 'status',
     },
     [
-      el('div', { class: 'toast-ico' }, [icons[type] || icons.info]),
+      el('div', { class: 'toast-ico' }, [icon(icons[type] || icons.info, 16)]),
       el('div', { class: 'toast-msg' }, [String(message)]),
     ]
   );
@@ -307,6 +485,213 @@ function toast(message, type = 'info', timeout = 3600) {
     node.classList.add('hide');
     setTimeout(() => node.remove(), 240);
   }, timeout);
+}
+
+/* =============================================================
+   TOOLTIP
+   ============================================================= */
+function initTooltip() {
+  let hideTimer;
+
+  function ensureTooltip() {
+    if (ui.tooltipEl) return ui.tooltipEl;
+    ui.tooltipEl = el('div', { class: 'app-tooltip', role: 'tooltip' });
+    $('#tooltip-root').appendChild(ui.tooltipEl);
+    return ui.tooltipEl;
+  }
+
+  function position(target) {
+    const tip = ensureTooltip();
+    const r = target.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+
+    let top = r.bottom + 10;
+    if (top + tr.height > window.innerHeight - 12) {
+      top = r.top - tr.height - 10;
+    }
+    top = clamp(top, 12, window.innerHeight - tr.height - 12);
+
+    let left = r.left + r.width / 2 - tr.width / 2;
+    left = clamp(left, 12, window.innerWidth - tr.width - 12);
+
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }
+
+  function show(target) {
+    const text = target.getAttribute('data-tip');
+    if (!text) return;
+
+    clearTimeout(hideTimer);
+    const tip = ensureTooltip();
+    tip.textContent = text;
+    tip.classList.add('visible');
+    requestAnimationFrame(() => position(target));
+  }
+
+  function hide() {
+    if (!ui.tooltipEl) return;
+    ui.tooltipEl.classList.remove('visible');
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const target = e.target.closest('[data-tip]');
+    if (target) show(target);
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const target = e.target.closest('[data-tip]');
+    if (target) hide();
+  });
+
+  document.addEventListener('focusin', (e) => {
+    const target = e.target.closest('[data-tip]');
+    if (target) show(target);
+  });
+
+  document.addEventListener('focusout', () => hide());
+
+  let touchTimer;
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const target = e.target.closest('[data-tip]');
+      if (!target) return;
+
+      touchTimer = setTimeout(() => show(target), 400);
+    },
+    { passive: true }
+  );
+
+  document.addEventListener('touchend', () => {
+    clearTimeout(touchTimer);
+    hide();
+  });
+
+  document.addEventListener('touchmove', () => {
+    clearTimeout(touchTimer);
+    hide();
+  });
+
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+}
+
+/* =============================================================
+   POPOVER
+   ============================================================= */
+function openPopover(anchor, content, opts = {}) {
+  closePopover();
+
+  const panel = el('div', {
+    class: 'popover',
+    role: 'dialog',
+    'aria-modal': 'false',
+  });
+
+  panel.appendChild(el('div', { class: 'popover-arrow' }));
+  appendContent(panel, content);
+
+  $('#popover-root').appendChild(panel);
+  hydrateIcons(panel);
+
+  ui.popover = { anchor, panel, opts };
+
+  requestAnimationFrame(() => {
+    positionPopover(anchor, panel, opts);
+    panel.classList.add('open');
+  });
+
+  setTimeout(() => {
+    document.addEventListener('pointerdown', onPopoverPointer, true);
+    window.addEventListener('resize', onPopoverReposition);
+    window.addEventListener('scroll', onPopoverScroll, true);
+  }, 0);
+}
+
+function positionPopover(anchor, panel, opts = {}) {
+  const a = anchor.getBoundingClientRect();
+  const p = panel.getBoundingClientRect();
+  const gap = 10;
+
+  let top = a.bottom + gap;
+  let left = a.left + a.width / 2 - p.width / 2;
+
+  if (top + p.height > window.innerHeight - 12) {
+    top = a.top - p.height - gap;
+  }
+
+  top = clamp(top, 12, window.innerHeight - p.height - 12);
+  left = clamp(left, 12, window.innerWidth - p.width - 12);
+
+  panel.style.top = `${top}px`;
+  panel.style.left = `${left}px`;
+
+  const arrow = panel.querySelector('.popover-arrow');
+  if (arrow) {
+    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, p.width - 18);
+    arrow.style.left = `${arrowLeft}px`;
+    arrow.classList.toggle('above', top < a.top);
+  }
+}
+
+function closePopover() {
+  if (!ui.popover) return;
+
+  const { panel } = ui.popover;
+  ui.popover = null;
+
+  panel.classList.remove('open');
+  setTimeout(() => panel.remove(), 170);
+
+  document.removeEventListener('pointerdown', onPopoverPointer, true);
+  window.removeEventListener('resize', onPopoverReposition);
+  window.removeEventListener('scroll', onPopoverScroll, true);
+}
+
+function onPopoverPointer(e) {
+  if (!ui.popover) return;
+  if (ui.popover.panel.contains(e.target) || ui.popover.anchor.contains(e.target)) return;
+  closePopover();
+}
+
+function onPopoverReposition() {
+  if (!ui.popover) return;
+  positionPopover(ui.popover.anchor, ui.popover.panel, ui.popover.opts);
+}
+
+function onPopoverScroll(e) {
+  if (!ui.popover) return;
+  if (ui.popover.panel.contains(e.target)) return;
+  closePopover();
+}
+
+function popoverHeader(title, subtitle = '') {
+  return el('div', { class: 'popover-header' }, [
+    el('div', {}, [
+      el('div', { class: 'popover-title' }, [title]),
+      subtitle ? el('div', { class: 'popover-subtitle' }, [subtitle]) : null,
+    ].filter(Boolean)),
+  ]);
+}
+
+function popoverAction(iconName, label, onClick, danger = false) {
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: `popover-action ${danger ? 'danger' : ''}`.trim(),
+      onclick: () => {
+        closePopover();
+        onClick?.();
+      },
+    },
+    [el('span', { 'data-icon': iconName, 'data-size': 'sm' }), el('span', {}, [label])]
+  );
+}
+
+function popoverEmpty(text) {
+  return el('div', { class: 'popover-empty' }, [text]);
 }
 
 /* =============================================================
@@ -507,7 +892,6 @@ async function logout() {
   localStorage.removeItem('active_group');
 
   closeAllOverlays();
-  hideFAB();
   showScreen('auth');
 }
 
@@ -517,13 +901,18 @@ async function logout() {
 function showScreen(name) {
   $('#screen-auth')?.classList.toggle('hidden', name !== 'auth');
   $('#screen-app')?.classList.toggle('hidden', name !== 'app');
-  if (name !== 'app') hideFAB();
+  document.body.classList.toggle('app-active', name === 'app');
+
+  if (name !== 'app') {
+    closeFab();
+  }
 }
 
 function closeAllOverlays() {
   closeModal();
-  closeSheet();
+  closePopover();
   closeCommandPalette();
+  closeFab();
 }
 
 /* =============================================================
@@ -603,18 +992,12 @@ async function bootstrapApp() {
 
     state.invitations = await safeApi(apiCall('GET', '/invitations'), []);
 
-    renderSidebarUser();
-    renderSidebarGroups();
-    renderTopbarGroup();
-    renderTopbarUser();
-
     showScreen('app');
-    renderFAB();
-
+    renderShell();
     await renderActiveView();
 
     if (!localStorage.getItem('zunno-onboarded')) {
-      setTimeout(() => startOnboardingTour(false), 700);
+      setTimeout(() => startOnboardingTour(false), 750);
     }
   } catch (err) {
     toast(err.message || 'Не удалось загрузить данные', 'error');
@@ -628,17 +1011,24 @@ async function bootstrapApp() {
   }
 }
 
+function renderShell() {
+  renderSidebarUser();
+  renderSidebarGroups();
+  renderTopbarGroup();
+  renderTopbarUser();
+  updateInvitationBadge();
+  hydrateIcons();
+}
+
 /* =============================================================
    SIDEBAR
    ============================================================= */
 function isPersonalGroup(g) {
   if (!g) return false;
+  if (g.is_personal === true || g.type === 'personal') return true;
+
   const name = String(g.name || '').trim().toLowerCase();
-  return (
-    g.is_personal === true ||
-    g.type === 'personal' ||
-    ['моё', 'личное', 'личная', 'my', 'personal'].includes(name)
-  );
+  return ['моё', 'мое', 'личное', 'личная', 'my', 'personal'].includes(name);
 }
 
 function renderSidebarUser() {
@@ -689,37 +1079,17 @@ function renderSidebarGroups() {
       el(
         'div',
         {
-          class: 'text-xs text-3',
-          style:
-            'padding: 8px 10px 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;',
+          class: 'text-xs text-3 nav-label',
+          style: 'padding: 8px 10px 4px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;',
         },
         ['Личное']
       )
     );
 
-    box.appendChild(
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'sidebar-group-item' + (personalGroup.id === state.activeGroupId ? ' is-active' : ''),
-          onclick: () => switchGroup(personalGroup.id),
-        },
-        [
-          el('span', { class: 'dot', style: 'background: var(--primary);' }),
-          el(
-            'span',
-            { class: 'sidebar-group-item-name', style: 'font-weight: 600;' },
-            [personalGroup.name]
-          ),
-        ]
-      )
-    );
+    box.appendChild(renderSidebarGroupItem(personalGroup, true));
 
     if (otherGroups.length) {
-      box.appendChild(
-        el('div', { style: 'height: 1px; background: var(--border); margin: 8px 10px;' })
-      );
+      box.appendChild(el('div', { style: 'height: 1px; background: var(--border); margin: 8px 10px;' }));
     }
   }
 
@@ -728,31 +1098,46 @@ function renderSidebarGroups() {
       el(
         'div',
         {
-          class: 'text-xs text-3',
-          style:
-            'padding: 8px 10px 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;',
+          class: 'text-xs text-3 nav-label',
+          style: 'padding: 8px 10px 4px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;',
         },
         ['Мои группы']
       )
     );
 
-    for (const g of otherGroups) {
-      box.appendChild(
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'sidebar-group-item' + (g.id === state.activeGroupId ? ' is-active' : ''),
-            onclick: () => switchGroup(g.id),
-          },
-          [
-            el('span', { class: 'dot' }),
-            el('span', { class: 'sidebar-group-item-name' }, [g.name]),
-          ]
-        )
-      );
-    }
+    otherGroups.forEach((g) => box.appendChild(renderSidebarGroupItem(g, false)));
   }
+}
+
+function renderSidebarGroupItem(g, personal) {
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: 'sidebar-group-item' + (g.id === state.activeGroupId ? ' is-active' : ''),
+      'data-tip': g.name,
+      onclick: () => switchGroup(g.id),
+    },
+    [
+      el('span', {
+        class: 'group-dot',
+        style: personal ? 'background: linear-gradient(135deg, var(--primary), var(--accent));' : `background:${colorFromId(g.id)}`,
+      }),
+      el('span', { class: 'sidebar-group-item-name nav-label' }, [g.name]),
+    ]
+  );
+}
+
+function initSidebar() {
+  const app = $('#screen-app');
+  const saved = localStorage.getItem('zunno-sidebar') === 'collapsed';
+  if (app) app.dataset.sidebar = saved ? 'collapsed' : 'expanded';
+
+  $('#sidebar-collapse')?.addEventListener('click', () => {
+    const collapsed = app.dataset.sidebar === 'collapsed';
+    app.dataset.sidebar = collapsed ? 'expanded' : 'collapsed';
+    localStorage.setItem('zunno-sidebar', collapsed ? 'expanded' : 'collapsed');
+  });
 }
 
 /* =============================================================
@@ -760,11 +1145,6 @@ function renderSidebarGroups() {
    ============================================================= */
 function renderTopbarGroup() {
   const g = activeGroup();
-  const settingsBtn = $('#group-settings-btn');
-  const copyBtn = $('#topbar-copy-id');
-
-  if (settingsBtn) settingsBtn.style.display = g ? 'inline-flex' : 'none';
-  if (copyBtn) copyBtn.style.display = g ? 'inline-flex' : 'none';
 
   const nameEl = $('#topbar-group-name');
   const metaEl = $('#topbar-group-meta');
@@ -773,7 +1153,10 @@ function renderTopbarGroup() {
   if (!g) {
     if (nameEl) nameEl.textContent = 'Нет группы';
     if (metaEl) metaEl.textContent = 'Создайте или присоединитесь';
-    if (avatarEl) avatarEl.textContent = '?';
+    if (avatarEl) {
+      avatarEl.textContent = '?';
+      avatarEl.style.background = '';
+    }
     return;
   }
 
@@ -783,13 +1166,25 @@ function renderTopbarGroup() {
       ? 'Личное пространство'
       : `ID: ${shortId(g.id)}`;
   }
-  if (avatarEl) avatarEl.textContent = initials(g.name);
+  if (avatarEl) {
+    avatarEl.textContent = initials(g.name);
+    avatarEl.style.background = `linear-gradient(135deg, ${colorFromId(g.id)}, var(--accent))`;
+  }
 }
 
 function renderTopbarUser() {
   const btn = $('#topbar-user-btn');
   if (!btn) return;
   btn.textContent = initials(state.user?.full_name);
+}
+
+function updateInvitationBadge() {
+  const badge = $('#invitation-badge');
+  if (!badge) return;
+
+  const count = state.invitations?.length || 0;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
 }
 
 function activeGroup() {
@@ -806,24 +1201,139 @@ function switchGroup(id) {
   renderTopbarGroup();
   renderActiveView();
 
-  closeSheet();
+  closePopover();
   closeCommandPalette();
+}
+
+function initTopbar() {
+  $('#group-switcher-btn')?.addEventListener('click', (e) => {
+    openGroupPopover(e.currentTarget);
+  });
+
+  $('#invitations-btn')?.addEventListener('click', (e) => {
+    openInvitationsPopover(e.currentTarget);
+  });
+
+  $('#user-menu-btn')?.addEventListener('click', (e) => {
+    openUserPopover(e.currentTarget);
+  });
+
+  $('#btn-new-group')?.addEventListener('click', openCreateGroupModal);
+  $('#btn-join-group')?.addEventListener('click', openJoinGroupModal);
+}
+
+function openGroupPopover(anchor) {
+  const g = activeGroup();
+
+  const list = el(
+    'div',
+    { class: 'popover-list' },
+    state.groups.length
+      ? state.groups.map((group) =>
+          el(
+            'button',
+            {
+              type: 'button',
+              class: 'popover-item' + (group.id === state.activeGroupId ? ' is-active' : ''),
+              onclick: () => {
+                closePopover();
+                switchGroup(group.id);
+              },
+            },
+            [
+              el('span', {
+                class: 'group-avatar',
+                style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
+              }, [initials(group.name)]),
+              el('span', { class: 'popover-item-main' }, [
+                el('span', { class: 'popover-item-title' }, [group.name]),
+                el('span', { class: 'popover-item-sub' }, [
+                  isPersonalGroup(group) ? 'Личное пространство' : `ID: ${shortId(group.id)}`,
+                ]),
+              ]),
+              group.id === state.activeGroupId
+                ? el('span', { 'data-icon': 'check', 'data-size': 'sm', style: 'color: var(--success);' })
+                : null,
+            ].filter(Boolean)
+          )
+        )
+      : [popoverEmpty('Пока нет групп')]
+  );
+
+  const actions = el('div', { class: 'popover-actions' }, [
+    popoverAction('plus', 'Создать группу', openCreateGroupModal),
+    popoverAction('login', 'Присоединиться по ID', openJoinGroupModal),
+    g ? popoverAction('copy', 'Скопировать ID группы', () => copyText(g.id, 'ID группы скопирован')) : null,
+    g ? popoverAction('settings', 'Настройки группы', openGroupSettingsModal) : null,
+  ].filter(Boolean));
+
+  openPopover(
+    anchor,
+    el('div', {}, [
+      popoverHeader('Группы', state.groups.length ? `${state.groups.length} доступно` : ''),
+      list,
+      el('div', { class: 'popover-divider' }),
+      actions,
+    ])
+  );
+}
+
+function openUserPopover(anchor) {
+  const u = state.user;
+
+  openPopover(
+    anchor,
+    el('div', {}, [
+      el('div', { class: 'popover-header' }, [
+        el('div', { class: 'row', style: 'gap:10px;' }, [
+          el('div', { class: 'avatar' }, [initials(u?.full_name)]),
+          el('div', {}, [
+            el('div', { class: 'popover-title' }, [u?.full_name || 'Профиль']),
+            el('div', { class: 'popover-subtitle' }, [u?.phone_number || '']),
+          ]),
+        ]),
+      ]),
+      el('div', { class: 'popover-divider' }),
+      el('div', { class: 'popover-actions' }, [
+        popoverAction('user', 'Мой профиль', () => switchView('profile')),
+        popoverAction('bell', 'Приглашения', () => openInvitationsPopover(anchor)),
+        popoverAction(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon', 'Переключить тему', toggleTheme),
+        popoverAction('logout', 'Выйти', logout, true),
+      ]),
+    ])
+  );
+}
+
+function openInvitationsPopover(anchor) {
+  const items = state.invitations?.length
+    ? state.invitations.map((inv) => renderInvitationRow(inv))
+    : [popoverEmpty('Новых приглашений нет')];
+
+  openPopover(
+    anchor,
+    el('div', {}, [
+      popoverHeader('Приглашения', state.invitations?.length ? `${state.invitations.length} новых` : ''),
+      el('div', { class: 'popover-list' }, items),
+    ])
+  );
 }
 
 /* =============================================================
    VIEW ROUTER
    ============================================================= */
 const VIEWS = {
-  dashboard: { title: 'Обзор', icon: '◧', render: renderDashboard },
-  goals: { title: 'Цели', icon: '◆', render: renderGoals },
-  budget: { title: 'Бюджет', icon: '≡', render: renderBudget },
-  plans: { title: 'Планы', icon: '◷', render: renderPlans },
-  profile: { title: 'Профиль', icon: '○', render: renderProfile },
+  dashboard: { title: 'Обзор', icon: 'dashboard', render: renderDashboard },
+  goals: { title: 'Цели', icon: 'target', render: renderGoals },
+  budget: { title: 'Бюджет', icon: 'wallet', render: renderBudget },
+  plans: { title: 'Планы', icon: 'calendar', render: renderPlans },
+  profile: { title: 'Профиль', icon: 'user', render: renderProfile },
 };
 
 async function renderActiveView() {
   const view = VIEWS[state.view];
   if (!view) return;
+
+  viewAnimators = [];
 
   $$('.nav-item').forEach((n) => n.classList.toggle('is-active', n.dataset.view === state.view));
   $$('.mobile-nav-item').forEach((n) =>
@@ -834,10 +1344,14 @@ async function renderActiveView() {
   if (!container) return;
 
   container.scrollTop = 0;
+  container.innerHTML = '';
   renderSkeleton(container);
 
   try {
     await view.render(container);
+    staggerChildren(container);
+    hydrateIcons(container);
+    flushAnimators();
   } catch (err) {
     renderError(container, err);
   }
@@ -846,12 +1360,14 @@ async function renderActiveView() {
 function switchView(name) {
   state.view = name;
   renderActiveView();
-  closeSheet();
+  closePopover();
   closeCommandPalette();
+  closeFab();
 }
 
 function renderSkeleton(container) {
   container.innerHTML = `
+    <div class="skeleton skeleton-hero"></div>
     <div class="skeleton-grid">
       <div class="skeleton skeleton-stat"></div>
       <div class="skeleton skeleton-stat"></div>
@@ -869,7 +1385,7 @@ function renderSkeleton(container) {
 function renderError(container, err) {
   container.innerHTML = '';
   container.appendChild(
-    emptyState('!', 'Не удалось загрузить раздел', err?.message || 'Неизвестная ошибка')
+    emptyState('alert', 'Не удалось загрузить раздел', err?.message || 'Неизвестная ошибка')
   );
 }
 
@@ -892,13 +1408,18 @@ function sectionHead(title, desc, action = null) {
   ].filter(Boolean));
 }
 
-function emptyState(icon, title, text) {
+function sectionBlock(title, desc, action, content) {
+  return el('section', { class: 'section' }, [sectionHead(title, desc, action), content]);
+}
+
+function emptyState(iconName, title, text, actions = []) {
   return el('div', { class: 'card' }, [
     el('div', { class: 'empty' }, [
-      el('div', { class: 'empty-ico' }, [icon]),
+      el('div', { class: 'empty-ico' }, [icon(iconName, 30)]),
       el('div', { class: 'empty-title' }, [title]),
       el('div', { class: 'empty-text' }, [text]),
-    ]),
+      actions.length ? el('div', { class: 'empty-actions' }, actions) : null,
+    ].filter(Boolean)),
   ]);
 }
 
@@ -918,11 +1439,81 @@ function chartCard(title, subtitle, content) {
   ]);
 }
 
-function statTile(label, value, variant = '') {
-  return el('div', { class: 'stat-card' }, [
+function statTile(label, value, variant = '', formatter = fmtMoney) {
+  const valueNode = el('div', { class: `stat-value ${variant}`.trim() }, ['—']);
+  const node = el('div', { class: 'stat-card' }, [
     el('div', { class: 'stat-label' }, [label]),
-    el('div', { class: `stat-value ${variant}`.trim() }, [value]),
+    valueNode,
   ]);
+
+  animateNumber(valueNode, Number(value) || 0, formatter);
+  return node;
+}
+
+function animateNumber(node, value, formatter) {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    node.textContent = formatter(value);
+    return;
+  }
+
+  const duration = 900;
+  const start = performance.now();
+
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    node.textContent = formatter(value * eased);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function chip(iconName, label, onClick) {
+  return el(
+    'button',
+    { type: 'button', class: 'chip', onclick: onClick },
+    [el('span', { 'data-icon': iconName, 'data-size': 'sm' }), el('span', {}, [label])]
+  );
+}
+
+function progressRing(percent, size = 48, stroke = 5) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (clamp(percent, 0, 100) / 100) * c;
+
+  const defs = svgEl('defs', {}, [
+    svgEl('linearGradient', { id: 'ringGradient', x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
+      svgEl('stop', { offset: '0%', 'stop-color': 'var(--primary)' }),
+      svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)' }),
+    ]),
+  ]);
+
+  const bg = svgEl('circle', {
+    class: 'ring-bg',
+    cx: size / 2,
+    cy: size / 2,
+    r,
+    fill: 'none',
+    'stroke-width': stroke,
+  });
+
+  const fg = svgEl('circle', {
+    class: 'ring-fg',
+    cx: size / 2,
+    cy: size / 2,
+    r,
+    fill: 'none',
+    'stroke-width': stroke,
+    transform: `rotate(-90 ${size / 2} ${size / 2})`,
+    style: `stroke-dasharray:${c}; stroke-dashoffset:${c};`,
+  });
+
+  animateLater(() => {
+    fg.style.strokeDashoffset = String(offset);
+  });
+
+  return svgEl('svg', { class: 'progress-ring', viewBox: `0 0 ${size} ${size}` }, [defs, bg, fg]);
 }
 
 /* =============================================================
@@ -959,14 +1550,16 @@ function donutChart(items, options = {}) {
       stroke: color,
       'stroke-width': stroke,
       'stroke-linecap': 'round',
-      'stroke-dasharray': `${dash} ${circumference - dash}`,
+      'stroke-dasharray': `0 ${circumference}`,
       'stroke-dashoffset': -offset,
       transform: `rotate(-90 ${size / 2} ${size / 2})`,
     });
 
-    circle.appendChild(
-      svgEl('title', {}, [`${item.label}: ${fmtMoney(item.value)}`])
-    );
+    circle.appendChild(svgEl('title', {}, [`${item.label}: ${fmtMoney(item.value)}`]));
+
+    animateLater(() => {
+      circle.style.strokeDasharray = `${dash} ${circumference - dash}`;
+    });
 
     offset += dash;
     return circle;
@@ -1035,76 +1628,19 @@ function barChart(items) {
     { class: 'chart-bars' },
     valid.map((item) => {
       const pct = Math.max(2, (item.value / max) * 100);
+      const fill = el('div', { class: 'bar-fill', style: 'width:0%' });
+
+      animateLater(() => {
+        fill.style.width = `${pct}%`;
+      });
+
       return el('div', { class: 'bar-row' }, [
         el('div', { class: 'bar-label' }, [item.label]),
-        el('div', { class: 'bar-track' }, [
-          el('div', { class: 'bar-fill', style: `width:${pct}%` }),
-        ]),
+        el('div', { class: 'bar-track' }, [fill]),
         el('div', { class: 'bar-value mono' }, [fmtMoney(item.value)]),
       ]);
     })
   );
-}
-
-function lineChart(points, valueKey = 'spent') {
-  const data = points
-    .filter((p) => Number.isFinite(Number(p[valueKey])))
-    .slice(-12);
-
-  if (data.length < 2) return null;
-
-  const w = 520;
-  const h = 170;
-  const pad = 30;
-
-  const values = data.map((d) => Number(d[valueKey]));
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
-
-  const coords = data.map((d, i) => {
-    const x = pad + i * ((w - pad * 2) / (data.length - 1));
-    const y = h - pad - ((Number(d[valueKey]) - min) / (max - min || 1)) * (h - pad * 2);
-    return { x, y, d };
-  });
-
-  const path = coords.map((c, i) => `${i ? 'L' : 'M'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
-  const area = `${path} L${coords.at(-1).x.toFixed(1)} ${h - pad} L${coords[0].x.toFixed(1)} ${h - pad} Z`;
-
-  const step = Math.max(1, Math.ceil(coords.length / 6));
-  const labels = coords
-    .filter((_, i) => i % step === 0 || i === coords.length - 1)
-    .map((c) =>
-      svgEl('text', {
-        x: c.x,
-        y: h - 8,
-        'text-anchor': 'middle',
-        class: 'chart-axis-label',
-      }, [c.d.label || ''])
-    );
-
-  const dots = coords.map((c) =>
-    svgEl('circle', {
-      cx: c.x,
-      cy: c.y,
-      r: 3,
-      class: 'chart-dot',
-    }, [
-      svgEl('title', {}, [`${c.d.label || ''}: ${fmtMoney(c.d[valueKey])}`]),
-    ])
-  );
-
-  return el('div', { class: 'line-chart-wrap' }, [
-    svgEl('svg', {
-      viewBox: `0 0 ${w} ${h}`,
-      class: 'line-svg',
-      preserveAspectRatio: 'none',
-    }, [
-      svgEl('path', { d: area, class: 'chart-area' }),
-      svgEl('path', { d: path, class: 'chart-line' }),
-      ...dots,
-      ...labels,
-    ]),
-  ]);
 }
 
 function normalizeAnalytics(raw) {
@@ -1114,530 +1650,121 @@ function normalizeAnalytics(raw) {
     ? raw.items
     : Array.isArray(raw?.data)
     ? raw.data
-    : Array.isArray(raw?.months)
-    ? raw.months
     : [];
 
   return arr
-    .map((item) => {
-      const labelRaw = item.month || item.date || item.period || item.label || '';
-      const spent = Number(item.spent ?? item.total_spent ?? item.expense ?? item.value ?? 0);
-      const income = Number(item.income ?? item.total_income ?? 0);
+    .map((item) => ({
+      raw: item.month || item.date || item.period || '',
+      label: formatMonthLabel(item.month || item.date || item.period || ''),
+      income: Number(item.income ?? 0),
+      expense: Number(item.expense ?? 0),
+    }))
+    .filter((item) => item.label)
+    .sort((a, b) => monthSortValue(a.raw) - monthSortValue(b.raw))
+    .slice(-12);
+}
 
-      let label = String(labelRaw || '');
-      const d = new Date(labelRaw);
-      if (!Number.isNaN(d.getTime())) {
-        label = d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
-      }
+function trendChart(items) {
+  const data = normalizeAnalytics(items);
+  if (data.length < 2) return miniEmpty('Недостаточно данных для графика');
 
-      return { label, spent, income };
-    })
-    .filter((item) => item.label);
+  const w = 620;
+  const h = 190;
+  const pad = { t: 20, r: 20, b: 30, l: 42 };
+
+  const values = data.flatMap((d) => [d.income, d.expense]);
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 1);
+
+  const x = (i) => pad.l + i * ((w - pad.l - pad.r) / (data.length - 1));
+  const y = (v) => h - pad.b - ((v - min) / (max - min || 1)) * (h - pad.t - pad.b);
+
+  const expensePoints = data.map((d, i) => ({ x: x(i), y: y(d.expense), d }));
+  const incomePoints = data.map((d, i) => ({ x: x(i), y: y(d.income), d }));
+
+  const toPath = (points) =>
+    points.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+  const expensePath = toPath(expensePoints);
+  const incomePath = toPath(incomePoints);
+  const areaPath = `${expensePath} L${expensePoints.at(-1).x.toFixed(1)} ${h - pad.b} L${expensePoints[0].x.toFixed(1)} ${h - pad.b} Z`;
+
+  const step = Math.max(1, Math.ceil(data.length / 6));
+  const labels = data
+    .map((d, i) => ({ d, i }))
+    .filter(({ i }) => i % step === 0 || i === data.length - 1)
+    .map(({ d, i }) =>
+      svgEl('text', {
+        x: x(i),
+        y: h - 8,
+        'text-anchor': 'middle',
+        class: 'chart-axis-label',
+      }, [d.label])
+    );
+
+  const expenseDots = expensePoints.map((p) =>
+    svgEl('circle', {
+      cx: p.x,
+      cy: p.y,
+      r: 3,
+      class: 'chart-dot expense',
+    }, [svgEl('title', {}, [`Расход: ${fmtMoney(p.d.expense)}`])])
+  );
+
+  const incomeDots = incomePoints.map((p) =>
+    svgEl('circle', {
+      cx: p.x,
+      cy: p.y,
+      r: 3,
+      class: 'chart-dot income',
+    }, [svgEl('title', {}, [`Доход: ${fmtMoney(p.d.income)}`])])
+  );
+
+  const expenseLine = svgEl('path', { d: expensePath, class: 'chart-line expense' });
+  const incomeLine = svgEl('path', { d: incomePath, class: 'chart-line income' });
+
+  animateLater(() => {
+    [expenseLine, incomeLine].forEach((path) => {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = String(len);
+      path.style.strokeDashoffset = String(len);
+      requestAnimationFrame(() => {
+        path.style.transition = 'stroke-dashoffset 1.1s var(--ease)';
+        path.style.strokeDashoffset = '0';
+      });
+    });
+  });
+
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${w} ${h}`,
+    class: 'line-svg',
+    preserveAspectRatio: 'none',
+  }, [
+    svgEl('path', { d: areaPath, class: 'chart-area' }),
+    expenseLine,
+    incomeLine,
+    ...expenseDots,
+    ...incomeDots,
+    ...labels,
+  ]);
+
+  const legend = el('div', { class: 'chart-legend', style: 'margin-top:10px;' }, [
+    el('div', { class: 'legend-item' }, [
+      el('span', { class: 'legend-dot', style: 'background: var(--danger);' }),
+      el('span', { class: 'legend-label' }, ['Расходы']),
+    ]),
+    el('div', { class: 'legend-item' }, [
+      el('span', { class: 'legend-dot', style: 'background: var(--success);' }),
+      el('span', { class: 'legend-label' }, ['Доходы']),
+    ]),
+  ]);
+
+  return el('div', {}, [el('div', { class: 'line-chart-wrap' }, [svg]), legend]);
 }
 
 /* =============================================================
-   VIEW: DASHBOARD
+   INVITATIONS
    ============================================================= */
-async function renderDashboard(container) {
-  const g = activeGroup();
-  container.innerHTML = '';
-
-  if (!g) {
-    container.appendChild(noGroupBanner());
-    return;
-  }
-
-  const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-
-  const [summary, membersSpent, plans, members, invitations] = await Promise.all([
-    safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
-    safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
-    safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
-    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
-    safeApi(apiCall('GET', '/invitations'), []),
-  ]);
-
-  state.invitations = invitations;
-
-  const invitationsCard = renderInvitationsCard(invitations);
-  if (invitationsCard) container.appendChild(invitationsCard);
-
-  const spent = Number(summary?.total_spent || 0);
-  const limit = Number(summary?.total_limit || 0);
-  const remaining = limit > 0 ? limit - spent : 0;
-  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
-
-  container.appendChild(
-    el('div', { class: 'stat-grid' }, [
-      statTile('Потрачено', fmtMoney(spent), 'primary'),
-      statTile('Лимит', fmtMoney(limit), limit > 0 && spent > limit ? 'danger' : ''),
-      statTile('Остаток', fmtMoney(remaining), remaining < 0 ? 'danger' : 'success'),
-      statTile('Участников', String(members.length), ''),
-    ])
-  );
-
-  if (limit > 0) {
-    container.appendChild(
-      el('div', { class: 'card mt-16' }, [
-        el('div', { class: 'row-between' }, [
-          el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
-          el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
-        ]),
-        el('div', { class: 'progress mt-12' }, [
-          el('div', {
-            class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
-            style: `width:${pct}%`,
-          }),
-        ]),
-      ])
-    );
-  }
-
-  const categoryItems = (summary?.categories || []).map((c) => ({
-    label: c.name || 'Без названия',
-    value: Number(c.spent || 0),
-    color: colorFromId(c.category_id || c.name),
-  }));
-
-  const memberItems = (membersSpent || []).map((m) => ({
-    label: m.full_name || m.user_full_name || m.name || 'Участник',
-    value: Number(m.spent ?? m.total_spent ?? 0),
-  }));
-
-  const analytics = await safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []);
-  const trend = lineChart(normalizeAnalytics(analytics), 'spent');
-
-  if (categoryItems.length || memberItems.length || trend) {
-    container.appendChild(
-      el('div', { class: 'charts-grid' }, [
-        chartCard(
-          'Расходы по категориям',
-          month,
-          donutChart(categoryItems, { centerLabel: 'категорий', centerValue: false })
-        ),
-        chartCard('Участники', 'Кто сколько потратил', barChart(memberItems)),
-        trend ? chartCard('Динамика расходов', 'Последние периоды', trend) : null,
-      ].filter(Boolean))
-    );
-  }
-
-  const me = members.find((m) => m.user_id === state.user?.id);
-  const isAdmin = me?.role === 'admin';
-  const personal = isPersonalGroup(g);
-
-  if (!personal) {
-    container.appendChild(
-      el('div', { class: 'section' }, [
-        sectionHead(
-          'Участники',
-          `${members.length} ${plural(members.length, 'человек', 'человека', 'человек')} в группе`,
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'btn btn-ghost btn-sm',
-              onclick: () => openInviteModal(g),
-            },
-            ['Пригласить']
-          )
-        ),
-        el(
-          'div',
-          { class: 'list' },
-          members.map((m, i) =>
-            stagger(renderMemberRow(m, isAdmin && m.user_id !== state.user?.id), i)
-          )
-        ),
-      ])
-    );
-  }
-
-  const upcoming = plans
-    .filter((p) => !p.is_done)
-    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
-    .slice(0, 5);
-
-  if (upcoming.length) {
-    container.appendChild(
-      el('div', { class: 'section' }, [
-        sectionHead(
-          'Ближайшие планы',
-          `${upcoming.length} ${plural(upcoming.length, 'событие', 'события', 'событий')}`,
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'btn btn-ghost btn-sm',
-              onclick: () => switchView('plans'),
-            },
-            ['Все']
-          )
-        ),
-        el(
-          'div',
-          { class: 'list' },
-          upcoming.map((p, i) =>
-            stagger(
-              el('div', { class: 'item' }, [
-                el('div', { class: 'flex-1' }, [
-                  el('div', { class: 'item-title' }, [p.title]),
-                  el('div', { class: 'item-sub' }, [
-                    `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
-                  ]),
-                ]),
-              ]),
-              i
-            )
-          )
-        ),
-      ])
-    );
-  }
-
-  if (summary?.categories?.length) {
-    container.appendChild(
-      el('div', { class: 'section' }, [
-        sectionHead(
-          'Контроль по категориям',
-          month,
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'btn btn-ghost btn-sm',
-              onclick: () => switchView('budget'),
-            },
-            ['Все']
-          )
-        ),
-        el(
-          'div',
-          { class: 'list' },
-          summary.categories.map((c, i) =>
-            stagger(
-              el(
-                'div',
-                {
-                  class: 'item',
-                  style: 'flex-direction:column;align-items:stretch;',
-                },
-                [
-                  el('div', { class: 'row-between' }, [
-                    el('div', { class: 'item-title' }, [c.name]),
-                    el('div', { class: 'mono text-sm text-2' }, [
-                      `${fmtMoney(c.spent)} / ${fmtMoney(c.limit ?? c.budget_limit ?? 0)}`,
-                    ]),
-                  ]),
-                  el('div', { class: 'progress mt-8' }, [
-                    el('div', {
-                      class: `progress-fill${c.overspent ? ' danger' : ''}`,
-                      style: `width:${
-                        Number(c.limit ?? c.budget_limit ?? 0) > 0
-                          ? Math.min(100, (Number(c.spent || 0) / Number(c.limit ?? c.budget_limit)) * 100)
-                          : 0
-                      }%`,
-                    }),
-                  ]),
-                ]
-              ),
-              i
-            )
-          )
-        ),
-      ])
-    );
-  }
-}
-
-function renderMemberRow(m, canManage = false) {
-  const isMe = state.user && m.user_id === state.user.id;
-  const roleTag =
-    m.role === 'admin'
-      ? el('span', { class: 'tag tag-primary' }, ['Админ'])
-      : el('span', { class: 'tag tag-mute' }, ['Участник']);
-
-  const displayName = isMe ? 'Вы' : m.full_name || 'Без имени';
-  const subLine = isMe
-    ? m.phone_number
-      ? `${m.phone_number} · это вы`
-      : 'это вы'
-    : m.phone_number || `ID: ${shortId(m.user_id)}`;
-
-  return el('div', { class: 'item' }, [
-    el(
-      'div',
-      { class: 'avatar-sm', style: `background:${colorFromId(m.user_id)}` },
-      [initials(m.full_name || shortId(m.user_id).slice(0, 2))]
-    ),
-    el('div', { class: 'item-main' }, [
-      el('div', { class: 'item-title' }, [displayName]),
-      el('div', { class: 'item-sub' }, [`${subLine} · ${fmtDate(m.joined_at)}`]),
-    ]),
-    roleTag,
-    canManage
-      ? el(
-          'button',
-          {
-            type: 'button',
-            class: 'icon-btn sm',
-            'data-tip': 'Действия с участником',
-            onclick: () => openMemberActionsModal(m),
-          },
-          ['⋯']
-        )
-      : null,
-  ].filter(Boolean));
-}
-
-function openMemberActionsModal(m) {
-  const g = activeGroup();
-  if (!g) return;
-
-  const isTargetAdmin = m.role === 'admin';
-
-  const actions = [
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'btn btn-ghost btn-block mb-8',
-        onclick: async () => {
-          closeModal();
-          try {
-            const payload = { role: isTargetAdmin ? 'member' : 'admin' };
-            if (m.version != null) payload.version = m.version;
-
-            await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, payload);
-            toast('Роль изменена', 'success');
-            await renderActiveView();
-          } catch (err) {
-            toast(err.message, 'error');
-          }
-        },
-      },
-      [isTargetAdmin ? 'Разжаловать до участника' : 'Сделать админом']
-    ),
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'btn btn-danger btn-block',
-        onclick: () => {
-          closeModal();
-          confirmDelete(
-            `Вы уверены, что хотите исключить ${m.full_name || 'участника'}?`,
-            async () => {
-              try {
-                await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
-                toast('Участник исключён', 'success');
-                await renderActiveView();
-              } catch (err) {
-                toast(err.message, 'error');
-              }
-            }
-          );
-        },
-      },
-      ['Исключить из группы']
-    ),
-  ];
-
-  openModal({
-    title: m.full_name || 'Участник',
-    body: el('div', { style: 'display:flex;flex-direction:column;' }, actions),
-    saveLabel: 'Закрыть',
-    onSave: async () => {},
-  });
-}
-
-async function openGroupSettingsModal() {
-  const g = activeGroup();
-  if (!g) return;
-
-  const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []);
-  const me = members.find((m) => m.user_id === state.user?.id);
-  const isAdmin = me?.role === 'admin';
-  const isOwner = g.owner_id === state.user?.id || isAdmin;
-  const personal = isPersonalGroup(g);
-
-  const actions = [];
-
-  if (isOwner && !personal) {
-    actions.push(
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-ghost btn-block mb-8',
-          onclick: () => {
-            closeModal();
-            openRenameGroupModal(g);
-          },
-        },
-        ['Переименовать группу']
-      )
-    );
-  }
-
-  if (!isOwner && !personal) {
-    actions.push(
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-danger-ghost btn-block mb-8',
-          onclick: () => {
-            closeModal();
-            confirmDelete('Вы уверены, что хотите покинуть группу?', async () => {
-              try {
-                await apiCall('POST', `/groups/${g.id}/leave`);
-                toast('Вы покинули группу', 'success');
-                await bootstrapApp();
-              } catch (err) {
-                toast(err.message, 'error');
-              }
-            });
-          },
-        },
-        ['Покинуть группу']
-      )
-    );
-  }
-
-  if (isOwner && !personal) {
-    actions.push(
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-danger btn-block',
-          onclick: () => {
-            closeModal();
-            confirmDelete(
-              'УДАЛИТЬ ГРУППУ? Это действие необратимо. Все данные будут потеряны.',
-              async () => {
-                try {
-                  await apiCall('DELETE', `/groups/${g.id}`);
-                  toast('Группа удалена', 'success');
-                  await bootstrapApp();
-                } catch (err) {
-                  toast(err.message, 'error');
-                }
-              }
-            );
-          },
-        },
-        ['Удалить группу']
-      )
-    );
-  }
-
-  openModal({
-    title: 'Настройки группы',
-    body: actions.length
-      ? el('div', { style: 'display:flex;flex-direction:column;' }, actions)
-      : el('div', { class: 'text-2' }, ['Для этой группы доступны только базовые действия.']),
-    saveLabel: 'Закрыть',
-    onSave: async () => {},
-  });
-}
-
-function openRenameGroupModal(g) {
-  const input = el('input', {
-    class: 'input',
-    type: 'text',
-    value: g.name,
-    required: true,
-    maxlength: 100,
-  });
-
-  openModal({
-    title: 'Переименовать группу',
-    body: el('div', {}, [
-      el('p', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, ['Новое название:']),
-      input,
-    ]),
-    saveLabel: 'Сохранить',
-    onSave: async () => {
-      const newName = input.value.trim();
-      if (!newName) throw new Error('Введите название');
-
-      try {
-        const payload = { name: newName };
-        if (g.version != null) payload.version = g.version;
-
-        await apiCall('PATCH', `/groups/${g.id}`, payload);
-        toast('Группа переименована', 'success');
-        await bootstrapApp();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
-    },
-  });
-}
-
-function renderInvitationsCard(invitations) {
-  if (!invitations?.length) return null;
-
-  const items = invitations.map((inv) => {
-    const groupName = getInvitationTitle(inv);
-    const inviter = getInviterName(inv);
-    const task = getTaskTitle(inv);
-    const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
-
-    const meta = [
-      roleLabel,
-      inviter ? `от ${inviter}` : '',
-      inv.created_at ? fmtRelative(inv.created_at) : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
-
-    const row = el('div', { class: 'invite-item' }, [
-      el('div', { class: 'invite-avatar' }, [initials(groupName)]),
-      el('div', { class: 'item-main' }, [
-        el('div', { class: 'item-title' }, [groupName]),
-        el('div', { class: 'item-sub' }, [meta]),
-        task ? el('div', { class: 'invite-task' }, [task]) : null,
-      ]),
-      el('div', { class: 'row gap-8' }, [
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'btn btn-primary btn-sm',
-            onclick: () => respondInvitation(inv, true, row),
-          },
-          ['Принять']
-        ),
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'btn btn-ghost btn-sm',
-            onclick: () => respondInvitation(inv, false, row),
-          },
-          ['Отклонить']
-        ),
-      ]),
-    ]);
-
-    return row;
-  });
-
-  return el('div', { class: 'card invitation-card mb-16' }, [
-    sectionHead(
-      'Приглашения',
-      `${invitations.length} ${plural(invitations.length, 'приглашение', 'приглашения', 'приглашений')}`
-    ),
-    el('div', { class: 'invite-list' }, items),
-  ]);
-}
-
 function getInvitationTitle(inv) {
   return (
     inv.group_name ||
@@ -1658,7 +1785,7 @@ function getInviterName(inv) {
   );
 }
 
-function getTaskTitle(inv) {
+function getInvitationTask(inv) {
   const title =
     inv.plan_title ||
     inv.task_title ||
@@ -1669,49 +1796,109 @@ function getTaskTitle(inv) {
   return title && title !== getInvitationTitle(inv) ? title : '';
 }
 
-async function respondInvitation(inv, accept, row) {
-  const buttons = row.querySelectorAll('button');
+function renderInvitationRow(inv) {
+  const title = getInvitationTitle(inv);
+  const inviter = getInviterName(inv);
+  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+
+  const meta = [
+    roleLabel,
+    inviter ? `от ${inviter}` : '',
+    inv.created_at ? fmtRelative(inv.created_at) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return el('div', { class: 'invite-item' }, [
+    el('div', { class: 'invite-avatar' }, [initials(title)]),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [title]),
+      el('div', { class: 'item-sub' }, [meta]),
+    ]),
+    el('div', { class: 'row gap-8' }, [
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-primary btn-sm',
+          onclick: () => respondInvitation(inv, true),
+        },
+        ['Принять']
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-ghost btn-sm',
+          onclick: () => respondInvitation(inv, false),
+        },
+        ['Отклонить']
+      ),
+    ]),
+  ]);
+}
+
+function renderInvitationCard(inv) {
+  const title = getInvitationTitle(inv);
+  const inviter = getInviterName(inv);
+  const task = getInvitationTask(inv);
+  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+
+  const meta = [
+    roleLabel,
+    inviter ? `от ${inviter}` : '',
+    inv.created_at ? fmtRelative(inv.created_at) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return el('div', { class: 'invite-item' }, [
+    el('div', { class: 'invite-avatar' }, [initials(title)]),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [title]),
+      el('div', { class: 'item-sub' }, [meta]),
+      task ? el('div', { class: 'invite-task' }, [task]) : null,
+    ].filter(Boolean)),
+    el('div', { class: 'row gap-8' }, [
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-primary btn-sm',
+          onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')),
+        },
+        ['Принять']
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-ghost btn-sm',
+          onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')),
+        },
+        ['Отклонить']
+      ),
+    ]),
+  ]);
+}
+
+async function respondInvitation(inv, accept, row = null) {
+  if (!inv?.group_id) {
+    toast('Некорректное приглашение', 'error');
+    return;
+  }
+
+  const buttons = row ? $$('button', row) : [];
   buttons.forEach((b) => (b.disabled = true));
 
   try {
-    await tryInvitationEndpoints(inv, accept);
+    await apiCall('POST', `/groups/${inv.group_id}/${accept ? 'join' : 'decline'}`);
     toast(accept ? 'Вы присоединились к группе' : 'Приглашение отклонено', 'success');
     await bootstrapApp();
   } catch (err) {
     toast(err.message || 'Не удалось обработать приглашение', 'error');
     buttons.forEach((b) => (b.disabled = false));
   }
-}
-
-async function tryInvitationEndpoints(inv, accept) {
-  const candidates = [];
-
-  if (inv.id) {
-    candidates.push(accept ? `/invitations/${inv.id}/accept` : `/invitations/${inv.id}/decline`);
-  }
-
-  if (inv.group_id) {
-    candidates.push(accept ? `/groups/${inv.group_id}/join` : `/groups/${inv.group_id}/decline`);
-  }
-
-  if (!candidates.length) {
-    throw new Error('Некорректное приглашение');
-  }
-
-  let lastError = null;
-
-  for (const path of candidates) {
-    try {
-      await apiCall('POST', path);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (err.status === 404 || err.status === 405) continue;
-      throw err;
-    }
-  }
-
-  throw lastError || new Error('Не удалось обработать приглашение');
 }
 
 /* =============================================================
@@ -1727,9 +1914,9 @@ function startOnboardingTour(force = false) {
     return;
   }
 
-  if (activeTour) {
+  if (ui.tour) {
     try {
-      activeTour.destroy();
+      ui.tour.destroy();
     } catch {
       // ignore
     }
@@ -1761,52 +1948,52 @@ function startOnboardingTour(force = false) {
     });
   }
 
-  if (isVisible('#topbar-group-btn')) {
+  if (isVisible('#group-switcher-btn')) {
     steps.push({
-      element: '#topbar-group-btn',
+      element: '#group-switcher-btn',
       popover: {
         title: 'Активная группа',
         description:
-          'Здесь показана текущая группа. Клик — открыть список групп и переключиться.',
+          'Здесь показана текущая группа. Клик — открыть список групп, создать новую или присоединиться.',
         side: 'bottom',
         align: 'start',
       },
     });
   }
 
-  if (isVisible('#group-settings-btn')) {
+  if (isVisible('#invitations-btn')) {
     steps.push({
-      element: '#group-settings-btn',
+      element: '#invitations-btn',
       popover: {
-        title: 'Настройки группы ⚙',
+        title: 'Приглашения',
         description:
-          'Переименовать, покинуть или удалить группу. Доступно в контексте группы.',
+          'Тут появляются приглашения в группы. Можно принять или отклонить.',
         side: 'bottom',
         align: 'end',
       },
     });
   }
 
-  if (isVisible('#btn-new-group') || isVisible('#btn-join-group')) {
+  if (isVisible('#fab-main')) {
     steps.push({
-      element: isVisible('#btn-new-group') ? '#btn-new-group' : '#btn-join-group',
+      element: '#fab-main',
       popover: {
-        title: 'Создать или присоединиться',
+        title: 'Быстрые действия',
         description:
-          'Создайте свою группу или присоединитесь к существующей по ID.',
-        side: 'right',
+          'Добавляйте расход, доход, событие или цель в один тап.',
+        side: 'left',
         align: 'end',
       },
     });
   }
 
-  if (isVisible('#topbar-user-btn')) {
+  if (isVisible('#user-menu-btn')) {
     steps.push({
-      element: '#topbar-user-btn',
+      element: '#user-menu-btn',
       popover: {
         title: 'Ваш профиль',
         description:
-          'Здесь смена пароля, редактирование профиля и выход из аккаунта.',
+          'Здесь настройки аккаунта, смена темы и выход.',
         side: 'bottom',
         align: 'end',
       },
@@ -1822,7 +2009,7 @@ function startOnboardingTour(force = false) {
     },
   });
 
-  activeTour = window.driver.js.driver({
+  ui.tour = window.driver.js.driver({
     showProgress: true,
     progressText: '{{current}} из {{total}}',
     nextBtnText: 'Далее',
@@ -1835,12 +2022,12 @@ function startOnboardingTour(force = false) {
     popoverClass: 'zunno-tour-popover',
     onDestroyed: () => {
       localStorage.setItem('zunno-onboarded', '1');
-      activeTour = null;
+      ui.tour = null;
     },
     steps,
   });
 
-  activeTour.drive();
+  ui.tour.drive();
 }
 
 /* =============================================================
@@ -1917,134 +2104,59 @@ function initSortableCategories(groupID, containerEl) {
 /* =============================================================
    FAB
    ============================================================= */
-function renderFAB() {
-  if (document.getElementById('zunno-fab')) return;
+function initFab() {
+  const wrap = $('#fab');
+  const main = $('#fab-main');
+  if (!wrap || !main) return;
 
-  const btn = el(
-    'button',
-    {
-      type: 'button',
-      class: 'fab',
-      id: 'zunno-fab',
-      'aria-label': 'Быстрое добавление',
-      'data-tip': 'Быстро добавить трату',
-      onclick: () => openQuickTransactionModal(),
-    },
-    ['+']
-  );
+  main.addEventListener('click', () => {
+    if (ui.fabOpen) closeFab();
+    else openFab();
+  });
 
-  document.body.appendChild(btn);
+  $$('#fab-menu .fab-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      closeFab();
+      handleFabAction(action);
+    });
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (ui.fabOpen && !wrap.contains(e.target)) closeFab();
+  });
 }
 
-function hideFAB() {
-  document.getElementById('zunno-fab')?.remove();
+function openFab() {
+  ui.fabOpen = true;
+  $('#fab')?.classList.add('open');
+  $('#fab-main')?.setAttribute('aria-expanded', 'true');
 }
 
-async function openQuickTransactionModal() {
+function closeFab() {
+  ui.fabOpen = false;
+  $('#fab')?.classList.remove('open');
+  $('#fab-main')?.setAttribute('aria-expanded', 'false');
+}
+
+function handleFabAction(action) {
   const g = activeGroup();
+
   if (!g) {
-    toast('Сначала создайте или выберите группу', 'error');
+    toast('Сначала создайте или выберите группу', 'warning');
+    openCreateGroupModal();
     return;
   }
 
-  const cats = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
-  if (!cats.length) {
-    toast('Сначала создайте категорию в разделе Бюджет', 'warning');
-    switchView('budget');
-    return;
-  }
-
-  const symbol = currencySymbol();
-
-  const amountInput = el('input', {
-    type: 'number',
-    step: '0.01',
-    min: '0.01',
-    required: true,
-    placeholder: `Сумма (${symbol})`,
-    class: 'input',
-    style:
-      'width:100%;padding:14px;font-size:20px;text-align:center;font-weight:700;border-radius:14px;margin-bottom:12px;',
-  });
-
-  const presets = [100, 500, 1000, 5000];
-  const presetsRow = el(
-    'div',
-    { class: 'row', style: 'gap:6px;margin-bottom:16px;flex-wrap:wrap;' },
-    presets.map((p) =>
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'preset-btn',
-          onclick: () => {
-            amountInput.value = p;
-            amountInput.focus();
-          },
-        },
-        [`${p} ${symbol}`]
-      )
-    )
-  );
-
-  const typeSelect = el(
-    'select',
-    { class: 'input', style: 'margin-bottom:12px;' },
-    [
-      el('option', { value: 'expense' }, ['💸 Расход']),
-      el('option', { value: 'income' }, ['💰 Доход']),
-    ]
-  );
-
-  const catSelect = el(
-    'select',
-    { class: 'input', required: true, style: 'margin-bottom:12px;' },
-    cats.map((c) => el('option', { value: c.id }, [c.name]))
-  );
-
-  const descInput = el('input', {
-    type: 'text',
-    placeholder: 'Описание (необязательно)',
-    maxlength: '255',
-    class: 'input',
-  });
-
-  openModal({
-    title: '⚡ Быстрая запись',
-    body: el('div', {}, [amountInput, presetsRow, typeSelect, catSelect, descInput]),
-    saveLabel: 'Добавить',
-    onSave: async () => {
-      const amount = parseFloat(amountInput.value);
-      if (!amount || amount <= 0) throw new Error('Введите сумму');
-
-      try {
-        await apiCall('POST', `/groups/${g.id}/transactions`, {
-          category_id: catSelect.value,
-          amount,
-          type: typeSelect.value,
-          date: new Date().toISOString(),
-          description: descInput.value.trim(),
-        });
-
-        toast('Добавлено!', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
-    },
-  });
+  if (action === 'expense') openTransactionModal(g, 'expense');
+  if (action === 'income') openTransactionModal(g, 'income');
+  if (action === 'plan') openCreatePlanModal(g);
+  if (action === 'goal') openCreateGoalCategoryModal(g);
 }
 
 /* =============================================================
    CALENDAR
    ============================================================= */
-let calendarState = {
-  view: 'list',
-  month: new Date().getMonth(),
-  year: new Date().getFullYear(),
-};
-
 function shiftCalendarMonth(delta) {
   calendarState.month += delta;
   if (calendarState.month < 0) {
@@ -2079,25 +2191,26 @@ function renderCalendar(g, plans) {
   const monthName = firstDay.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
   const head = el('div', { class: 'calendar-head' }, [
-    el('div', { class: 'calendar-title' }, [
-      monthName.charAt(0).toUpperCase() + monthName.slice(1),
-    ]),
+    el('div', { class: 'calendar-title' }, [monthName]),
     el('div', { class: 'calendar-nav' }, [
       el('button', {
         type: 'button',
         class: 'icon-btn sm',
+        'data-tip': 'Предыдущий месяц',
         onclick: () => shiftCalendarMonth(-1),
-      }, ['◀']),
+      }, [icon('chevronLeft', 18)]),
       el('button', {
         type: 'button',
         class: 'icon-btn sm',
+        'data-tip': 'Сегодня',
         onclick: resetCalendarMonth,
-      }, ['●']),
+      }, [icon('clock', 18)]),
       el('button', {
         type: 'button',
         class: 'icon-btn sm',
+        'data-tip': 'Следующий месяц',
         onclick: () => shiftCalendarMonth(1),
-      }, ['▶']),
+      }, [icon('chevronRight', 18)]),
     ]),
   ]);
 
@@ -2162,35 +2275,41 @@ function renderCalendar(g, plans) {
 }
 
 function openCreatePlanModalWithDate(g, date) {
+  const titleInput = el('input', {
+    class: 'input',
+    name: 'title',
+    required: true,
+    maxlength: 200,
+    placeholder: 'Пикник в парке',
+  });
+
+  const descInput = el('textarea', {
+    class: 'input',
+    name: 'description',
+    placeholder: 'Необязательно',
+  });
+
+  const dateInput = el('input', {
+    class: 'input',
+    name: 'event_date',
+    type: 'datetime-local',
+    value: toLocalInput(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0).toISOString()),
+    required: true,
+  });
+
   openModal({
     title: 'Новое событие',
     body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'title',
-          required: true,
-          maxlength: 200,
-          placeholder: 'Пикник в парке',
-        })
-      ),
-      field('Описание', el('textarea', { name: 'description', placeholder: 'Необязательно' })),
-      field(
-        'Дата и время',
-        el('input', {
-          name: 'event_date',
-          type: 'datetime-local',
-          value: toLocalInput(date.toISOString()),
-          required: true,
-        })
-      ),
+      field('Название', titleInput),
+      field('Описание', descInput),
+      field('Дата и время', dateInput),
     ]),
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/plans`, {
-          title: String(fd.get('title') || '').trim(),
-          description: String(fd.get('description') || '').trim(),
-          event_date: fromLocalInput(fd.get('event_date')),
+          title: titleInput.value.trim(),
+          description: descInput.value.trim(),
+          event_date: fromLocalInput(dateInput.value),
         });
 
         toast('Событие создано', 'success');
@@ -2273,7 +2392,7 @@ function makeSwipeable(node, onSwipeLeft) {
 function noGroupBanner() {
   return el('div', { class: 'card' }, [
     el('div', { class: 'empty' }, [
-      el('div', { class: 'empty-ico' }, ['◫']),
+      el('div', { class: 'empty-ico' }, [icon('wallet', 30)]),
       el('div', { class: 'empty-title' }, ['Нет активной группы']),
       el('div', { class: 'empty-text' }, ['Создайте свою или присоединитесь по ID']),
       el('div', { class: 'empty-actions' }, [
@@ -2284,7 +2403,7 @@ function noGroupBanner() {
             class: 'btn btn-primary',
             onclick: openCreateGroupModal,
           },
-          ['Создать группу']
+          [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Создать группу'])]
         ),
         el(
           'button',
@@ -2293,11 +2412,468 @@ function noGroupBanner() {
             class: 'btn btn-ghost',
             onclick: openJoinGroupModal,
           },
-          ['Присоединиться']
+          [el('span', { 'data-icon': 'login', 'data-size': 'sm' }), el('span', {}, ['Присоединиться'])]
         ),
       ]),
     ]),
   ]);
+}
+
+/* =============================================================
+   VIEW: DASHBOARD
+   ============================================================= */
+async function renderDashboard(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+
+  if (!g) {
+    container.appendChild(noGroupBanner());
+    return;
+  }
+
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+  const [summary, membersSpent, plans, members, analytics, recentTx] = await Promise.all([
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=5`), []),
+  ]);
+
+  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+
+  container.appendChild(renderHero(g, members.length, plans.length));
+
+  if (state.invitations?.length) {
+    container.appendChild(
+      sectionBlock(
+        'Приглашения',
+        `${state.invitations.length} ${plural(state.invitations.length, 'приглашение', 'приглашения', 'приглашений')}`,
+        null,
+        el('div', { class: 'invite-list' }, state.invitations.map(renderInvitationCard))
+      )
+    );
+  }
+
+  const spent = Number(summary?.total_spent || 0);
+  const limit = Number(summary?.total_limit || 0);
+  const remaining = limit > 0 ? limit - spent : 0;
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+
+  container.appendChild(
+    el('div', { class: 'stat-grid' }, [
+      statTile('Потрачено', spent, 'primary'),
+      statTile('Лимит', limit, limit > 0 && spent > limit ? 'danger' : ''),
+      statTile('Остаток', remaining, remaining < 0 ? 'danger' : 'success'),
+      statTile('Участников', members.length, '', (n) => String(Math.round(n))),
+    ])
+  );
+
+  if (limit > 0) {
+    container.appendChild(
+      el('div', { class: 'card mt-16' }, [
+        el('div', { class: 'row-between' }, [
+          el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
+          el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
+        ]),
+        el('div', { class: 'progress mt-12' }, [
+          el('div', {
+            class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
+            style: 'width:0%',
+          }),
+        ]),
+      ])
+    );
+
+    const fill = container.querySelector('.progress-fill');
+    animateLater(() => {
+      fill.style.width = `${pct}%`;
+    });
+  }
+
+  const categoryItems = (summary?.categories || []).map((c) => ({
+    label: c.name || 'Без названия',
+    value: Number(c.spent || 0),
+    color: colorFromId(c.category_id || c.name),
+  }));
+
+  const memberItems = (membersSpent || []).map((m) => ({
+    label: m.full_name || 'Участник',
+    value: Number(m.spent ?? 0),
+  }));
+
+  container.appendChild(
+    el('div', { class: 'charts-grid' }, [
+      chartCard(
+        'Расходы по категориям',
+        month,
+        donutChart(categoryItems, { centerLabel: 'категорий', centerValue: false })
+      ),
+      chartCard('Участники', 'Кто сколько потратил', barChart(memberItems)),
+      chartCard('Динамика', 'Доходы и расходы', trendChart(analytics)),
+    ])
+  );
+
+  const me = members.find((m) => m.user_id === state.user?.id);
+  const isAdmin = me?.role === 'admin';
+  const personal = isPersonalGroup(g);
+
+  if (!personal) {
+    container.appendChild(
+      sectionBlock(
+        'Участники',
+        `${members.length} ${plural(members.length, 'человек', 'человека', 'человек')} в группе`,
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => openInviteModal(g),
+          },
+          [el('span', { 'data-icon': 'invite', 'data-size': 'sm' }), el('span', {}, ['Пригласить'])]
+        ),
+        el(
+          'div',
+          { class: 'list' },
+          members.map((m, i) =>
+            stagger(renderMemberRow(m, isAdmin && m.user_id !== state.user?.id), i)
+          )
+        )
+      )
+    );
+  }
+
+  const upcoming = plans
+    .filter((p) => !p.is_done)
+    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+    .slice(0, 5);
+
+  if (upcoming.length) {
+    container.appendChild(
+      sectionBlock(
+        'Ближайшие планы',
+        `${upcoming.length} ${plural(upcoming.length, 'событие', 'события', 'событий')}`,
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => switchView('plans'),
+          },
+          ['Все']
+        ),
+        el(
+          'div',
+          { class: 'list' },
+          upcoming.map((p, i) =>
+            stagger(
+              el('div', { class: 'item' }, [
+                el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
+                el('div', { class: 'item-main' }, [
+                  el('div', { class: 'item-title' }, [p.title]),
+                  el('div', { class: 'item-sub' }, [
+                    `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
+                  ]),
+                ]),
+              ]),
+              i
+            )
+          )
+        )
+      )
+    );
+  }
+
+  if (recentTx.length) {
+    container.appendChild(
+      sectionBlock(
+        'Последние операции',
+        'Свежие транзакции группы',
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => switchView('budget'),
+          },
+          ['Все']
+        ),
+        el(
+          'div',
+          { class: 'list' },
+          recentTx.map((t, i) => stagger(renderTransactionRow(t, categories, false), i))
+        )
+      )
+    );
+  }
+}
+
+function renderHero(g, membersCount, plansCount) {
+  const u = state.user;
+  const hour = new Date().getHours();
+  const greet = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  const dateStr = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+
+  return el('section', { class: 'card hero-card' }, [
+    el('div', { class: 'hero-bg' }),
+    el('div', { class: 'hero-content' }, [
+      el('div', { class: 'hero-top' }, [
+        el('div', {}, [
+          el('h2', { class: 'hero-title' }, [`${greet}, ${firstName(u?.full_name)}`]),
+          el('p', { class: 'hero-sub' }, [dateStr]),
+        ]),
+        el('div', { class: 'hero-group' }, [
+          el('div', { class: 'hero-avatar' }, [initials(g.name)]),
+          el('div', {}, [
+            el('strong', {}, [g.name]),
+            el('small', {}, [
+              isPersonalGroup(g)
+                ? 'Личное пространство'
+                : `${membersCount} ${plural(membersCount, 'участник', 'участника', 'участников')} · ${plansCount} ${plural(plansCount, 'план', 'плана', 'планов')}`,
+            ]),
+          ]),
+        ]),
+      ]),
+      el('div', { class: 'hero-actions' }, [
+        chip('arrowDownCircle', 'Расход', () => openTransactionModal(g, 'expense')),
+        chip('arrowUpCircle', 'Доход', () => openTransactionModal(g, 'income')),
+        chip('calendarPlus', 'Событие', () => openCreatePlanModal(g)),
+        chip('invite', 'Пригласить', () => openInviteModal(g)),
+      ]),
+    ]),
+  ]);
+}
+
+function renderMemberRow(m, canManage = false) {
+  const isMe = state.user && m.user_id === state.user.id;
+  const roleTag =
+    m.role === 'admin'
+      ? el('span', { class: 'tag tag-primary' }, ['Админ'])
+      : el('span', { class: 'tag tag-mute' }, ['Участник']);
+
+  const displayName = isMe ? 'Вы' : m.full_name || 'Без имени';
+  const subLine = isMe
+    ? m.phone_number
+      ? `${m.phone_number} · это вы`
+      : 'это вы'
+    : m.phone_number || `ID: ${shortId(m.user_id)}`;
+
+  return el('div', { class: 'item' }, [
+    el(
+      'div',
+      { class: 'avatar-sm', style: `background:${colorFromId(m.user_id)}` },
+      [initials(m.full_name || shortId(m.user_id).slice(0, 2))]
+    ),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [displayName]),
+      el('div', { class: 'item-sub' }, [`${subLine} · ${fmtDate(m.joined_at)}`]),
+    ]),
+    roleTag,
+    canManage
+      ? el(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn sm',
+            'data-tip': 'Действия с участником',
+            onclick: () => openMemberActionsModal(m),
+          },
+          [icon('more', 18)]
+        )
+      : null,
+  ].filter(Boolean));
+}
+
+function openMemberActionsModal(m) {
+  const g = activeGroup();
+  if (!g) return;
+
+  const isTargetAdmin = m.role === 'admin';
+
+  const actions = [
+    el(
+      'button',
+      {
+        type: 'button',
+        class: 'btn btn-ghost btn-block mb-8',
+        onclick: async () => {
+          closeModal();
+          try {
+            await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, {
+              role: isTargetAdmin ? 'member' : 'admin',
+            });
+            toast('Роль изменена', 'success');
+            await renderActiveView();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        },
+      },
+      [isTargetAdmin ? 'Разжаловать до участника' : 'Сделать админом']
+    ),
+    el(
+      'button',
+      {
+        type: 'button',
+        class: 'btn btn-danger btn-block',
+        onclick: () => {
+          closeModal();
+          confirmDelete(
+            `Вы уверены, что хотите исключить ${m.full_name || 'участника'}?`,
+            async () => {
+              try {
+                await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
+                toast('Участник исключён', 'success');
+                await renderActiveView();
+              } catch (err) {
+                toast(err.message, 'error');
+              }
+            }
+          );
+        },
+      },
+      ['Исключить из группы']
+    ),
+  ];
+
+  openModal({
+    title: m.full_name || 'Участник',
+    body: el('div', { style: 'display:flex;flex-direction:column;' }, actions),
+    saveLabel: 'Закрыть',
+    onSave: async () => {},
+  });
+}
+
+async function openGroupSettingsModal() {
+  const g = activeGroup();
+  if (!g) return;
+
+  const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []);
+  const me = members.find((m) => m.user_id === state.user?.id);
+  const isAdmin = me?.role === 'admin';
+  const isOwner = g.owner_id === state.user?.id;
+  const personal = isPersonalGroup(g);
+
+  const actions = [];
+
+  if (!personal && isAdmin) {
+    actions.push(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-ghost btn-block mb-8',
+          onclick: () => {
+            closeModal();
+            openRenameGroupModal(g);
+          },
+        },
+        ['Переименовать группу']
+      )
+    );
+  }
+
+  if (!personal && !isOwner) {
+    actions.push(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-danger-ghost btn-block mb-8',
+          onclick: () => {
+            closeModal();
+            confirmDelete('Вы уверены, что хотите покинуть группу?', async () => {
+              try {
+                await apiCall('POST', `/groups/${g.id}/leave`);
+                toast('Вы покинули группу', 'success');
+                await bootstrapApp();
+              } catch (err) {
+                toast(err.message, 'error');
+              }
+            });
+          },
+        },
+        ['Покинуть группу']
+      )
+    );
+  }
+
+  if (!personal && isOwner) {
+    actions.push(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-danger btn-block',
+          onclick: () => {
+            closeModal();
+            confirmDelete(
+              'УДАЛИТЬ ГРУППУ? Это действие необратимо. Все данные будут потеряны.',
+              async () => {
+                try {
+                  await apiCall('DELETE', `/groups/${g.id}`);
+                  toast('Группа удалена', 'success');
+                  await bootstrapApp();
+                } catch (err) {
+                  toast(err.message, 'error');
+                }
+              }
+            );
+          },
+        },
+        ['Удалить группу']
+      )
+    );
+  }
+
+  openModal({
+    title: 'Настройки группы',
+    body: actions.length
+      ? el('div', { style: 'display:flex;flex-direction:column;' }, actions)
+      : el('div', { class: 'text-2' }, ['Для этой группы доступны только базовые действия.']),
+    saveLabel: 'Закрыть',
+    onSave: async () => {},
+  });
+}
+
+function openRenameGroupModal(g) {
+  const input = el('input', {
+    class: 'input',
+    type: 'text',
+    value: g.name,
+    required: true,
+    maxlength: 100,
+  });
+
+  openModal({
+    title: 'Переименовать группу',
+    body: el('div', {}, [
+      el('p', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, ['Новое название:']),
+      input,
+    ]),
+    saveLabel: 'Сохранить',
+    onSave: async () => {
+      const newName = input.value.trim();
+      if (!newName) throw new Error('Введите название');
+
+      try {
+        await apiCall('PATCH', `/groups/${g.id}`, {
+          name: newName,
+          version: Number(g.version ?? 0),
+        });
+        toast('Группа переименована', 'success');
+        await bootstrapApp();
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
+      }
+    },
+  });
 }
 
 /* =============================================================
@@ -2325,14 +2901,14 @@ async function renderGoals(container) {
           class: 'btn btn-primary btn-sm',
           onclick: () => openCreateGoalCategoryModal(g),
         },
-        ['+ Категория']
+        [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Категория'])]
       )
     )
   );
 
   if (!cats.length) {
     container.appendChild(
-      emptyState('◆', 'Пока нет категорий', 'Создайте первую — «Фильмы», «Книги», «Места»')
+      emptyState('target', 'Пока нет категорий', 'Создайте первую — «Фильмы», «Книги», «Места»')
     );
     return;
   }
@@ -2358,11 +2934,9 @@ async function renderGoalCategoryCard(g, c) {
 
   card.appendChild(
     el('div', { class: 'card-head' }, [
-      el('div', { class: 'row', style: 'gap:6px;' }, [
-        el('div', {
-          class: 'drag-handle',
-          title: 'Перетащить категорию',
-        }, ['⋮⋮']),
+      el('div', { class: 'row', style: 'gap:10px;' }, [
+        el('div', { class: 'drag-handle', title: 'Перетащить категорию' }, [icon('drag', 18)]),
+        progressRing(pct),
         el('div', {}, [
           el('div', { class: 'card-title' }, [c.name]),
           el('div', { class: 'card-subtitle' }, [items.length ? `${done} / ${items.length}` : 'Пусто']),
@@ -2374,17 +2948,17 @@ async function renderGoalCategoryCard(g, c) {
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Переименовать',
+            'data-tip': 'Переименовать',
             onclick: () => openRenameGoalCategoryModal(g, c),
           },
-          ['✎']
+          [icon('edit', 18)]
         ),
         el(
           'button',
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Удалить',
+            'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete(`Удалить категорию «${c.name}»?`, async () => {
                 try {
@@ -2396,22 +2970,11 @@ async function renderGoalCategoryCard(g, c) {
                 }
               }),
           },
-          ['✕']
+          [icon('trash', 18)]
         ),
       ]),
     ])
   );
-
-  if (items.length) {
-    card.appendChild(
-      el('div', { class: 'progress' }, [
-        el('div', {
-          class: `progress-fill${pct === 100 ? ' success' : ''}`,
-          style: `width:${pct}%`,
-        }),
-      ])
-    );
-  }
 
   const list = el('div', { class: 'list mt-12' });
 
@@ -2430,7 +2993,7 @@ async function renderGoalCategoryCard(g, c) {
     list.appendChild(
       stagger(
         el('div', { class: 'item' + (isDone ? ' is-done' : ''), 'data-item-id': it.id }, [
-          el('div', { class: 'drag-handle' }, ['⋮⋮']),
+          el('div', { class: 'drag-handle' }, [icon('drag', 18)]),
           check,
           el('div', { class: 'item-main' }, [
             el('div', { class: 'item-title' }, [it.title]),
@@ -2441,7 +3004,7 @@ async function renderGoalCategoryCard(g, c) {
             {
               type: 'button',
               class: 'icon-btn sm',
-              title: 'Удалить',
+              'data-tip': 'Удалить',
               onclick: () =>
                 confirmDelete('Удалить элемент?', async () => {
                   try {
@@ -2453,7 +3016,7 @@ async function renderGoalCategoryCard(g, c) {
                   }
                 }),
             },
-            ['✕']
+            [icon('trash', 18)]
           ),
         ]),
         i
@@ -2480,7 +3043,7 @@ async function renderGoalCategoryCard(g, c) {
         class: 'btn btn-ghost btn-sm btn-block mt-12',
         onclick: () => openCreateGoalItemModal(g, c),
       },
-      ['+ Добавить элемент']
+      [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Добавить элемент'])]
     )
   );
 
@@ -2496,10 +3059,10 @@ async function toggleGoalItem(g, item, checkNode) {
   checkNode.classList.toggle('on', next);
 
   try {
-    const payload = { done: next };
-    if (item.version != null) payload.version = item.version;
-
-    await apiCall('PATCH', `/groups/${g.id}/goal-items/${item.id}`, payload);
+    await apiCall('PATCH', `/groups/${g.id}/goal-items/${item.id}`, {
+      done: next,
+      version: Number(item.version ?? 0),
+    });
     await renderActiveView();
   } catch (err) {
     item.done = current;
@@ -2510,21 +3073,21 @@ async function toggleGoalItem(g, item, checkNode) {
 }
 
 function openCreateGoalCategoryModal(g) {
+  const input = el('input', {
+    class: 'input',
+    name: 'name',
+    required: true,
+    maxlength: 100,
+    placeholder: 'Фильмы',
+  });
+
   openModal({
     title: 'Новая категория целей',
-    body: field(
-      'Название',
-      el('input', {
-        name: 'name',
-        required: true,
-        maxlength: 100,
-        placeholder: 'Фильмы',
-      })
-    ),
-    onSave: async (fd) => {
+    body: field('Название', input),
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/goal-categories`, {
-          name: String(fd.get('name') || '').trim(),
+          name: input.value.trim(),
         });
 
         toast('Создано', 'success');
@@ -2538,23 +3101,23 @@ function openCreateGoalCategoryModal(g) {
 }
 
 function openRenameGoalCategoryModal(g, c) {
+  const input = el('input', {
+    class: 'input',
+    name: 'name',
+    required: true,
+    maxlength: 100,
+    value: c.name,
+  });
+
   openModal({
     title: 'Переименовать',
-    body: field(
-      'Название',
-      el('input', {
-        name: 'name',
-        required: true,
-        maxlength: 100,
-        value: c.name,
-      })
-    ),
-    onSave: async (fd) => {
+    body: field('Название', input),
+    onSave: async () => {
       try {
-        const payload = { name: String(fd.get('name') || '').trim() };
-        if (c.version != null) payload.version = c.version;
-
-        await apiCall('PATCH', `/groups/${g.id}/goal-categories/${c.id}`, payload);
+        await apiCall('PATCH', `/groups/${g.id}/goal-categories/${c.id}`, {
+          name: input.value.trim(),
+          version: Number(c.version ?? 0),
+        });
 
         toast('Обновлено', 'success');
         await renderActiveView();
@@ -2567,25 +3130,28 @@ function openRenameGoalCategoryModal(g, c) {
 }
 
 function openCreateGoalItemModal(g, c) {
+  const title = el('input', {
+    class: 'input',
+    name: 'title',
+    required: true,
+    maxlength: 200,
+    placeholder: 'Посмотреть Дюну',
+  });
+
+  const description = el('textarea', {
+    class: 'input',
+    name: 'description',
+    placeholder: 'Необязательно',
+  });
+
   openModal({
     title: 'Новый элемент',
-    body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'title',
-          required: true,
-          maxlength: 200,
-          placeholder: 'Посмотреть Дюну',
-        })
-      ),
-      field('Описание', el('textarea', { name: 'description', placeholder: 'Необязательно' })),
-    ]),
-    onSave: async (fd) => {
+    body: el('div', {}, [field('Название', title), field('Описание', description)]),
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/goal-categories/${c.id}/items`, {
-          title: String(fd.get('title') || '').trim(),
-          description: String(fd.get('description') || '').trim(),
+          title: title.value.trim(),
+          description: description.value.trim(),
         });
 
         toast('Добавлено', 'success');
@@ -2642,12 +3208,17 @@ async function renderBudget(container) {
           ? el('div', { class: 'progress mt-16' }, [
               el('div', {
                 class: `progress-fill${spent > limit ? ' danger' : ''}`,
-                style: `width:${pct}%`,
+                style: 'width:0%',
               }),
             ])
           : null,
       ].filter(Boolean))
     );
+
+    const fill = container.querySelector('.progress-fill');
+    animateLater(() => {
+      fill.style.width = `${pct}%`;
+    });
   }
 
   const categoryItems = (summary?.categories || []).map((c) => ({
@@ -2657,56 +3228,50 @@ async function renderBudget(container) {
   }));
 
   const memberItems = (membersSpent || []).map((m) => ({
-    label: m.full_name || m.user_full_name || m.name || 'Участник',
-    value: Number(m.spent ?? m.total_spent ?? 0),
+    label: m.full_name || 'Участник',
+    value: Number(m.spent ?? 0),
   }));
 
-  const trend = lineChart(normalizeAnalytics(analytics), 'spent');
-
-  if (categoryItems.length || memberItems.length || trend) {
-    container.appendChild(
-      el('div', { class: 'charts-grid' }, [
-        chartCard('Структура расходов', month, donutChart(categoryItems)),
-        chartCard('По участникам', month, barChart(memberItems)),
-        trend ? chartCard('Динамика', 'Последние периоды', trend) : null,
-      ].filter(Boolean))
-    );
-  }
+  container.appendChild(
+    el('div', { class: 'charts-grid' }, [
+      chartCard('Структура расходов', month, donutChart(categoryItems)),
+      chartCard('По участникам', month, barChart(memberItems)),
+      chartCard('Динамика', 'Доходы и расходы', trendChart(analytics)),
+    ])
+  );
 
   container.appendChild(
-    el('div', { class: 'section' }, [
-      sectionHead(
-        'Категории',
-        `${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}`,
-        el('div', { class: 'row', style: 'gap:8px;' }, [
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'btn btn-ghost btn-sm',
-              onclick: () => exportTransactionsCsv(g),
-            },
-            ['📥 CSV']
-          ),
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'btn btn-primary btn-sm',
-              onclick: () => openCreateCategoryModal(g),
-            },
-            ['+ Категория']
-          ),
-        ])
-      ),
+    sectionBlock(
+      'Категории',
+      `${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}`,
+      el('div', { class: 'row', style: 'gap:8px;' }, [
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => exportTransactionsCsv(g),
+          },
+          [el('span', { 'data-icon': 'download', 'data-size': 'sm' }), el('span', {}, ['CSV'])]
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-primary btn-sm',
+            onclick: () => openCreateCategoryModal(g),
+          },
+          [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Категория'])]
+        ),
+      ]),
       cats.length
         ? el(
             'div',
             { class: 'grid-auto' },
             cats.map((c, i) => stagger(renderCategoryCard(g, c, summary), i))
           )
-        : emptyState('≡', 'Нет категорий', 'Добавьте «Еду», «Транспорт», «Развлечения»'),
-    ])
+        : emptyState('wallet', 'Нет категорий', 'Добавьте «Еду», «Транспорт», «Развлечения»')
+    )
   );
 
   const searchInput = el('input', {
@@ -2731,7 +3296,7 @@ async function renderBudget(container) {
     [
       el('option', { value: '' }, ['Все участники']),
       ...membersSpent.map((m) =>
-        el('option', { value: m.user_id }, [m.full_name || m.user_full_name || 'Участник'])
+        el('option', { value: m.user_id }, [m.full_name || 'Участник'])
       ),
     ]
   );
@@ -2774,30 +3339,30 @@ async function renderBudget(container) {
   typeSelect.addEventListener('change', applyFilters);
 
   container.appendChild(
-    el('div', { class: 'section' }, [
-      sectionHead(
-        'Транзакции',
-        `Последние ${txs.length}`,
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'btn btn-primary btn-sm',
-            onclick: () => openCreateTransactionModal(g, cats),
-          },
-          ['+ Транзакция']
-        )
-      ),
+    sectionBlock(
+      'Транзакции',
+      `Последние ${txs.length}`,
       el(
-        'div',
+        'button',
         {
-          class: 'card mt-12 mb-12',
-          style: 'display:flex;gap:8px;flex-wrap:wrap;padding:12px;',
+          type: 'button',
+          class: 'btn btn-primary btn-sm',
+          onclick: () => openTransactionModal(g, 'expense'),
         },
-        [searchInput, catSelect, userSelect, typeSelect]
+        [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Транзакция'])]
       ),
-      list,
-    ])
+      el('div', {}, [
+        el(
+          'div',
+          {
+            class: 'card mt-12 mb-12',
+            style: 'display:flex;gap:8px;flex-wrap:wrap;padding:12px;',
+          },
+          [searchInput, catSelect, userSelect, typeSelect]
+        ),
+        list,
+      ])
+    )
   );
 
   renderTransactionRows(list, txs, cats);
@@ -2808,12 +3373,12 @@ function renderTransactionRows(list, txs, cats) {
 
   if (!txs.length) {
     list.appendChild(
-      emptyState('≡', 'Ничего не найдено', 'Попробуйте изменить фильтры или добавить транзакцию')
+      emptyState('wallet', 'Ничего не найдено', 'Попробуйте изменить фильтры или добавить транзакцию')
     );
     return;
   }
 
-  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats), i)));
+  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, true), i)));
 }
 
 function renderCategoryCard(g, c, summary) {
@@ -2830,7 +3395,7 @@ function renderCategoryCard(g, c, summary) {
           el(
             'span',
             { class: `tag ${c.type === 'fixed' ? 'tag-primary' : 'tag-mute'}` },
-            [categoryTypeLabel(c.type)]
+            [c.type === 'fixed' ? 'Постоянная' : 'Спонтанная']
           ),
         ]),
       ]),
@@ -2840,17 +3405,17 @@ function renderCategoryCard(g, c, summary) {
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Редактировать',
+            'data-tip': 'Редактировать',
             onclick: () => openEditCategoryModal(g, c),
           },
-          ['✎']
+          [icon('edit', 18)]
         ),
         el(
           'button',
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Удалить',
+            'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete(`Удалить «${c.name}»?`, async () => {
                 try {
@@ -2862,7 +3427,7 @@ function renderCategoryCard(g, c, summary) {
                 }
               }),
           },
-          ['✕']
+          [icon('trash', 18)]
         ),
       ]),
     ]),
@@ -2877,17 +3442,13 @@ function renderCategoryCard(g, c, summary) {
     el('div', { class: 'progress mt-12' }, [
       el('div', {
         class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`,
-        style: `width:${pct}%`,
+        style: 'width:0%',
       }),
     ]),
   ]);
 }
 
-function categoryTypeLabel(type) {
-  return type === 'fixed' ? 'Постоянная' : 'Спонтанная';
-}
-
-function renderTransactionRow(t, cats) {
+function renderTransactionRow(t, cats, swipe = true) {
   const g = activeGroup();
   const cat = cats.find((c) => c.id === t.category_id);
   const isMe = state.user && t.user_id === state.user.id;
@@ -2898,6 +3459,9 @@ function renderTransactionRow(t, cats) {
     'div',
     { class: 'item swipeable-content', 'data-tx-id': t.id },
     [
+      el('div', { class: 'avatar-sm', style: `background:${colorFromId(t.category_id || t.id)}` }, [
+        icon(type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle', 18),
+      ]),
       el('div', { class: 'flex-1' }, [
         el('div', { class: 'item-title' }, [t.description || cat?.name || 'Без описания']),
         el('div', { class: 'item-sub' }, [
@@ -2926,10 +3490,12 @@ function renderTransactionRow(t, cats) {
           'data-tip': 'Удалить транзакцию',
           onclick: () => handleDeleteTransaction(t, g),
         },
-        ['✕']
+        [icon('trash', 18)]
       ),
     ]
   );
+
+  if (!swipe) return content;
 
   const wrapper = el('div', { class: 'swipeable' }, [
     el('div', { class: 'swipeable-actions' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
@@ -2992,43 +3558,46 @@ async function exportTransactionsCsv(g) {
 }
 
 function openCreateCategoryModal(g) {
+  const name = el('input', {
+    class: 'input',
+    name: 'name',
+    required: true,
+    maxlength: 100,
+    placeholder: 'Еда',
+  });
+
+  const type = el(
+    'select',
+    { class: 'input', name: 'type', required: true },
+    [
+      el('option', { value: 'fixed' }, ['Постоянная (еда, дом)']),
+      el('option', { value: 'spontaneous' }, ['Спонтанная']),
+    ]
+  );
+
+  const limit = el('input', {
+    class: 'input',
+    name: 'budget_limit',
+    type: 'number',
+    min: 0,
+    step: '0.01',
+    value: 0,
+    required: true,
+  });
+
   openModal({
     title: 'Новая категория',
     body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'name',
-          required: true,
-          maxlength: 100,
-          placeholder: 'Еда',
-        })
-      ),
-      field(
-        'Тип',
-        el('select', { name: 'type', required: true }, [
-          el('option', { value: 'fixed' }, ['Постоянная (еда, дом)']),
-          el('option', { value: 'spontaneous' }, ['Спонтанная']),
-        ])
-      ),
-      field(
-        `Лимит в месяц (${currencySymbol()})`,
-        el('input', {
-          name: 'budget_limit',
-          type: 'number',
-          min: 0,
-          step: '0.01',
-          value: 0,
-          required: true,
-        })
-      ),
+      field('Название', name),
+      field('Тип', type),
+      field(`Лимит в месяц (${currencySymbol()})`, limit),
     ]),
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/categories`, {
-          name: String(fd.get('name') || '').trim(),
-          type: fd.get('type'),
-          budget_limit: Number(fd.get('budget_limit')),
+          name: name.value.trim(),
+          type: type.value,
+          budget_limit: Number(limit.value),
         });
 
         toast('Создано', 'success');
@@ -3042,48 +3611,48 @@ function openCreateCategoryModal(g) {
 }
 
 function openEditCategoryModal(g, c) {
+  const name = el('input', {
+    class: 'input',
+    name: 'name',
+    required: true,
+    maxlength: 100,
+    value: c.name,
+  });
+
+  const type = el(
+    'select',
+    { class: 'input', name: 'type', required: true },
+    [
+      el('option', { value: 'fixed', selected: c.type === 'fixed' }, ['Постоянная']),
+      el('option', { value: 'spontaneous', selected: c.type !== 'fixed' }, ['Спонтанная']),
+    ]
+  );
+
+  const limit = el('input', {
+    class: 'input',
+    name: 'budget_limit',
+    type: 'number',
+    min: 0,
+    step: '0.01',
+    value: Number(c.budget_limit ?? c.limit ?? 0),
+    required: true,
+  });
+
   openModal({
     title: 'Редактировать категорию',
     body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'name',
-          required: true,
-          maxlength: 100,
-          value: c.name,
-        })
-      ),
-      field(
-        'Тип',
-        el('select', { name: 'type', required: true }, [
-          el('option', { value: 'fixed', selected: c.type === 'fixed' }, ['Постоянная']),
-          el('option', { value: 'spontaneous', selected: c.type !== 'fixed' }, ['Спонтанная']),
-        ])
-      ),
-      field(
-        `Лимит в месяц (${currencySymbol()})`,
-        el('input', {
-          name: 'budget_limit',
-          type: 'number',
-          min: 0,
-          step: '0.01',
-          value: Number(c.budget_limit ?? c.limit ?? 0),
-          required: true,
-        })
-      ),
+      field('Название', name),
+      field('Тип', type),
+      field(`Лимит в месяц (${currencySymbol()})`, limit),
     ]),
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
-        const payload = {
-          name: String(fd.get('name') || '').trim(),
-          type: fd.get('type'),
-          budget_limit: Number(fd.get('budget_limit')),
-        };
-
-        if (c.version != null) payload.version = c.version;
-
-        await apiCall('PATCH', `/groups/${g.id}/categories/${c.id}`, payload);
+        await apiCall('PATCH', `/groups/${g.id}/categories/${c.id}`, {
+          name: name.value.trim(),
+          type: type.value,
+          budget_limit: Number(limit.value),
+          version: Number(c.version ?? 0),
+        });
 
         toast('Обновлено', 'success');
         await renderActiveView();
@@ -3095,75 +3664,127 @@ function openEditCategoryModal(g, c) {
   });
 }
 
-function openCreateTransactionModal(g, cats) {
-  if (!cats.length) {
-    toast('Сначала создайте категорию', 'error');
-    return;
-  }
+function openTransactionModal(g, presetType = 'expense') {
+  safeApi(apiCall('GET', `/groups/${g.id}/categories`), []).then((cats) => {
+    if (!cats.length) {
+      toast('Сначала создайте категорию в разделе Бюджет', 'warning');
+      switchView('budget');
+      return;
+    }
 
-  openModal({
-    title: 'Новая транзакция',
-    body: el('div', {}, [
-      field(
-        'Категория',
+    let type = presetType;
+
+    const amountInput = el('input', {
+      type: 'number',
+      step: '0.01',
+      min: '0.01',
+      required: true,
+      placeholder: `Сумма (${currencySymbol()})`,
+      class: 'input',
+      style:
+        'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
+    });
+
+    const presets = [100, 500, 1000, 5000];
+    const presetsRow = el(
+      'div',
+      { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
+      presets.map((p) =>
         el(
-          'select',
-          { name: 'category_id', required: true },
-          cats.map((c) => el('option', { value: c.id }, [c.name]))
+          'button',
+          {
+            type: 'button',
+            class: 'preset-btn',
+            onclick: () => {
+              amountInput.value = p;
+              amountInput.focus();
+            },
+          },
+          [`${p} ${currencySymbol()}`]
         )
-      ),
-      field(
-        'Тип',
-        el('select', { name: 'type', required: true }, [
-          el('option', { value: 'expense' }, ['Расход']),
-          el('option', { value: 'income' }, ['Доход']),
-        ])
-      ),
-      field(
-        `Сумма (${currencySymbol()})`,
-        el('input', {
-          name: 'amount',
-          type: 'number',
-          min: 0.01,
-          step: '0.01',
-          required: true,
-        })
-      ),
-      field(
-        'Дата',
-        el('input', {
-          name: 'date',
-          type: 'datetime-local',
-          value: toLocalInput(new Date().toISOString()),
-          required: true,
-        })
-      ),
-      field(
-        'Описание',
-        el('input', {
-          name: 'description',
-          maxlength: 255,
-          placeholder: 'Обед в кафе',
-        })
-      ),
-    ]),
-    onSave: async (fd) => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/transactions`, {
-          category_id: fd.get('category_id'),
-          type: fd.get('type'),
-          amount: Number(fd.get('amount')),
-          date: fromLocalInput(fd.get('date')),
-          description: String(fd.get('description') || '').trim(),
-        });
+      )
+    );
 
-        toast('Добавлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
-    },
+    const expenseBtn = el(
+      'button',
+      {
+        type: 'button',
+        class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
+        onclick: () => {
+          type = 'expense';
+          expenseBtn.className = 'btn btn-danger btn-sm flex-1';
+          incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+        },
+      },
+      ['Расход']
+    );
+
+    const incomeBtn = el(
+      'button',
+      {
+        type: 'button',
+        class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
+        onclick: () => {
+          type = 'income';
+          expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
+          incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+        },
+      },
+      ['Доход']
+    );
+
+    const catSelect = el(
+      'select',
+      { class: 'input', required: true },
+      cats.map((c) => el('option', { value: c.id }, [c.name]))
+    );
+
+    const dateInput = el('input', {
+      class: 'input',
+      type: 'datetime-local',
+      value: toLocalInput(new Date().toISOString()),
+      required: true,
+    });
+
+    const descInput = el('input', {
+      type: 'text',
+      placeholder: 'Описание (необязательно)',
+      maxlength: '255',
+      class: 'input',
+    });
+
+    openModal({
+      title: '⚡ Быстрая запись',
+      body: el('div', {}, [
+        amountInput,
+        presetsRow,
+        el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
+        field('Категория', catSelect),
+        field('Дата', dateInput),
+        field('Описание', descInput),
+      ]),
+      saveLabel: 'Добавить',
+      onSave: async () => {
+        const amount = parseFloat(amountInput.value);
+        if (!amount || amount <= 0) throw new Error('Введите сумму');
+
+        try {
+          await apiCall('POST', `/groups/${g.id}/transactions`, {
+            category_id: catSelect.value,
+            amount,
+            type,
+            date: fromLocalInput(dateInput.value) || new Date().toISOString(),
+            description: descInput.value.trim(),
+          });
+
+          toast('Добавлено!', 'success');
+          await renderActiveView();
+        } catch (err) {
+          toast(err.message, 'error');
+          throw err;
+        }
+      },
+    });
   });
 }
 
@@ -3213,13 +3834,9 @@ async function renderPlans(container) {
   ]);
 
   container.appendChild(
-    el('div', { class: 'section-head' }, [
-      el('div', {}, [
-        el('div', { class: 'section-title' }, ['События']),
-        el('div', { class: 'section-desc' }, [
-          `${plans.length} ${plural(plans.length, 'событие', 'события', 'событий')}`,
-        ]),
-      ]),
+    sectionHead(
+      'События',
+      `${plans.length} ${plural(plans.length, 'событие', 'события', 'событий')}`,
       el('div', { class: 'row', style: 'gap:8px;' }, [
         toggle,
         el(
@@ -3229,10 +3846,10 @@ async function renderPlans(container) {
             class: 'btn btn-primary btn-sm',
             onclick: () => openCreatePlanModal(g),
           },
-          ['+ Событие']
+          [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Событие'])]
         ),
-      ]),
-    ])
+      ])
+    )
   );
 
   if (calendarState.view === 'calendar') {
@@ -3250,7 +3867,7 @@ async function renderPlans(container) {
 
   if (!plans.length) {
     container.appendChild(
-      emptyState('◷', 'Пока нет планов', 'Создайте первое событие — пикник, поездку, вечеринку')
+      emptyState('calendar', 'Пока нет планов', 'Создайте первое событие — пикник, поездку, вечеринку')
     );
     return;
   }
@@ -3274,10 +3891,13 @@ async function renderPlanCard(g, p) {
 
   card.appendChild(
     el('div', { class: 'card-head' }, [
-      el('div', {}, [
-        el('div', { class: 'card-title' }, [p.title]),
-        el('div', { class: 'card-subtitle' }, [
-          `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
+      el('div', { class: 'row', style: 'gap:10px;' }, [
+        progressRing(pct),
+        el('div', {}, [
+          el('div', { class: 'card-title' }, [p.title]),
+          el('div', { class: 'card-subtitle' }, [
+            `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
+          ]),
         ]),
       ]),
       el('div', { class: 'item-actions' }, [
@@ -3286,27 +3906,27 @@ async function renderPlanCard(g, p) {
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Редактировать',
+            'data-tip': 'Редактировать',
             onclick: () => openEditPlanModal(g, p),
           },
-          ['✎']
+          [icon('edit', 18)]
         ),
         el(
           'button',
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: p.is_done ? 'Вернуть в активные' : 'Отметить выполненным',
+            'data-tip': p.is_done ? 'Вернуть в активные' : 'Отметить выполненным',
             onclick: () => togglePlan(g, p),
           },
-          [p.is_done ? '↺' : '✓']
+          [icon(p.is_done ? 'clock' : 'check', 18)]
         ),
         el(
           'button',
           {
             type: 'button',
             class: 'icon-btn sm',
-            title: 'Удалить',
+            'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete('Удалить событие?', async () => {
                 try {
@@ -3318,7 +3938,7 @@ async function renderPlanCard(g, p) {
                 }
               }),
           },
-          ['✕']
+          [icon('trash', 18)]
         ),
       ]),
     ])
@@ -3331,15 +3951,6 @@ async function renderPlanCard(g, p) {
   }
 
   if (items.length) {
-    card.appendChild(
-      el('div', { class: 'progress' }, [
-        el('div', {
-          class: `progress-fill${pct === 100 ? ' success' : ''}`,
-          style: `width:${pct}%`,
-        }),
-      ])
-    );
-
     card.appendChild(
       el('div', { class: 'text-xs text-3 mt-8' }, [`${done} / ${items.length} пунктов`])
     );
@@ -3363,14 +3974,14 @@ async function renderPlanCard(g, p) {
           el('div', { class: 'item' + (isChecked ? ' is-done' : '') }, [
             check,
             el('div', { class: 'item-main' }, [
-              el('div', { class: 'item-title', style: 'font-size:13px;font-weight:600;' }, [it.text]),
+              el('div', { class: 'item-title', style: 'font-size:13px;font-weight:650;' }, [it.text]),
             ]),
             el(
               'button',
               {
                 type: 'button',
                 class: 'icon-btn sm',
-                title: 'Удалить',
+                'data-tip': 'Удалить',
                 onclick: async () => {
                   try {
                     await apiCall('DELETE', `/groups/${g.id}/checklist/${it.id}`);
@@ -3381,7 +3992,7 @@ async function renderPlanCard(g, p) {
                   }
                 },
               },
-              ['✕']
+              [icon('trash', 18)]
             ),
           ]),
           i
@@ -3400,7 +4011,7 @@ async function renderPlanCard(g, p) {
         class: 'btn btn-ghost btn-sm btn-block mt-12',
         onclick: () => openCreateChecklistModal(g, p),
       },
-      ['+ пункт']
+      [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Пункт'])]
     )
   );
 
@@ -3411,16 +4022,13 @@ async function togglePlan(g, p) {
   const next = !p.is_done;
 
   try {
-    const payload = {
+    await apiCall('PATCH', `/groups/${g.id}/plans/${p.id}`, {
       title: p.title,
       description: p.description || '',
       event_date: p.event_date,
       is_done: next,
-    };
-
-    if (p.version != null) payload.version = p.version;
-
-    await apiCall('PATCH', `/groups/${g.id}/plans/${p.id}`, payload);
+      version: Number(p.version ?? 0),
+    });
 
     toast(next ? 'Событие выполнено' : 'Событие возвращено в планы', 'success');
     await renderActiveView();
@@ -3438,14 +4046,11 @@ async function toggleChecklistItem(g, item, checkNode) {
   checkNode.classList.toggle('on', next);
 
   try {
-    const payload = {
+    await apiCall('PATCH', `/groups/${g.id}/checklist/${item.id}`, {
       text: item.text,
       is_checked: next,
-    };
-
-    if (item.version != null) payload.version = item.version;
-
-    await apiCall('PATCH', `/groups/${g.id}/checklist/${item.id}`, payload);
+      version: Number(item.version ?? 0),
+    });
     await renderActiveView();
   } catch (err) {
     item.is_checked = current;
@@ -3456,35 +4061,41 @@ async function toggleChecklistItem(g, item, checkNode) {
 }
 
 function openCreatePlanModal(g) {
+  const title = el('input', {
+    class: 'input',
+    name: 'title',
+    required: true,
+    maxlength: 200,
+    placeholder: 'Пикник в парке',
+  });
+
+  const description = el('textarea', {
+    class: 'input',
+    name: 'description',
+    placeholder: 'Необязательно',
+  });
+
+  const eventDate = el('input', {
+    class: 'input',
+    name: 'event_date',
+    type: 'datetime-local',
+    value: toLocalInput(new Date().toISOString()),
+    required: true,
+  });
+
   openModal({
     title: 'Новое событие',
     body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'title',
-          required: true,
-          maxlength: 200,
-          placeholder: 'Пикник в парке',
-        })
-      ),
-      field('Описание', el('textarea', { name: 'description', placeholder: 'Необязательно' })),
-      field(
-        'Дата и время',
-        el('input', {
-          name: 'event_date',
-          type: 'datetime-local',
-          value: toLocalInput(new Date().toISOString()),
-          required: true,
-        })
-      ),
+      field('Название', title),
+      field('Описание', description),
+      field('Дата и время', eventDate),
     ]),
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/plans`, {
-          title: String(fd.get('title') || '').trim(),
-          description: String(fd.get('description') || '').trim(),
-          event_date: fromLocalInput(fd.get('event_date')),
+          title: title.value.trim(),
+          description: description.value.trim(),
+          event_date: fromLocalInput(eventDate.value),
         });
 
         toast('Создано', 'success');
@@ -3498,41 +4109,43 @@ function openCreatePlanModal(g) {
 }
 
 function openEditPlanModal(g, plan) {
+  const title = el('input', {
+    class: 'input',
+    name: 'title',
+    required: true,
+    maxlength: 200,
+    value: plan.title,
+  });
+
+  const description = el('textarea', {
+    class: 'input',
+    name: 'description',
+  }, [plan.description || '']);
+
+  const eventDate = el('input', {
+    class: 'input',
+    name: 'event_date',
+    type: 'datetime-local',
+    value: toLocalInput(plan.event_date),
+    required: true,
+  });
+
   openModal({
     title: 'Редактировать событие',
     body: el('div', {}, [
-      field(
-        'Название',
-        el('input', {
-          name: 'title',
-          required: true,
-          maxlength: 200,
-          value: plan.title,
-        })
-      ),
-      field('Описание', el('textarea', { name: 'description' }, [plan.description || ''])),
-      field(
-        'Дата и время',
-        el('input', {
-          name: 'event_date',
-          type: 'datetime-local',
-          value: toLocalInput(plan.event_date),
-          required: true,
-        })
-      ),
+      field('Название', title),
+      field('Описание', description),
+      field('Дата и время', eventDate),
     ]),
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
-        const payload = {
-          title: String(fd.get('title') || '').trim(),
-          description: String(fd.get('description') || '').trim(),
-          event_date: fromLocalInput(fd.get('event_date')),
+        await apiCall('PATCH', `/groups/${g.id}/plans/${plan.id}`, {
+          title: title.value.trim(),
+          description: description.value.trim(),
+          event_date: fromLocalInput(eventDate.value),
           is_done: !!plan.is_done,
-        };
-
-        if (plan.version != null) payload.version = plan.version;
-
-        await apiCall('PATCH', `/groups/${g.id}/plans/${plan.id}`, payload);
+          version: Number(plan.version ?? 0),
+        });
 
         toast('Обновлено', 'success');
         await renderActiveView();
@@ -3545,21 +4158,21 @@ function openEditPlanModal(g, plan) {
 }
 
 function openCreateChecklistModal(g, p) {
+  const text = el('input', {
+    class: 'input',
+    name: 'text',
+    required: true,
+    maxlength: 500,
+    placeholder: 'Взять плед',
+  });
+
   openModal({
     title: 'Новый пункт',
-    body: field(
-      'Текст',
-      el('input', {
-        name: 'text',
-        required: true,
-        maxlength: 500,
-        placeholder: 'Взять плед',
-      })
-    ),
-    onSave: async (fd) => {
+    body: field('Текст', text),
+    onSave: async () => {
       try {
         await apiCall('POST', `/groups/${g.id}/plans/${p.id}/checklist`, {
-          text: String(fd.get('text') || '').trim(),
+          text: text.value.trim(),
         });
 
         toast('Добавлено', 'success');
@@ -3585,7 +4198,7 @@ async function renderProfile(container) {
   container.innerHTML = '';
 
   const u = state.user;
-  const wrap = el('div', { style: 'max-width:620px;' });
+  const wrap = el('div', { style: 'max-width:680px;' });
 
   wrap.appendChild(
     el('div', { class: 'card' }, [
@@ -3594,7 +4207,7 @@ async function renderProfile(container) {
           initials(u.full_name),
         ]),
         el('div', {}, [
-          el('div', { style: 'font-size:16px;font-weight:750;' }, [u.full_name || '—']),
+          el('div', { style: 'font-size:16px;font-weight:850;' }, [u.full_name || '—']),
           el('div', { class: 'text-sm text-3' }, [u.phone_number || '—']),
         ]),
       ]),
@@ -3608,19 +4221,18 @@ async function renderProfile(container) {
             const fd = new FormData(e.target);
 
             try {
-              const payload = {
+              const res = await apiCall('PATCH', '/users/me', {
                 full_name: String(fd.get('full_name') || '').trim(),
                 age: Number(fd.get('age')),
                 phone_number: String(fd.get('phone_number') || '').trim(),
                 currency: String(fd.get('currency') || 'RUB').trim(),
-              };
+                version: Number(u.version ?? 0),
+              });
 
-              if (u.version != null) payload.version = u.version;
-
-              const res = await apiCall('PATCH', '/users/me', payload);
               state.user = res.data;
 
               toast('Профиль обновлён', 'success');
+              renderShell();
               await renderProfile(container);
             } catch (err) {
               toast(err.message, 'error');
@@ -3631,6 +4243,7 @@ async function renderProfile(container) {
           field(
             'Имя',
             el('input', {
+              class: 'input',
               name: 'full_name',
               value: u.full_name || '',
               required: true,
@@ -3641,6 +4254,7 @@ async function renderProfile(container) {
           field(
             'Возраст',
             el('input', {
+              class: 'input',
               name: 'age',
               type: 'number',
               value: u.age ?? '',
@@ -3652,6 +4266,7 @@ async function renderProfile(container) {
           field(
             'Телефон',
             el('input', {
+              class: 'input',
               name: 'phone_number',
               type: 'tel',
               value: u.phone_number || '',
@@ -3660,7 +4275,7 @@ async function renderProfile(container) {
           ),
           field(
             'Валюта',
-            el('select', { name: 'currency' }, [
+            el('select', { class: 'input', name: 'currency' }, [
               el('option', { value: 'RUB', selected: (u.currency || 'RUB') === 'RUB' }, ['₽ Рубль']),
               el('option', { value: 'USD', selected: u.currency === 'USD' }, ['$ Доллар']),
               el('option', { value: 'EUR', selected: u.currency === 'EUR' }, ['€ Евро']),
@@ -3715,9 +4330,9 @@ async function renderProfile(container) {
 
   wrap.appendChild(
     el('div', { class: 'card mt-16' }, [
-      el('div', { class: 'card-title' }, ['Опасная зона и настройки']),
+      el('div', { class: 'card-title' }, ['Аккаунт и безопасность']),
       el('div', { class: 'text-sm text-3 mt-8' }, [
-        'Удаление аккаунта необратимо. Все данные будут стёрты.',
+        'Управление паролем, Telegram-уведомлениями и опасные действия.',
       ]),
 
       el(
@@ -3727,7 +4342,7 @@ async function renderProfile(container) {
           class: 'btn btn-ghost btn-block mt-12',
           onclick: openChangePasswordModal,
         },
-        ['Сменить пароль']
+        [el('span', { 'data-icon': 'key', 'data-size': 'sm' }), el('span', {}, ['Сменить пароль'])]
       ),
 
       el(
@@ -3737,7 +4352,7 @@ async function renderProfile(container) {
           class: 'btn btn-ghost btn-block mt-8',
           onclick: () => startOnboardingTour(true),
         },
-        ['Пройти тур заново']
+        [el('span', { 'data-icon': 'sparkles', 'data-size': 'sm' }), el('span', {}, ['Пройти тур заново'])]
       ),
 
       el(
@@ -3745,14 +4360,16 @@ async function renderProfile(container) {
         {
           type: 'button',
           class: 'btn btn-block mt-8',
-          style: 'background:#229ED9;color:#fff;border:none;font-weight:700;',
+          style: 'background:#229ED9;color:#fff;border:none;font-weight:800;',
           onclick: () => {
             if (!state.user) return;
             window.open(`https://t.me/zunno_notify_bot?start=${state.user.id}`, '_blank');
           },
         },
-        ['✈ Привязать Telegram']
+        [el('span', { 'data-icon': 'send', 'data-size': 'sm' }), el('span', {}, ['Привязать Telegram'])]
       ),
+
+      el('div', { class: 'card-title mt-16', style: 'color: var(--danger);' }, ['Опасная зона']),
 
       el(
         'button',
@@ -3761,7 +4378,7 @@ async function renderProfile(container) {
           class: 'btn btn-danger btn-block mt-12',
           onclick: openDeleteAccountModal,
         },
-        ['Удалить аккаунт']
+        [el('span', { 'data-icon': 'trash', 'data-size': 'sm' }), el('span', {}, ['Удалить аккаунт'])]
       ),
 
       el(
@@ -3771,7 +4388,7 @@ async function renderProfile(container) {
           class: 'btn btn-ghost btn-block mt-8',
           onclick: logout,
         },
-        ['Выйти из аккаунта']
+        [el('span', { 'data-icon': 'logout', 'data-size': 'sm' }), el('span', {}, ['Выйти из аккаунта'])]
       ),
     ])
   );
@@ -3784,7 +4401,6 @@ function openChangePasswordModal() {
     class: 'input',
     type: 'password',
     placeholder: 'Текущий пароль',
-    style: 'margin-bottom:12px;',
   });
 
   const newPwd = el('input', {
@@ -3799,8 +4415,8 @@ function openChangePasswordModal() {
       el('p', { class: 'text-sm text-2', style: 'margin-bottom:12px;' }, [
         'Введите старый и новый пароль.',
       ]),
-      oldPwd,
-      newPwd,
+      field('Текущий пароль', oldPwd),
+      field('Новый пароль', newPwd),
     ]),
     saveLabel: 'Сохранить',
     onSave: async () => {
@@ -3822,27 +4438,27 @@ function openChangePasswordModal() {
 }
 
 function openDeleteAccountModal() {
+  const password = el('input', {
+    class: 'input',
+    name: 'password',
+    type: 'password',
+    required: true,
+  });
+
   openModal({
     title: 'Удалить аккаунт?',
     body: el('div', {}, [
       el('p', { class: 'text-2 text-sm' }, [
         'Это действие необратимо. Введите пароль для подтверждения.',
       ]),
-      field(
-        'Пароль',
-        el('input', {
-          name: 'password',
-          type: 'password',
-          required: true,
-        })
-      ),
+      field('Пароль', password),
     ]),
     saveLabel: 'Удалить навсегда',
     danger: true,
-    onSave: async (fd) => {
+    onSave: async () => {
       try {
         await apiCall('DELETE', '/users/me', {
-          password: fd.get('password'),
+          password: password.value,
         });
 
         toast('Аккаунт удалён', 'success');
@@ -3863,7 +4479,7 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
   if (!root) return;
 
   closeModal();
-  modalPrevFocus = document.activeElement;
+  ui.modalPrevFocus = document.activeElement;
 
   const backdrop = el('div', {
     class: 'modal-backdrop',
@@ -3882,7 +4498,7 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
   modal.appendChild(el('div', { class: 'modal-title' }, [title]));
 
   const form = el('form', { class: 'modal-body', novalidate: true });
-  form.appendChild(normalizeNode(body));
+  appendContent(form, body);
 
   const submit = el(
     'button',
@@ -3951,8 +4567,10 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
   backdrop.appendChild(modal);
   root.appendChild(backdrop);
 
+  hydrateIcons(modal);
+
   const first = modal.querySelector('input, select, textarea, button');
-  if (first) setTimeout(() => first.focus(), 70);
+  if (first) setTimeout(() => first.focus(), 80);
 }
 
 function closeModal() {
@@ -3961,18 +4579,18 @@ function closeModal() {
 
   root.innerHTML = '';
 
-  if (modalPrevFocus && modalPrevFocus.isConnected) {
-    modalPrevFocus.focus();
+  if (ui.modalPrevFocus && ui.modalPrevFocus.isConnected) {
+    ui.modalPrevFocus.focus();
   }
 
-  modalPrevFocus = null;
+  ui.modalPrevFocus = null;
 }
 
-function confirmDelete(message, onConfirm) {
+function confirmDelete(message, onConfirm, confirmLabel = 'Удалить') {
   openModal({
     title: 'Подтверждение',
-    body: el('div', { class: 'text-2' }, [message]),
-    saveLabel: 'Удалить',
+    body: el('div', { class: 'confirm-text' }, [message]),
+    saveLabel: confirmLabel,
     danger: true,
     onSave: async () => {
       await onConfirm();
@@ -3993,7 +4611,7 @@ function deleteWithUndo({ label, onConfirm, onCancel }) {
   let timer;
 
   const node = el('div', { class: 'toast toast-warning', role: 'status' }, [
-    el('div', { class: 'toast-ico' }, ['⚠']),
+    el('div', { class: 'toast-ico' }, [icon('alert', 16)]),
     el('div', { class: 'toast-msg', style: 'flex:1;' }, [`${label} удалено`]),
     el(
       'button',
@@ -4024,63 +4642,31 @@ function deleteWithUndo({ label, onConfirm, onCancel }) {
 }
 
 /* =============================================================
-   SHEET
-   ============================================================= */
-function openSheet({ title, content }) {
-  const root = $('#sheet-root');
-  if (!root) return;
-
-  root.innerHTML = '';
-
-  const backdrop = el('div', {
-    class: 'sheet-backdrop',
-    onclick: (e) => {
-      if (e.target === backdrop) closeSheet();
-    },
-  });
-
-  const sheet = el('div', { class: 'sheet' }, [
-    el('div', { class: 'sheet-handle' }),
-    title ? el('div', { class: 'sheet-title' }, [title]) : null,
-    normalizeNode(content),
-  ].filter(Boolean));
-
-  backdrop.appendChild(sheet);
-  root.appendChild(backdrop);
-}
-
-function closeSheet() {
-  const root = $('#sheet-root');
-  if (root) root.innerHTML = '';
-}
-
-/* =============================================================
-   MODALS · GROUP
+   GROUP MODALS
    ============================================================= */
 function openCreateGroupModal() {
+  const name = el('input', {
+    class: 'input',
+    name: 'name',
+    required: true,
+    maxlength: 100,
+    placeholder: 'Например, Семья',
+  });
+
   openModal({
     title: 'Новая группа',
-    body: field(
-      'Название',
-      el('input', {
-        name: 'name',
-        required: true,
-        maxlength: 100,
-        placeholder: 'Например, Семья',
-      })
-    ),
-    onSave: async (fd) => {
+    body: field('Название', name),
+    onSave: async () => {
       try {
         const res = await apiCall('POST', '/groups', {
-          name: String(fd.get('name') || '').trim(),
+          name: name.value.trim(),
         });
 
         state.groups.push(res.data);
         state.activeGroupId = res.data.id;
         localStorage.setItem('active_group', res.data.id);
 
-        renderSidebarGroups();
-        renderTopbarGroup();
+        renderShell();
         await renderActiveView();
 
         toast('Группа создана', 'success');
@@ -4093,25 +4679,24 @@ function openCreateGroupModal() {
 }
 
 function openJoinGroupModal() {
+  const groupId = el('input', {
+    class: 'copy-input',
+    name: 'group_id',
+    required: true,
+    placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+  });
+
   openModal({
     title: 'Присоединиться по ID',
     body: el('div', {}, [
       el('p', { class: 'text-2 text-sm' }, [
         'Введите ID группы, который вам прислал администратор.',
       ]),
-      field(
-        'Group ID',
-        el('input', {
-          class: 'copy-input',
-          name: 'group_id',
-          required: true,
-          placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-        })
-      ),
+      field('Group ID', groupId),
     ]),
     saveLabel: 'Присоединиться',
-    onSave: async (fd) => {
-      const gid = String(fd.get('group_id') || '').trim();
+    onSave: async () => {
+      const gid = groupId.value.trim();
 
       try {
         await apiCall('POST', `/groups/${gid}/join`);
@@ -4126,11 +4711,21 @@ function openJoinGroupModal() {
 }
 
 function openInviteModal(g) {
+  const phone = el('input', {
+    class: 'input',
+    type: 'tel',
+    placeholder: '+79991234567',
+    inputmode: 'tel',
+  });
+
   openModal({
     title: 'Пригласить в группу',
     body: el('div', {}, [
-      el('p', { class: 'text-2 text-sm' }, ['Отправьте другу ID группы:']),
-      el('div', { class: 'row mt-8', style: 'gap:8px;' }, [
+      el('p', { class: 'text-2 text-sm' }, [
+        'Введите телефон пользователя. Если он зарегистрирован, получит приглашение.',
+      ]),
+      field('Телефон', phone),
+      el('div', { class: 'row gap-8 mt-12' }, [
         el('input', {
           class: 'copy-input flex-1',
           type: 'text',
@@ -4142,128 +4737,35 @@ function openInviteModal(g) {
           'button',
           {
             type: 'button',
-            class: 'btn btn-primary',
+            class: 'btn btn-ghost btn-sm',
             onclick: () => copyText(g.id, 'ID группы скопирован'),
           },
-          ['Копировать']
+          [icon('copy', 18)]
         ),
       ]),
-      el('p', { class: 'text-xs text-3 mt-12' }, [
-        'Друг зайдёт по адресу приложения, нажмёт «Присоединиться» и вставит этот ID.',
+      el('p', { class: 'text-xs text-3 mt-8' }, [
+        'Альтернатива: отправьте другу ID группы, он нажмёт «Присоединиться».',
       ]),
     ]),
-    saveLabel: 'Готово',
-    onSave: async () => {},
+    saveLabel: 'Отправить приглашение',
+    onSave: async () => {
+      const value = phone.value.replace(/\s+/g, '').trim();
+      if (!value) throw new Error('Введите телефон');
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/invite`, {
+          phone_number: value,
+        });
+
+        toast('Приглашение отправлено', 'success');
+      } catch (err) {
+        if (err.status === 404) {
+          throw new Error('Пользователь с таким телефоном не найден');
+        }
+        throw err;
+      }
+    },
   });
-}
-
-/* =============================================================
-   GROUP SHEET
-   ============================================================= */
-function openGroupSheet() {
-  const content = el('div', {}, []);
-  const list = el('div', { class: 'sheet-actions' });
-
-  if (!state.groups.length) {
-    list.appendChild(
-      el('div', { class: 'text-sm text-3', style: 'text-align:center;padding:12px;' }, [
-        'Нет групп',
-      ])
-    );
-  } else {
-    for (const g of state.groups) {
-      list.appendChild(
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'sheet-action',
-            onclick: () => switchGroup(g.id),
-          },
-          [
-            el('span', { class: 'sheet-action-icon' }, [g.id === state.activeGroupId ? '●' : '○']),
-            el('span', { class: 'flex-1' }, [g.name]),
-            g.id === state.activeGroupId ? el('span', { class: 'tag tag-primary' }, ['активна']) : null,
-          ].filter(Boolean)
-        )
-      );
-    }
-  }
-
-  content.appendChild(list);
-
-  const actions = el('div', { class: 'sheet-actions mt-12' }, [
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'sheet-action',
-        onclick: () => {
-          closeSheet();
-          openCreateGroupModal();
-        },
-      },
-      [
-        el('span', { class: 'sheet-action-icon' }, ['+']),
-        el('span', { class: 'flex-1' }, ['Создать группу']),
-      ]
-    ),
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'sheet-action',
-        onclick: () => {
-          closeSheet();
-          openJoinGroupModal();
-        },
-      },
-      [
-        el('span', { class: 'sheet-action-icon' }, ['→']),
-        el('span', { class: 'flex-1' }, ['Присоединиться по ID']),
-      ]
-    ),
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'sheet-action',
-        onclick: () => {
-          const g = activeGroup();
-          if (!g) {
-            toast('Нет активной группы', 'error');
-            return;
-          }
-
-          copyText(g.id, 'ID группы скопирован');
-          closeSheet();
-        },
-      },
-      [
-        el('span', { class: 'sheet-action-icon' }, ['⧉']),
-        el('span', { class: 'flex-1' }, ['Скопировать ID группы']),
-      ]
-    ),
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'sheet-action',
-        onclick: () => {
-          closeSheet();
-          logout();
-        },
-      },
-      [
-        el('span', { class: 'sheet-action-icon' }, ['×']),
-        el('span', { class: 'flex-1' }, ['Выйти из аккаунта']),
-      ]
-    ),
-  ]);
-
-  content.appendChild(actions);
-
-  openSheet({ title: 'Группы', content });
 }
 
 /* =============================================================
@@ -4288,7 +4790,7 @@ function getCommands() {
       id: `group-${group.id}`,
       title: group.name,
       hint: 'Группа',
-      icon: '◫',
+      icon: 'users',
       run: () => switchGroup(group.id),
     });
   }
@@ -4297,7 +4799,7 @@ function getCommands() {
     id: 'action-create-group',
     title: 'Создать группу',
     hint: 'Действие',
-    icon: '+',
+    icon: 'plus',
     run: openCreateGroupModal,
   });
 
@@ -4305,45 +4807,52 @@ function getCommands() {
     id: 'action-join-group',
     title: 'Присоединиться по ID',
     hint: 'Действие',
-    icon: '→',
+    icon: 'login',
     run: openJoinGroupModal,
   });
 
   if (g) {
     cmds.push(
       {
-        id: 'action-quick-tx',
-        title: 'Быстрая трата',
+        id: 'action-expense',
+        title: 'Добавить расход',
         hint: 'Действие',
-        icon: '⚡',
-        run: openQuickTransactionModal,
+        icon: 'arrowDownCircle',
+        run: () => openTransactionModal(g, 'expense'),
       },
       {
-        id: 'action-create-plan',
+        id: 'action-income',
+        title: 'Добавить доход',
+        hint: 'Действие',
+        icon: 'arrowUpCircle',
+        run: () => openTransactionModal(g, 'income'),
+      },
+      {
+        id: 'action-plan',
         title: 'Создать событие',
         hint: 'Действие',
-        icon: '◷',
+        icon: 'calendarPlus',
         run: () => openCreatePlanModal(g),
       },
       {
-        id: 'action-create-goal',
+        id: 'action-goal',
         title: 'Создать категорию целей',
         hint: 'Действие',
-        icon: '◆',
+        icon: 'target',
         run: () => openCreateGoalCategoryModal(g),
       },
       {
         id: 'action-invite',
         title: 'Пригласить в группу',
         hint: 'Действие',
-        icon: '＋',
+        icon: 'invite',
         run: () => openInviteModal(g),
       },
       {
         id: 'action-copy-group-id',
         title: 'Скопировать ID группы',
         hint: 'Действие',
-        icon: '⧉',
+        icon: 'copy',
         run: () => copyText(g.id, 'ID группы скопирован'),
       }
     );
@@ -4353,7 +4862,7 @@ function getCommands() {
     id: 'action-toggle-theme',
     title: 'Переключить тему',
     hint: 'Интерфейс',
-    icon: '☾',
+    icon: document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
     run: toggleTheme,
   });
 
@@ -4362,7 +4871,7 @@ function getCommands() {
       id: 'action-logout',
       title: 'Выйти из аккаунта',
       hint: 'Аккаунт',
-      icon: '×',
+      icon: 'logout',
       run: logout,
     });
   }
@@ -4371,9 +4880,9 @@ function getCommands() {
 }
 
 function openCommandPalette() {
-  if (commandState.open) return;
+  if (ui.command.open) return;
 
-  commandState.open = true;
+  ui.command.open = true;
 
   const root = $('#command-palette');
   const input = $('#command-input');
@@ -4389,9 +4898,9 @@ function openCommandPalette() {
 }
 
 function closeCommandPalette() {
-  if (!commandState.open) return;
+  if (!ui.command.open) return;
 
-  commandState.open = false;
+  ui.command.open = false;
   $('#command-palette')?.classList.add('hidden');
 }
 
@@ -4402,38 +4911,38 @@ function renderCommands(query = '') {
   const all = getCommands();
   const q = query.trim().toLowerCase();
 
-  commandState.filtered = q
+  ui.command.filtered = q
     ? all.filter((cmd) => `${cmd.title} ${cmd.hint}`.toLowerCase().includes(q))
     : all;
 
-  if (commandState.selected >= commandState.filtered.length) {
-    commandState.selected = Math.max(0, commandState.filtered.length - 1);
+  if (ui.command.selected >= ui.command.filtered.length) {
+    ui.command.selected = Math.max(0, ui.command.filtered.length - 1);
   }
 
   list.innerHTML = '';
 
-  if (!commandState.filtered.length) {
+  if (!ui.command.filtered.length) {
     list.appendChild(el('div', { class: 'cmdk-empty' }, ['Ничего не найдено']));
     return;
   }
 
-  commandState.filtered.forEach((cmd, index) => {
+  ui.command.filtered.forEach((cmd, index) => {
     const item = el(
       'button',
       {
         type: 'button',
-        class: 'cmdk-item' + (index === commandState.selected ? ' is-selected' : ''),
+        class: 'cmdk-item' + (index === ui.command.selected ? ' is-selected' : ''),
         onclick: () => {
           closeCommandPalette();
           cmd.run();
         },
         onmouseenter: () => {
-          commandState.selected = index;
+          ui.command.selected = index;
           updateCommandSelection();
         },
       },
       [
-        el('span', { class: 'cmdk-item-icon' }, [cmd.icon || '•']),
+        el('span', { class: 'cmdk-item-icon' }, [icon(cmd.icon || 'info', 18)]),
         el('span', { class: 'cmdk-item-main' }, [
           el('span', { class: 'cmdk-item-title' }, [cmd.title]),
           el('span', { class: 'cmdk-item-hint' }, [cmd.hint || '']),
@@ -4449,88 +4958,29 @@ function updateCommandSelection() {
   const items = $$('#command-list .cmdk-item');
 
   items.forEach((node, index) => {
-    node.classList.toggle('is-selected', index === commandState.selected);
+    node.classList.toggle('is-selected', index === ui.command.selected);
   });
 
-  items[commandState.selected]?.scrollIntoView({ block: 'nearest' });
+  items[ui.command.selected]?.scrollIntoView({ block: 'nearest' });
 }
 
 function moveCommandSelection(delta) {
-  if (!commandState.filtered.length) return;
+  if (!ui.command.filtered.length) return;
 
-  commandState.selected =
-    (commandState.selected + delta + commandState.filtered.length) % commandState.filtered.length;
+  ui.command.selected =
+    (ui.command.selected + delta + ui.command.filtered.length) % ui.command.filtered.length;
 
   updateCommandSelection();
 }
 
-/* =============================================================
-   TOOLTIPS
-   ============================================================= */
-function initTooltips() {
-  let touchTimer;
-
-  document.addEventListener(
-    'touchstart',
-    (e) => {
-      const target = e.target.closest('[data-tip]');
-      if (!target) return;
-
-      touchTimer = setTimeout(() => {
-        const text = target.getAttribute('data-tip');
-        if (text) toast(text, 'info', 3000);
-        if (navigator.vibrate) navigator.vibrate(30);
-      }, 400);
-    },
-    { passive: true }
-  );
-
-  document.addEventListener('touchend', () => clearTimeout(touchTimer));
-  document.addEventListener('touchmove', () => clearTimeout(touchTimer));
-}
-
-/* =============================================================
-   INIT
-   ============================================================= */
-function initApp() {
-  initTooltips();
-  initAuthScreen();
-
-  $$('.nav-item').forEach((n) => {
-    n.addEventListener('click', () => switchView(n.dataset.view));
-  });
-
-  $$('.mobile-nav-item').forEach((n) => {
-    n.addEventListener('click', () => switchView(n.dataset.view));
-  });
-
-  $('#btn-new-group')?.addEventListener('click', openCreateGroupModal);
-  $('#btn-join-group')?.addEventListener('click', openJoinGroupModal);
-  $('#topbar-group-btn')?.addEventListener('click', openGroupSheet);
-
-  $('#topbar-copy-id')?.addEventListener('click', () => {
-    const g = activeGroup();
-    if (!g) {
-      toast('Нет активной группы', 'error');
-      return;
-    }
-
-    copyText(g.id, 'ID группы скопирован');
-  });
-
-  $('#topbar-user-btn')?.addEventListener('click', () => switchView('profile'));
-
-  $$('[data-theme-toggle]').forEach((btn) => {
-    btn.addEventListener('click', toggleTheme);
-  });
-
+function initCommandPalette() {
   $('#command-btn')?.addEventListener('click', () => {
-    if (commandState.open) closeCommandPalette();
+    if (ui.command.open) closeCommandPalette();
     else openCommandPalette();
   });
 
   $('#command-input')?.addEventListener('input', (e) => {
-    commandState.selected = 0;
+    ui.command.selected = 0;
     renderCommands(e.target.value);
   });
 
@@ -4543,7 +4993,7 @@ function initApp() {
       moveCommandSelection(-1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const cmd = commandState.filtered[commandState.selected];
+      const cmd = ui.command.filtered[ui.command.selected];
       if (cmd) {
         closeCommandPalette();
         cmd.run();
@@ -4560,25 +5010,47 @@ function initApp() {
       closeCommandPalette();
     }
   });
+}
 
-  $('#group-settings-btn')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openGroupSettingsModal();
+/* =============================================================
+   RIPPLE
+   ============================================================= */
+function initRipple() {
+  document.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip');
+    if (!btn || btn.disabled) return;
+
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+
+    const span = el('span', { class: 'ripple' });
+    span.style.width = `${size}px`;
+    span.style.height = `${size}px`;
+    span.style.left = `${e.clientX - rect.left - size / 2}px`;
+    span.style.top = `${e.clientY - rect.top - size / 2}px`;
+
+    btn.appendChild(span);
+    setTimeout(() => span.remove(), 600);
   });
+}
 
+/* =============================================================
+   GLOBAL KEYS
+   ============================================================= */
+function initGlobalKeys() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       const appVisible = !$('#screen-app')?.classList.contains('hidden');
       if (!appVisible) return;
 
-      if (commandState.open) closeCommandPalette();
+      if (ui.command.open) closeCommandPalette();
       else openCommandPalette();
       return;
     }
 
     if (e.key === 'Escape') {
-      if (commandState.open) {
+      if (ui.command.open) {
         closeCommandPalette();
         return;
       }
@@ -4588,10 +5060,42 @@ function initApp() {
         return;
       }
 
-      if ($('#sheet-root')?.children.length) {
-        closeSheet();
+      if (ui.popover) {
+        closePopover();
+        return;
+      }
+
+      if (ui.fabOpen) {
+        closeFab();
       }
     }
+  });
+}
+
+/* =============================================================
+   INIT
+   ============================================================= */
+function initApp() {
+  hydrateIcons();
+  initTooltip();
+  initRipple();
+  initAuthScreen();
+  initSidebar();
+  initTopbar();
+  initFab();
+  initCommandPalette();
+  initGlobalKeys();
+
+  $$('.nav-item').forEach((n) => {
+    n.addEventListener('click', () => switchView(n.dataset.view));
+  });
+
+  $$('.mobile-nav-item').forEach((n) => {
+    n.addEventListener('click', () => switchView(n.dataset.view));
+  });
+
+  $$('[data-theme-toggle]').forEach((btn) => {
+    btn.addEventListener('click', toggleTheme);
   });
 }
 
