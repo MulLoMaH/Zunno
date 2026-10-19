@@ -284,6 +284,18 @@
 
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script>
+    window.onerror = function(msg, url, line, col, error) {
+      const preloader = document.getElementById('preloader');
+      if (preloader) preloader.classList.add('hide');
+      alert("ОШИБКА JS:
+" + msg + "
+
+Файл: " + url + "
+Строка: " + line);
+      return false;
+    };
+  </script>
   <script src="/app.js"></script>
 </body>
 </html>
