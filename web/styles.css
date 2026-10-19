@@ -2062,3 +2062,11 @@ kbd {
     scroll-behavior: auto !important;
   }
 }
+
+/* Доходы / Расходы */
+.amount-positive { color: var(--success, #34d399) !important; }
+.amount-negative { color: var(--danger, #f87171) !important; }
+.text-success { color: var(--success, #34d399); }
+.text-danger { color: var(--danger, #f87171); }
+.progress-fill.success { background: var(--success, #34d399); }
+.progress-fill.danger { background: var(--danger, #f87171); }

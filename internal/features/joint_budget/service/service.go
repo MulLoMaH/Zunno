@@ -17,6 +17,8 @@ type BudgetService struct {
 }
 
 type BudgetRepository interface {
+	GetAnalytics(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.AnalyticsItem, error)
+	GetMembersSpent(ctx context.Context, groupID uuid.UUID, from, to time.Time) ([]domain.MemberSpent, error)
 	CreateCategory(ctx context.Context, cat domain.Category) (domain.Category, error)
 	GetCategories(ctx context.Context, groupID uuid.UUID) ([]domain.Category, error)
 	GetCategory(ctx context.Context, categoryID uuid.UUID) (domain.Category, error)

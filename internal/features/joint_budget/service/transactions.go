@@ -15,6 +15,7 @@ import (
 )
 
 type GetTransactionsFilter struct {
+	Query *string
 	From       *time.Time
 	To         *time.Time
 	CategoryID *uuid.UUID
@@ -24,6 +25,7 @@ type GetTransactionsFilter struct {
 }
 
 type CreateTransactionInput struct {
+	Type string
 	CategoryID  uuid.UUID
 	Amount      float64
 	Date        time.Time
@@ -39,6 +41,9 @@ func (s *BudgetService) CreateTransaction(
 		return domain.Transaction{}, err
 	}
 
+	if in.Type != domain.TransactionTypeIncome && in.Type != domain.TransactionTypeExpense {
+		return domain.Transaction{}, fmt.Errorf("invalid type: %w", core_errors.ErrInvalidArgument)
+	}
 	if in.Amount <= 0 {
 		return domain.Transaction{}, fmt.Errorf("amount must be > 0: %w", core_errors.ErrInvalidArgument)
 	}
@@ -50,6 +55,7 @@ func (s *BudgetService) CreateTransaction(
 	}
 
 	tx := domain.Transaction{
+		Type: in.Type,
 		GroupID:     groupID,
 		UserID:      userID,
 		CategoryID:  in.CategoryID,
@@ -87,6 +93,7 @@ func (s *BudgetService) GetTransactions(
 	f GetTransactionsFilter,
 ) ([]domain.Transaction, error) {
 	repoFilter := budget_postgres_repository.TransactionsFilter{
+		Query: f.Query,
 		GroupID:    groupID,
 		From:       f.From,
 		To:         f.To,

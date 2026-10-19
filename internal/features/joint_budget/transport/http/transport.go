@@ -10,6 +10,7 @@ import (
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
 	budget_service "github.com/MulLoMaH/Zunno/internal/features/joint_budget/service"
+	budget_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/joint_budget/repository/postgres"
 )
 
 type BudgetHTTPHandler struct {
@@ -17,6 +18,8 @@ type BudgetHTTPHandler struct {
 }
 
 type BudgetService interface {
+	GetAnalytics(ctx context.Context, groupID uuid.UUID) ([]budget_postgres_repository.AnalyticsItem, error)
+	GetMembersSpent(ctx context.Context, groupID uuid.UUID, month string) ([]domain.MemberSpent, error)
 	CreateCategory(ctx context.Context, groupID uuid.UUID, name, catType string, budgetLimit float64) (domain.Category, error)
 	GetCategories(ctx context.Context, groupID uuid.UUID) ([]domain.Category, error)
 	UpdateCategory(ctx context.Context, groupID, categoryID uuid.UUID, name, catType string, budgetLimit float64, expectedVersion int64) (domain.Category, error)
@@ -52,6 +55,18 @@ func NewBudgetHTTPHandler(budgetService BudgetService) *BudgetHTTPHandler {
 
 func (h *BudgetHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
+		{
+			Method:  http.MethodGet,
+			Path:    "/groups/{id}/analytics",
+			Handler: h.GetAnalytics,
+		},
+
+		{
+			Method:  http.MethodGet,
+			Path:    "/groups/{id}/budget/members",
+			Handler: h.GetMembersSpent,
+		},
+
 		{Method: http.MethodPost, Path: "/groups/{id}/categories", Handler: h.CreateCategory},
 		{Method: http.MethodGet, Path: "/groups/{id}/categories", Handler: h.GetCategories},
 		{Method: http.MethodPatch, Path: "/groups/{id}/categories/{catId}", Handler: h.UpdateCategory},

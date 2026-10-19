@@ -6,13 +6,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-
 	core_errors "github.com/MulLoMaH/Zunno/internal/core/errors"
 	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
 	core_http_middleware "github.com/MulLoMaH/Zunno/internal/core/transport/http/middleware"
 	core_http_response "github.com/MulLoMaH/Zunno/internal/core/transport/http/response"
 	budget_service "github.com/MulLoMaH/Zunno/internal/features/joint_budget/service"
+	"github.com/google/uuid"
 )
 
 type CreateTransactionRequest struct {
@@ -20,6 +19,7 @@ type CreateTransactionRequest struct {
 	Amount      float64   `json:"amount"`
 	Date        time.Time `json:"date"`
 	Description string    `json:"description"`
+	Type        string    `json:"type"`
 }
 
 func (h *BudgetHTTPHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +44,7 @@ func (h *BudgetHTTPHandler) CreateTransaction(w http.ResponseWriter, r *http.Req
 		Amount:      req.Amount,
 		Date:        req.Date,
 		Description: req.Description,
+		Type:        req.Type,
 	})
 	if err != nil {
 		responseHandler.ErrorResponse(err, "create transaction")
@@ -66,6 +67,9 @@ func (h *BudgetHTTPHandler) GetTransactions(w http.ResponseWriter, r *http.Reque
 	q := r.URL.Query()
 	var f budget_service.GetTransactionsFilter
 
+	if v := q.Get("q"); v != "" {
+		f.Query = &v
+	}
 	if v := q.Get("from"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			f.From = &t
@@ -103,79 +107,4 @@ func (h *BudgetHTTPHandler) GetTransactions(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	responseHandler.JSONResponse(transactionsDTOsFromDomains(txs), http.StatusOK)
-}
-
-func (h *BudgetHTTPHandler) GetBudgetSummary(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := core_logger.FromContext(ctx)
-	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
-
-	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok {
-		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
-		return
-	}
-
-	month := r.URL.Query().Get("month")
-	if month == "" {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "month is required")
-		return
-	}
-
-	sum, err := h.budgetService.GetBudgetSummary(ctx, info.GroupID, month)
-	if err != nil {
-		responseHandler.ErrorResponse(err, "get summary")
-		return
-	}
-
-	resp := BudgetSummaryDTOResponse{
-		GroupID:    sum.GroupID,
-		Month:      sum.Month,
-		TotalSpent: sum.TotalSpent,
-		TotalLimit: sum.TotalLimit,
-	}
-	for _, it := range sum.Categories {
-		resp.Categories = append(resp.Categories, BudgetSummaryItemDTOResponse{
-			CategoryID: it.CategoryID,
-			Name:       it.Name,
-			Type:       it.Type,
-			Limit:      it.Limit,
-			Spent:      it.Spent,
-			Overspent:  it.Overspent,
-		})
-	}
-	responseHandler.JSONResponse(resp, http.StatusOK)
-}
-
-func (h *BudgetHTTPHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := core_logger.FromContext(ctx)
-	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
-
-	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok {
-		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
-		return
-	}
-
-	q := r.URL.Query()
-	month := q.Get("month")
-	if month == "" {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "month is required")
-		return
-	}
-
-	var userID *uuid.UUID
-	if v := q.Get("user_id"); v != "" {
-		if id, err := uuid.Parse(v); err == nil {
-			userID = &id
-		}
-	}
-
-	stats, err := h.budgetService.GetStatistics(ctx, info.GroupID, month, userID)
-	if err != nil {
-		responseHandler.ErrorResponse(err, "get statistics")
-		return
-	}
-	responseHandler.JSONResponse(statsDTOsFromDomains(stats), http.StatusOK)
 }

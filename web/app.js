@@ -755,6 +755,9 @@ async function renderDashboard(container) {
     apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`)
       .then((r) => r.data)
       .catch(() => null),
+    apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`)
+      .then((r) => r.data || [])
+      .catch(() => []),
     apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`)
       .then((r) => r.data || [])
       .catch(() => []),
@@ -1341,12 +1344,18 @@ async function renderBudget(container) {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [cats, txs, summary] = await Promise.all([
+  const [cats, txs, summary, membersSpent, analytics] = await Promise.all([
     apiCall('GET', `/groups/${g.id}/categories`).then((r) => r.data || []),
     apiCall('GET', `/groups/${g.id}/transactions?limit=50`).then((r) => r.data || []),
     apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`)
       .then((r) => r.data)
       .catch(() => null),
+    apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`)
+      .then((r) => r.data || [])
+      .catch(() => []),
+    apiCall('GET', `/groups/${g.id}/analytics`)
+      .then((r) => r.data || [])
+      .catch(() => []),
   ]);
 
   if (summary) {
@@ -1410,9 +1419,60 @@ async function renderBudget(container) {
           onclick: () => openCreateTransactionModal(g, cats),
         }, ['+ Транзакция'])
       ),
-      txs.length
-        ? el('div', { class: 'list' }, txs.map((t, i) => stagger(renderTransactionRow(t, cats), i)))
-        : emptyState('≡', 'Нет транзакций', 'Добавьте первую — и увидите статистику'),
+      el('div', { class: 'card mt-12 mb-12', style: 'display: flex; gap: 8px; flex-wrap: wrap; padding: 12px;' }, [
+        el('input', { type: 'text', class: 'input', placeholder: 'Поиск по описанию...', style: 'flex: 1; min-width: 150px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);', id: 'tx-search' }),
+        el('select', { class: 'input', style: 'padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);', id: 'tx-cat' }, [
+          el('option', { value: '' }, ['Все категории']),
+          ...cats.map(c => el('option', { value: c.id }, [c.name]))
+        ]),
+        el('select', { class: 'input', style: 'padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text);', id: 'tx-user' }, [
+          el('option', { value: '' }, ['Все участники']),
+          ...membersSpent.map(m => el('option', { value: m.user_id }, [m.full_name]))
+        ])
+      ]),
+      el('div', { class: 'list', id: 'tx-list' }, 
+        txs.length ? txs.map((t, i) => stagger(renderTransactionRow(t, cats), i)) : emptyState('≡', 'Нет транзакций', 'Добавьте первую — и увидите статистику')
+      ),
+      (function() {
+        setTimeout(() => {
+          const searchInp = document.getElementById('tx-search');
+          const catSel = document.getElementById('tx-cat');
+          const userSel = document.getElementById('tx-user');
+          const listDiv = document.getElementById('tx-list');
+          
+          if (!searchInp || !listDiv) return;
+          
+          let debounce;
+          const fetchFiltered = async () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(async () => {
+              listDiv.innerHTML = '<div class="empty text-sm">Загрузка...</div>';
+              const params = new URLSearchParams();
+              if (searchInp.value.trim()) params.append('q', searchInp.value.trim());
+              if (catSel.value) params.append('category_id', catSel.value);
+              if (userSel.value) params.append('user_id', userSel.value);
+              params.append('limit', '50');
+
+              try {
+                const res = await apiCall('GET', `/groups/${g.id}/transactions?${params.toString()}`);
+                listDiv.innerHTML = '';
+                if (!res.data || res.data.length === 0) {
+                  listDiv.innerHTML = '<div class="empty"><div class="empty-ico">≡</div><div class="empty-title">Ничего не найдено</div><div class="empty-text">Попробуйте изменить фильтры</div></div>';
+                } else {
+                  res.data.forEach((t, i) => listDiv.appendChild(stagger(renderTransactionRow(t, cats), i)));
+                }
+              } catch (e) {
+                listDiv.innerHTML = `<div class="empty text-danger">Ошибка: ${e.message}</div>`;
+              }
+            }, 300);
+          };
+
+          searchInp.addEventListener('input', fetchFiltered);
+          catSel.addEventListener('change', fetchFiltered);
+          userSel.addEventListener('change', fetchFiltered);
+        }, 50);
+        return null;
+      })()
     ])
   );
 }
@@ -1474,7 +1534,9 @@ function renderTransactionRow(t, cats) {
         `${cat ? cat.name : 'Без категории'} · ${fmtDateTime(t.date)}${isMe ? ' · вы' : ''}`,
       ]),
     ]),
-    el('div', { class: 'mono amount-negative' }, [`−${fmtMoney(t.amount)}`]),
+    el('div', { class: `mono ${t.type === 'income' ? 'amount-positive' : 'amount-negative'}` }, [
+      `${t.type === 'income' ? '+' : '−'}${fmtMoney(t.amount)}`
+    ]),
   ]);
 }
 
