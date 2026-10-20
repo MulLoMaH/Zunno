@@ -1,6 +1,8 @@
 /* =============================================================
-ZUNNO · Pink Premium SPA
-============================================================= */
+   ZUNNO · Premium SPA
+   Glassmorphism / Neumorphism edition
+   Themes: dark | light | pink
+   ============================================================= */
 'use strict';
 
 const API = '/api/v1';
@@ -19,6 +21,7 @@ const ui = {
   popover: null,
   tooltipEl: null,
   fabOpen: false,
+  groupsExpanded: localStorage.getItem('zunno-groups-expanded') !== '0',
   command: {
     open: false,
     filtered: [],
@@ -28,6 +31,7 @@ const ui = {
 };
 
 let viewAnimators = [];
+
 let calendarState = {
   view: 'list',
   month: new Date().getMonth(),
@@ -35,8 +39,8 @@ let calendarState = {
 };
 
 /* =============================================================
-DOM HELPERS
-============================================================= */
+   DOM HELPERS
+   ============================================================= */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -105,6 +109,11 @@ function debounce(fn, delay = 300) {
   };
 }
 
+function isVisible(selector) {
+  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
+  return !!node && node.offsetParent !== null;
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -130,8 +139,8 @@ function flushAnimators() {
 }
 
 /* =============================================================
-ICONS
-============================================================= */
+   ICONS
+   ============================================================= */
 const ICONS = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
@@ -151,11 +160,14 @@ const ICONS = {
     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   bell:
     '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-  command:
-    '<path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
+  palette:
+    '<path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2 2 2 0 0 1 2-2h1a4 4 0 0 0 4-4 10 10 0 0 0-10-10z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/>',
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   sun:
     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  sparkles:
+    '<path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -182,8 +194,6 @@ const ICONS = {
   filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
   list:
     '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
-  sparkles:
-    '<path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>',
   trendUp:
     '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
   arrowUpCircle:
@@ -193,7 +203,6 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
   alert:
     '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   key:
@@ -202,18 +211,21 @@ const ICONS = {
 };
 
 function icon(name, size = 20) {
-  const svg = svgEl('svg', {
-    viewBox: '0 0 24 24',
-    width: size,
-    height: size,
-    fill: 'none',
-    stroke: 'currentColor',
-    'stroke-width': '1.8',
-    'stroke-linecap': 'round',
-    'stroke-linejoin': 'round',
-    'aria-hidden': 'true',
-    focusable: 'false',
-  });
+  const svg = svgEl(
+    'svg',
+    {
+      viewBox: '0 0 24 24',
+      width: size,
+      height: size,
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1.8',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+      'aria-hidden': 'true',
+      focusable: 'false',
+    }
+  );
   svg.innerHTML = ICONS[name] || ICONS.info;
   return svg;
 }
@@ -230,14 +242,15 @@ function hydrateIcons(root = document) {
 }
 
 /* =============================================================
-FORMATTERS
-============================================================= */
+   FORMATTERS
+   ============================================================= */
 const CURRENCY_SYMBOLS = {
   RUB: '₽',
   USD: '$',
   EUR: '€',
   KZT: '₸',
   BYN: 'Br',
+  UAH: '₴',
 };
 
 function currencySymbol(code = state.user?.currency || 'RUB') {
@@ -328,14 +341,14 @@ function shortId(id) {
 }
 
 function colorFromId(id) {
-  if (!id) return 'hsl(320, 85%, 62%)';
+  if (!id) return 'hsl(250, 60%, 60%)';
   let hash = 0;
   const str = String(id);
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 31 + str.charCodeAt(i)) | 0;
   }
-  const h = 300 + (Math.abs(hash) % 70); // pink/purple range
-  return `hsl(${h}, 78%, 62%)`;
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 58%, 58%)`;
 }
 
 function toLocalInput(iso) {
@@ -390,41 +403,66 @@ function setBusy(busy) {
 }
 
 /* =============================================================
-THEME
-============================================================= */
-function getPreferredTheme() {
+   THEME
+   ============================================================= */
+const THEMES = ['dark', 'light', 'pink'];
+
+function themeLabel(theme) {
+  if (theme === 'light') return 'Светлая';
+  if (theme === 'pink') return 'Пудровая';
+  return 'Тёмная';
+}
+
+function themeIconName(theme) {
+  if (theme === 'light') return 'sun';
+  if (theme === 'pink') return 'sparkles';
+  return 'moon';
+}
+
+function getInitialTheme() {
+  const saved = localStorage.getItem('zunno-theme');
+  if (THEMES.includes(saved)) return saved;
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
-function applyTheme(theme) {
-  const root = document.documentElement;
-  root.dataset.theme = theme;
-  localStorage.setItem('zunno-theme', theme);
+function setTheme(theme) {
+  const next = THEMES.includes(theme) ? theme : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('zunno-theme', next);
+  updateThemeUI();
+}
+
+function cycleTheme() {
+  const current = document.documentElement.dataset.theme || 'dark';
+  const idx = THEMES.indexOf(current);
+  const next = THEMES[(idx + 1) % THEMES.length];
+  setTheme(next);
+  toast(`Тема: ${themeLabel(next)}`, 'info', 1400);
+}
+
+function updateThemeUI() {
+  const theme = document.documentElement.dataset.theme || 'dark';
+  const meta = $('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute(
+      'content',
+      theme === 'light' ? '#eef2f8' : theme === 'pink' ? '#fff5f9' : '#070912'
+    );
+  }
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.setAttribute(
-      'aria-label',
-      theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
-    );
+    btn.setAttribute('aria-label', `Текущая тема: ${themeLabel(theme)}. Нажмите, чтобы сменить.`);
   });
 
   $$('[data-theme-icon]').forEach((slot) => {
     slot.innerHTML = '';
-    slot.appendChild(icon(theme === 'dark' ? 'moon' : 'sun'));
+    slot.appendChild(icon(themeIconName(theme), 20));
   });
-
-  const meta = $('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0610' : '#fff5fb');
-}
-
-function toggleTheme() {
-  const current = document.documentElement.dataset.theme || 'dark';
-  applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 
 /* =============================================================
-TOASTS
-============================================================= */
+   TOASTS
+   ============================================================= */
 function toast(message, type = 'info', timeout = 3600) {
   const root = $('#toasts');
   if (!root) return;
@@ -461,8 +499,8 @@ function toast(message, type = 'info', timeout = 3600) {
 }
 
 /* =============================================================
-TOOLTIP
-============================================================= */
+   TOOLTIP
+   ============================================================= */
 function initTooltip() {
   let hideTimer;
 
@@ -475,39 +513,38 @@ function initTooltip() {
 
   function position(target) {
     const tip = ensureTooltip();
-    tip.style.visibility = 'hidden';
-    tip.classList.add('visible');
-
     const r = target.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
-    const gap = 10;
+    const margin = 12;
 
-    let top = r.bottom + gap;
-    if (top + tr.height > window.innerHeight - 12) {
-      top = r.top - tr.height - gap;
+    let top = r.bottom + 10;
+    if (top + tr.height > window.innerHeight - margin) {
+      top = r.top - tr.height - 10;
     }
-    if (top < 12) {
-      top = r.bottom + gap;
-    }
-
-    top = clamp(top, 12, Math.max(12, window.innerHeight - tr.height - 12));
+    top = clamp(top, margin, Math.max(margin, window.innerHeight - tr.height - margin));
 
     let left = r.left + r.width / 2 - tr.width / 2;
-    left = clamp(left, 12, Math.max(12, window.innerWidth - tr.width - 12));
+    left = clamp(left, margin, Math.max(margin, window.innerWidth - tr.width - margin));
 
     tip.style.top = `${top}px`;
     tip.style.left = `${left}px`;
-    tip.style.visibility = '';
   }
 
   function show(target) {
     const text = target.getAttribute('data-tip');
     if (!text) return;
     clearTimeout(hideTimer);
+
     const tip = ensureTooltip();
     tip.textContent = text;
-    tip.classList.add('visible');
-    requestAnimationFrame(() => position(target));
+    tip.classList.add('measuring');
+    tip.classList.remove('visible');
+
+    requestAnimationFrame(() => {
+      position(target);
+      tip.classList.remove('measuring');
+      tip.classList.add('visible');
+    });
   }
 
   function hide() {
@@ -558,8 +595,8 @@ function initTooltip() {
 }
 
 /* =============================================================
-POPOVER
-============================================================= */
+   POPOVER
+   ============================================================= */
 function openPopover(anchor, content, opts = {}) {
   closePopover();
 
@@ -592,22 +629,23 @@ function positionPopover(anchor, panel, opts = {}) {
   const a = anchor.getBoundingClientRect();
   const p = panel.getBoundingClientRect();
   const gap = 10;
+  const margin = 12;
 
   let top = a.bottom + gap;
-  if (top + p.height > window.innerHeight - 12) {
+  if (top + p.height > window.innerHeight - margin) {
     top = a.top - p.height - gap;
   }
-  top = clamp(top, 12, Math.max(12, window.innerHeight - p.height - 12));
+  top = clamp(top, margin, Math.max(margin, window.innerHeight - p.height - margin));
 
   let left = a.left + a.width / 2 - p.width / 2;
-  left = clamp(left, 12, Math.max(12, window.innerWidth - p.width - 12));
+  left = clamp(left, margin, Math.max(margin, window.innerWidth - p.width - margin));
 
   panel.style.top = `${top}px`;
   panel.style.left = `${left}px`;
 
   const arrow = panel.querySelector('.popover-arrow');
   if (arrow) {
-    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, Math.max(18, p.width - 18));
+    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, p.width - 18);
     arrow.style.left = `${arrowLeft}px`;
     arrow.classList.toggle('above', top < a.top);
   }
@@ -671,8 +709,8 @@ function popoverEmpty(text) {
 }
 
 /* =============================================================
-CLIPBOARD
-============================================================= */
+   CLIPBOARD
+   ============================================================= */
 function copyText(text, successMsg = 'Скопировано') {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard
@@ -732,11 +770,14 @@ function showCopyFallback(text) {
 }
 
 /* =============================================================
-API CLIENT
-============================================================= */
+   API CLIENT
+   ============================================================= */
 async function apiCall(method, path, body, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   let res;
   try {
@@ -744,11 +785,18 @@ async function apiCall(method, path, body, opts = {}) {
       method,
       headers,
       credentials: 'include',
+      signal: controller.signal,
       body: body != null ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err?.name === 'AbortError') {
+      throw Object.assign(new Error('Таймаут запроса'), { status: 0 });
+    }
     throw Object.assign(new Error('Сеть недоступна'), { status: 0 });
   }
+
+  clearTimeout(timeout);
 
   if (res.status === 204) {
     return { ok: true, status: 204, data: null };
@@ -775,7 +823,7 @@ async function apiCall(method, path, body, opts = {}) {
 
   if (!res.ok) {
     const message =
-      (data && (data.error || data.message)) ||
+      (data && (data.error || data.message || data.detail)) ||
       (typeof data === 'string' && data) ||
       `Ошибка ${res.status}`;
     throw Object.assign(new Error(message), { status: res.status, data });
@@ -815,8 +863,8 @@ async function safeApi(promise, fallback) {
 }
 
 /* =============================================================
-AUTH
-============================================================= */
+   AUTH
+   ============================================================= */
 async function login(phone, password) {
   const res = await apiCall(
     'POST',
@@ -826,6 +874,7 @@ async function login(phone, password) {
   );
   state.token = res.data.access_token;
   localStorage.setItem('access_token', state.token);
+  if (res.data.user) state.user = res.data.user;
   await bootstrapApp();
 }
 
@@ -843,14 +892,17 @@ async function register(fullName, age, phone, password) {
   );
   state.token = res.data.access_token;
   localStorage.setItem('access_token', state.token);
+  if (res.data.user) state.user = res.data.user;
   await bootstrapApp();
 }
 
 async function logout() {
-  try {
-    await apiCall('POST', '/auth/logout', null, { noRetry: true });
-  } catch {
-    // ignore
+  if (state.token) {
+    try {
+      await apiCall('POST', '/auth/logout', null, { noRetry: true });
+    } catch {
+      // ignore
+    }
   }
 
   state.token = '';
@@ -867,8 +919,8 @@ async function logout() {
 }
 
 /* =============================================================
-SCREENS
-============================================================= */
+   SCREENS
+   ============================================================= */
 function showScreen(name) {
   $('#screen-auth')?.classList.toggle('hidden', name !== 'auth');
   $('#screen-app')?.classList.toggle('hidden', name !== 'app');
@@ -886,8 +938,8 @@ function closeAllOverlays() {
 }
 
 /* =============================================================
-AUTH SCREEN
-============================================================= */
+   AUTH SCREEN
+   ============================================================= */
 function initAuthScreen() {
   const tabs = $$('.segmented-btn');
   const thumb = $('.segmented-thumb');
@@ -937,8 +989,8 @@ function initAuthScreen() {
 }
 
 /* =============================================================
-BOOTSTRAP
-============================================================= */
+   BOOTSTRAP
+   ============================================================= */
 async function bootstrapApp() {
   try {
     setBusy(true);
@@ -958,7 +1010,8 @@ async function bootstrapApp() {
       }
     }
 
-    state.invitations = await safeApi(apiCall('GET', '/invitations'), []);
+    const invitationsRaw = await safeApi(apiCall('GET', '/invitations'), []);
+    state.invitations = normalizeInvitations(invitationsRaw);
 
     showScreen('app');
     renderShell();
@@ -985,12 +1038,13 @@ function renderShell() {
   renderTopbarGroup();
   renderTopbarUser();
   updateInvitationBadge();
+  updateThemeUI();
   hydrateIcons();
 }
 
 /* =============================================================
-SIDEBAR
-============================================================= */
+   SIDEBAR
+   ============================================================= */
 function isPersonalGroup(g) {
   if (!g) return false;
   if (g.is_personal === true || g.type === 'personal') return true;
@@ -1027,7 +1081,10 @@ function renderSidebarUser() {
 
 function renderSidebarGroups() {
   const box = $('#sidebar-group-list');
-  if (!box) return;
+  const block = $('#sidebar-group-block');
+  if (!box || !block) return;
+
+  block.classList.toggle('collapsed', !ui.groupsExpanded);
   box.innerHTML = '';
 
   if (!state.groups.length) {
@@ -1084,11 +1141,11 @@ function renderSidebarGroupItem(g, personal) {
     },
     [
       el('span', {
-        class: 'sidebar-group-avatar',
+        class: 'group-dot',
         style: personal
           ? 'background: linear-gradient(135deg, var(--primary), var(--accent));'
           : `background:${colorFromId(g.id)}`,
-      }, [initials(g.name)]),
+      }),
       el('span', { class: 'sidebar-group-item-name nav-label' }, [g.name]),
     ]
   );
@@ -1104,11 +1161,17 @@ function initSidebar() {
     app.dataset.sidebar = collapsed ? 'expanded' : 'collapsed';
     localStorage.setItem('zunno-sidebar', collapsed ? 'expanded' : 'collapsed');
   });
+
+  $('#sidebar-groups-toggle')?.addEventListener('click', () => {
+    ui.groupsExpanded = !ui.groupsExpanded;
+    localStorage.setItem('zunno-groups-expanded', ui.groupsExpanded ? '1' : '0');
+    renderSidebarGroups();
+  });
 }
 
 /* =============================================================
-TOPBAR
-============================================================= */
+   TOPBAR
+   ============================================================= */
 function renderTopbarGroup() {
   const g = activeGroup();
   const nameEl = $('#topbar-group-name');
@@ -1171,12 +1234,8 @@ function initTopbar() {
     openGroupPopover(e.currentTarget);
   });
 
-  $('#invitations-btn')?.addEventListener('click', () => {
-    openInvitationsModal();
-  });
-
-  $('#quick-actions-btn')?.addEventListener('click', (e) => {
-    openQuickActionsPopover(e.currentTarget);
+  $('#invitations-btn')?.addEventListener('click', (e) => {
+    openInvitationsPopover(e.currentTarget);
   });
 
   $('#user-menu-btn')?.addEventListener('click', (e) => {
@@ -1190,40 +1249,61 @@ function initTopbar() {
 function openGroupPopover(anchor) {
   const g = activeGroup();
 
-  const list = el(
-    'div',
-    { class: 'popover-list' },
-    state.groups.length
-      ? state.groups.map((group) =>
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'popover-item' + (group.id === state.activeGroupId ? ' is-active' : ''),
-              onclick: () => {
-                closePopover();
-                switchGroup(group.id);
-              },
+  const search = el('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: 'Поиск группы...',
+    style: 'margin: 0 10px 10px;',
+  });
+
+  const listWrap = el('div', { class: 'popover-list' });
+
+  function renderList() {
+    const q = search.value.trim().toLowerCase();
+    const filtered = state.groups.filter((group) =>
+      `${group.name} ${shortId(group.id)}`.toLowerCase().includes(q)
+    );
+
+    listWrap.innerHTML = '';
+
+    if (!filtered.length) {
+      listWrap.appendChild(popoverEmpty('Ничего не найдено'));
+      return;
+    }
+
+    filtered.forEach((group) => {
+      listWrap.appendChild(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'popover-item' + (group.id === state.activeGroupId ? ' is-active' : ''),
+            onclick: () => {
+              closePopover();
+              switchGroup(group.id);
             },
-            [
-              el('span', {
-                class: 'group-avatar',
-                style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
-              }, [initials(group.name)]),
-              el('span', { class: 'popover-item-main' }, [
-                el('span', { class: 'popover-item-title' }, [group.name]),
-                el('span', { class: 'popover-item-sub' }, [
-                  isPersonalGroup(group) ? 'Личное пространство' : `ID: ${shortId(group.id)}`,
-                ]),
+          },
+          [
+            el('span', {
+              class: 'group-avatar',
+              style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
+            }, [initials(group.name)]),
+            el('span', { class: 'popover-item-main' }, [
+              el('span', { class: 'popover-item-title' }, [group.name]),
+              el('span', { class: 'popover-item-sub' }, [
+                isPersonalGroup(group) ? 'Личное пространство' : `ID: ${shortId(group.id)}`,
               ]),
-              group.id === state.activeGroupId
-                ? el('span', { 'data-icon': 'check', 'data-size': 'sm', style: 'color: var(--success);' })
-                : null,
-            ].filter(Boolean)
-          )
+            ]),
+            group.id === state.activeGroupId
+              ? el('span', { 'data-icon': 'check', 'data-size': 'sm', style: 'color: var(--success);' })
+              : null,
+          ].filter(Boolean)
         )
-      : [popoverEmpty('Пока нет групп')]
-  );
+      );
+    });
+  }
+
+  search.addEventListener('input', renderList);
 
   const actions = el('div', { class: 'popover-actions' }, [
     popoverAction('plus', 'Создать группу', openCreateGroupModal),
@@ -1236,49 +1316,44 @@ function openGroupPopover(anchor) {
     anchor,
     el('div', {}, [
       popoverHeader('Группы', state.groups.length ? `${state.groups.length} доступно` : ''),
-      list,
+      search,
+      listWrap,
       el('div', { class: 'popover-divider' }),
       actions,
     ])
   );
-}
 
-function openQuickActionsPopover(anchor) {
-  const g = activeGroup();
-
-  if (!g) {
-    openPopover(
-      anchor,
-      el('div', {}, [
-        popoverHeader('Быстрые действия', 'Сначала выберите группу'),
-        el('div', { class: 'popover-actions' }, [
-          popoverAction('plus', 'Создать группу', openCreateGroupModal),
-          popoverAction('login', 'Присоединиться по ID', openJoinGroupModal),
-        ]),
-      ])
-    );
-    return;
-  }
-
-  openPopover(
-    anchor,
-    el('div', {}, [
-      popoverHeader('Быстрые действия', g.name),
-      el('div', { class: 'popover-actions' }, [
-        popoverAction('arrowDownCircle', 'Добавить расход', () => openTransactionModal(g, 'expense')),
-        popoverAction('arrowUpCircle', 'Добавить доход', () => openTransactionModal(g, 'income')),
-        popoverAction('calendarPlus', 'Создать событие', () => openCreatePlanModal(g)),
-        popoverAction('target', 'Создать категорию целей', () => openCreateGoalCategoryModal(g)),
-        popoverAction('invite', 'Пригласить в группу', () => openInviteModal(g)),
-        popoverAction('copy', 'Скопировать ID группы', () => copyText(g.id, 'ID группы скопирован')),
-        popoverAction('settings', 'Настройки группы', openGroupSettingsModal),
-      ]),
-    ])
-  );
+  renderList();
+  setTimeout(() => search.focus(), 60);
 }
 
 function openUserPopover(anchor) {
   const u = state.user;
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
+
+  const themeOptions = el('div', { class: 'popover-list' }, THEMES.map((t) =>
+    el(
+      'button',
+      {
+        type: 'button',
+        class: 'popover-item' + (currentTheme === t ? ' is-active' : ''),
+        onclick: () => {
+          setTheme(t);
+          closePopover();
+          if (state.view === 'profile') renderActiveView();
+        },
+      },
+      [
+        el('span', { 'data-icon': themeIconName(t), 'data-size': 'sm' }),
+        el('span', { class: 'popover-item-main' }, [
+          el('span', { class: 'popover-item-title' }, [themeLabel(t)]),
+        ]),
+        currentTheme === t
+          ? el('span', { 'data-icon': 'check', 'data-size': 'sm', style: 'color: var(--success);' })
+          : null,
+      ].filter(Boolean)
+    )
+  ));
 
   openPopover(
     anchor,
@@ -1295,21 +1370,38 @@ function openUserPopover(anchor) {
       el('div', { class: 'popover-divider' }),
       el('div', { class: 'popover-actions' }, [
         popoverAction('user', 'Мой профиль', () => switchView('profile')),
-        popoverAction('bell', 'Приглашения', openInvitationsModal),
-        popoverAction(
-          document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
-          'Переключить тему',
-          toggleTheme
-        ),
+        popoverAction('bell', 'Приглашения', () => openInvitationsPopover(anchor)),
+      ]),
+      el('div', { class: 'popover-divider' }),
+      el('div', { class: 'popover-header' }, [
+        el('div', { class: 'popover-title' }, ['Тема']),
+      ]),
+      themeOptions,
+      el('div', { class: 'popover-divider' }),
+      el('div', { class: 'popover-actions' }, [
         popoverAction('logout', 'Выйти', logout, true),
       ]),
     ])
   );
 }
 
+function openInvitationsPopover(anchor) {
+  const items = state.invitations?.length
+    ? state.invitations.map((inv) => renderInvitationRow(inv))
+    : [popoverEmpty('Новых приглашений нет')];
+
+  openPopover(
+    anchor,
+    el('div', {}, [
+      popoverHeader('Приглашения', state.invitations?.length ? `${state.invitations.length} новых` : ''),
+      el('div', { class: 'popover-list' }, items),
+    ])
+  );
+}
+
 /* =============================================================
-VIEW ROUTER
-============================================================= */
+   VIEW ROUTER
+   ============================================================= */
 const VIEWS = {
   dashboard: { title: 'Обзор', icon: 'dashboard', render: renderDashboard },
   goals: { title: 'Цели', icon: 'target', render: renderGoals },
@@ -1379,8 +1471,8 @@ function renderError(container, err) {
 }
 
 /* =============================================================
-UI HELPERS
-============================================================= */
+   UI HELPERS
+   ============================================================= */
 function field(label, control, hint) {
   const children = [el('span', { class: 'field-label' }, [label]), control];
   if (hint) children.push(el('span', { class: 'field-hint' }, [hint]));
@@ -1469,9 +1561,10 @@ function progressRing(percent, size = 48, stroke = 5) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (clamp(percent, 0, 100) / 100) * c;
+  const uid = `ring-${Math.random().toString(36).slice(2, 9)}`;
 
   const defs = svgEl('defs', {}, [
-    svgEl('linearGradient', { id: 'ringGradient', x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
+    svgEl('linearGradient', { id: uid, x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
       svgEl('stop', { offset: '0%', 'stop-color': 'var(--primary)' }),
       svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)' }),
     ]),
@@ -1492,6 +1585,7 @@ function progressRing(percent, size = 48, stroke = 5) {
     cy: size / 2,
     r,
     fill: 'none',
+    stroke: `url(#${uid})`,
     'stroke-width': stroke,
     transform: `rotate(-90 ${size / 2} ${size / 2})`,
     style: `stroke-dasharray:${c}; stroke-dashoffset:${c};`,
@@ -1505,8 +1599,8 @@ function progressRing(percent, size = 48, stroke = 5) {
 }
 
 /* =============================================================
-CHARTS
-============================================================= */
+   CHARTS
+   ============================================================= */
 function donutChart(items, options = {}) {
   const valid = items
     .map((item) => ({
@@ -1528,7 +1622,6 @@ function donutChart(items, options = {}) {
   const circles = valid.map((item, idx) => {
     const dash = (item.value / total) * circumference;
     const color = item.color || colorFromId(`${item.label}-${idx}`);
-
     const circle = svgEl('circle', {
       cx: size / 2,
       cy: size / 2,
@@ -1658,7 +1751,6 @@ function trendChart(items) {
   const w = 620;
   const h = 190;
   const pad = { t: 20, r: 20, b: 30, l: 42 };
-
   const values = data.flatMap((d) => [d.income, d.expense]);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 1);
@@ -1722,18 +1814,22 @@ function trendChart(items) {
     });
   });
 
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${w} ${h}`,
-    class: 'line-svg',
-    preserveAspectRatio: 'none',
-  }, [
-    svgEl('path', { d: areaPath, class: 'chart-area' }),
-    expenseLine,
-    incomeLine,
-    ...expenseDots,
-    ...incomeDots,
-    ...labels,
-  ]);
+  const svg = svgEl(
+    'svg',
+    {
+      viewBox: `0 0 ${w} ${h}`,
+      class: 'line-svg',
+      preserveAspectRatio: 'none',
+    },
+    [
+      svgEl('path', { d: areaPath, class: 'chart-area' }),
+      expenseLine,
+      incomeLine,
+      ...expenseDots,
+      ...incomeDots,
+      ...labels,
+    ]
+  );
 
   const legend = el('div', { class: 'chart-legend', style: 'margin-top:10px;' }, [
     el('div', { class: 'legend-item' }, [
@@ -1750,44 +1846,54 @@ function trendChart(items) {
 }
 
 /* =============================================================
-INVITATIONS
-============================================================= */
+   INVITATIONS
+   ============================================================= */
+function normalizeInvitations(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr
+    .map((inv) => {
+      const group_id = inv.group_id || inv.group?.id || inv.id || '';
+      const group_name =
+        inv.group_name ||
+        inv.group?.name ||
+        (group_id ? `Группа ${shortId(group_id)}` : 'Группа');
+
+      return {
+        group_id,
+        group_name,
+        role: inv.role || 'member',
+        created_at: inv.created_at || inv.invited_at || '',
+        inviter_name:
+          inv.inviter_name ||
+          inv.invited_by_name ||
+          inv.from_name ||
+          inv.sender_name ||
+          inv.inviter?.full_name ||
+          inv.from_user?.full_name ||
+          '',
+        plan_title: inv.plan_title || inv.task_title || inv.event_title || inv.title || '',
+      };
+    })
+    .filter((inv) => inv.group_id);
+}
+
 function getInvitationTitle(inv) {
-  return (
-    inv.group_name ||
-    inv.group?.name ||
-    (inv.group_id ? `Группа ${shortId(inv.group_id)}` : 'Группа')
-  );
+  return inv.group_name || (inv.group_id ? `Группа ${shortId(inv.group_id)}` : 'Группа');
 }
 
 function getInviterName(inv) {
-  return (
-    inv.inviter_name ||
-    inv.invited_by_name ||
-    inv.from_name ||
-    inv.sender_name ||
-    inv.inviter?.full_name ||
-    inv.from_user?.full_name ||
-    ''
-  );
+  return inv.inviter_name || '';
 }
 
 function getInvitationTask(inv) {
-  const title =
-    inv.plan_title ||
-    inv.task_title ||
-    inv.event_title ||
-    inv.title ||
-    '';
+  const title = inv.plan_title || '';
   return title && title !== getInvitationTitle(inv) ? title : '';
 }
 
-function renderInvitationCard(inv) {
+function renderInvitationRow(inv) {
   const title = getInvitationTitle(inv);
   const inviter = getInviterName(inv);
-  const task = getInvitationTask(inv);
   const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
-
   const meta = [
     roleLabel,
     inviter ? `от ${inviter}` : '',
@@ -1796,7 +1902,55 @@ function renderInvitationCard(inv) {
     .filter(Boolean)
     .join(' · ');
 
-  return el('div', { class: 'invite-item invitation-card' }, [
+  return el('div', { class: 'invite-item' }, [
+    el('div', { class: 'invite-avatar' }, [initials(title)]),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [title]),
+      el('div', { class: 'item-sub' }, [meta]),
+    ]),
+    el('div', { class: 'row gap-8' }, [
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-primary btn-sm',
+          onclick: () => {
+            closePopover();
+            respondInvitation(inv, true);
+          },
+        },
+        ['Принять']
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-ghost btn-sm',
+          onclick: () => {
+            closePopover();
+            respondInvitation(inv, false);
+          },
+        },
+        ['Отклонить']
+      ),
+    ]),
+  ]);
+}
+
+function renderInvitationCard(inv) {
+  const title = getInvitationTitle(inv);
+  const inviter = getInviterName(inv);
+  const task = getInvitationTask(inv);
+  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+  const meta = [
+    roleLabel,
+    inviter ? `от ${inviter}` : '',
+    inv.created_at ? fmtRelative(inv.created_at) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return el('div', { class: 'invite-item' }, [
     el('div', { class: 'invite-avatar' }, [initials(title)]),
     el('div', { class: 'item-main' }, [
       el('div', { class: 'item-title' }, [title]),
@@ -1826,19 +1980,6 @@ function renderInvitationCard(inv) {
   ]);
 }
 
-function openInvitationsModal() {
-  const items = state.invitations?.length
-    ? state.invitations.map((inv) => renderInvitationCard(inv))
-    : [emptyState('bell', 'Новых приглашений нет', 'Когда вас пригласят в группу, приглашение появится здесь.')];
-
-  openModal({
-    title: 'Приглашения',
-    body: el('div', { class: 'invite-list' }, items),
-    saveLabel: 'Закрыть',
-    onSave: async () => {},
-  });
-}
-
 async function respondInvitation(inv, accept, row = null) {
   if (!inv?.group_id) {
     toast('Некорректное приглашение', 'error');
@@ -1850,13 +1991,18 @@ async function respondInvitation(inv, accept, row = null) {
 
   try {
     await apiCall('POST', `/groups/${inv.group_id}/${accept ? 'join' : 'decline'}`);
-    toast(accept ? 'Вы присоединились к группе' : 'Приглашение отклонено', 'success');
 
-    state.invitations = state.invitations.filter((x) => x.group_id !== inv.group_id);
-    updateInvitationBadge();
-
-    closeAllOverlays();
-    await bootstrapApp();
+    if (accept) {
+      toast('Вы присоединились к группе', 'success');
+      state.activeGroupId = inv.group_id;
+      localStorage.setItem('active_group', inv.group_id);
+      await bootstrapApp();
+    } else {
+      toast('Приглашение отклонено', 'success');
+      state.invitations = state.invitations.filter((x) => x.group_id !== inv.group_id);
+      updateInvitationBadge();
+      if (state.view === 'dashboard') await renderActiveView();
+    }
   } catch (err) {
     toast(err.message || 'Не удалось обработать приглашение', 'error');
     buttons.forEach((b) => (b.disabled = false));
@@ -1864,8 +2010,8 @@ async function respondInvitation(inv, accept, row = null) {
 }
 
 /* =============================================================
-ONBOARDING TOUR
-============================================================= */
+   ONBOARDING TOUR
+   ============================================================= */
 function startOnboardingTour(force = false) {
   if (!window.driver || !window.driver.js) {
     toast('Модуль тура не загружен', 'warning');
@@ -1936,26 +2082,13 @@ function startOnboardingTour(force = false) {
     });
   }
 
-  if (isVisible('#quick-actions-btn')) {
-    steps.push({
-      element: '#quick-actions-btn',
-      popover: {
-        title: 'Быстрые действия',
-        description:
-          'Добавляйте расход, доход, событие или цель в один тап.',
-        side: 'bottom',
-        align: 'end',
-      },
-    });
-  }
-
   if (isVisible('#fab-main')) {
     steps.push({
       element: '#fab-main',
       popover: {
-        title: 'Плавающая кнопка',
+        title: 'Быстрые действия',
         description:
-          'Дублирует быстрые действия и всегда доступна на мобильных.',
+          'Добавляйте расход, доход, событие или цель в один тап.',
         side: 'left',
         align: 'end',
       },
@@ -1968,7 +2101,7 @@ function startOnboardingTour(force = false) {
       popover: {
         title: 'Ваш профиль',
         description:
-          'Здесь настройки аккаунта, смена темы и выход.',
+          'Здесь настройки аккаунта, выбор темы и выход.',
         side: 'bottom',
         align: 'end',
       },
@@ -2005,14 +2138,9 @@ function startOnboardingTour(force = false) {
   ui.tour.drive();
 }
 
-function isVisible(selector) {
-  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
-  return !!node && node.offsetParent !== null;
-}
-
 /* =============================================================
-DRAG & DROP
-============================================================= */
+   DRAG & DROP
+   ============================================================= */
 function createSortable(container, options) {
   if (!window.Sortable || !container) return null;
 
@@ -2082,8 +2210,8 @@ function initSortableCategories(groupID, containerEl) {
 }
 
 /* =============================================================
-FAB
-============================================================= */
+   FAB
+   ============================================================= */
 function initFab() {
   const wrap = $('#fab');
   const main = $('#fab-main');
@@ -2134,8 +2262,8 @@ function handleFabAction(action) {
 }
 
 /* =============================================================
-CALENDAR
-============================================================= */
+   CALENDAR
+   ============================================================= */
 function shiftCalendarMonth(delta) {
   calendarState.month += delta;
   if (calendarState.month < 0) {
@@ -2158,7 +2286,6 @@ function resetCalendarMonth() {
 function renderCalendar(g, plans) {
   const year = calendarState.year;
   const month = calendarState.month;
-
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const startWeekday = (firstDay.getDay() + 6) % 7;
@@ -2282,126 +2409,140 @@ function openCreatePlanModalWithDate(g, date) {
       field('Дата и время', dateInput),
     ]),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/plans`, {
-          title: titleInput.value.trim(),
-          description: descInput.value.trim(),
-          event_date: fromLocalInput(dateInput.value),
-        });
-        toast('Событие создано', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/plans`, {
+        title: titleInput.value.trim(),
+        description: descInput.value.trim(),
+        event_date: fromLocalInput(dateInput.value),
+      });
+      toast('Событие создано', 'success');
+      await renderActiveView();
     },
   });
 }
 
 /* =============================================================
-SWIPE GESTURES
-============================================================= */
-function makeSwipeable(row, onSwipeLeft) {
-  const content = row.querySelector('.swipe-over');
-  if (!content) return;
+   SWIPE GESTURES
+   ============================================================= */
+function makeSwipeable(node, onSwipeLeft) {
+  if (!node) return;
+
+  const content = node.querySelector('.swipeable-content') || node;
+  const THRESHOLD = 72;
+  const MAX_OFFSET = 132;
 
   let startX = 0;
   let startY = 0;
   let currentX = 0;
   let pointerId = null;
   let dragging = false;
-  let horizontal = null;
+  let moved = false;
+  let locked = null;
+  let suppressClick = false;
 
-  const THRESHOLD = 72;
-  const MAX_PULL = 140;
+  node.addEventListener('pointerdown', (e) => {
+    if (pointerId !== null) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('button, a, input, select, textarea, [data-no-swipe]')) return;
 
-  function down(e) {
-    if (e.button && e.button !== 0) return;
+    pointerId = e.pointerId;
     startX = e.clientX;
     startY = e.clientY;
     currentX = 0;
     dragging = false;
-    horizontal = null;
-    pointerId = e.pointerId;
+    moved = false;
+    locked = null;
 
     try {
-      row.setPointerCapture(pointerId);
+      node.setPointerCapture(pointerId);
+    } catch {
+      // ignore
+    }
+  });
+
+  node.addEventListener(
+    'pointermove',
+    (e) => {
+      if (e.pointerId !== pointerId) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (locked === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+
+      if (locked !== 'x') return;
+
+      if (dx >= 0) {
+        currentX = 0;
+        content.style.transform = 'translateX(0)';
+        return;
+      }
+
+      dragging = true;
+      moved = true;
+      node.classList.add('dragging');
+      currentX = Math.max(dx, -MAX_OFFSET);
+      content.style.transform = `translateX(${currentX}px)`;
+
+      if (e.cancelable) e.preventDefault();
+    },
+    { passive: false }
+  );
+
+  function end(e) {
+    if (e.pointerId !== pointerId) return;
+
+    node.classList.remove('dragging');
+
+    try {
+      if (node.hasPointerCapture?.(pointerId)) node.releasePointerCapture(pointerId);
     } catch {
       // ignore
     }
 
-    row.classList.remove('removing');
-  }
-
-  function move(e) {
-    if (pointerId === null || e.pointerId !== pointerId) return;
-
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-
-    if (horizontal === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-      horizontal = Math.abs(dx) > Math.abs(dy);
-    }
-
-    if (!horizontal) return;
-
-    dragging = true;
-    row.classList.add('dragging');
-    currentX = clamp(dx, -MAX_PULL, 0);
-    content.style.transform = `translateX(${currentX}px)`;
-  }
-
-  function up(e) {
-    if (pointerId === null || e.pointerId !== pointerId) return;
-
-    const wasDragging = dragging;
-    pointerId = null;
-    row.classList.remove('dragging');
-
-    if (wasDragging) {
-      if (currentX < -THRESHOLD) {
-        content.style.transform = 'translateX(-100%)';
-        row.classList.add('swiped');
-        setTimeout(() => {
+    if (dragging && currentX < -THRESHOLD) {
+      content.style.transform = 'translateX(-100%)';
+      suppressClick = true;
+      setTimeout(() => {
+        suppressClick = false;
+      }, 220);
+      setTimeout(() => {
+        try {
           onSwipeLeft?.();
-          resetSwipe(row, content);
-        }, 220);
-      } else {
-        content.style.transform = 'translateX(0)';
-      }
+        } catch (err) {
+          console.error(err);
+        }
+      }, 180);
     } else {
       content.style.transform = 'translateX(0)';
+      if (moved) {
+        suppressClick = true;
+        setTimeout(() => {
+          suppressClick = false;
+        }, 120);
+      }
     }
-  }
 
-  function cancel() {
     pointerId = null;
     dragging = false;
-    row.classList.remove('dragging');
-    content.style.transform = 'translateX(0)';
+    moved = false;
+    locked = null;
   }
 
-  row.addEventListener('pointerdown', down);
-  row.addEventListener('pointermove', move);
-  row.addEventListener('pointerup', up);
-  row.addEventListener('pointercancel', cancel);
-  row.addEventListener('lostpointercapture', cancel);
+  node.addEventListener('pointerup', end);
+  node.addEventListener('pointercancel', end);
 
-  row.addEventListener(
+  node.addEventListener(
     'click',
     (e) => {
-      if (dragging || row.classList.contains('swiped')) {
+      if (suppressClick) {
         e.preventDefault();
         e.stopPropagation();
       }
     },
     true
   );
-}
-
-function resetSwipe(row, content) {
-  row.classList.remove('swiped');
-  content.style.transform = 'translateX(0)';
 }
 
 function noGroupBanner() {
@@ -2435,8 +2576,8 @@ function noGroupBanner() {
 }
 
 /* =============================================================
-VIEW: DASHBOARD
-============================================================= */
+   VIEW: DASHBOARD
+   ============================================================= */
 async function renderDashboard(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -2451,16 +2592,17 @@ async function renderDashboard(container) {
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const [summary, membersSpent, plans, members, analytics, recentTx] = await Promise.all([
+  const [summary, membersSpent, plans, membersRaw, analytics, recentTx, categories] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=5`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
   ]);
 
-  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+  const members = (membersRaw || []).filter((m) => !m.status || m.status === 'active');
 
   container.appendChild(renderHero(g, members.length, plans.length));
 
@@ -2490,22 +2632,22 @@ async function renderDashboard(container) {
   );
 
   if (limit > 0) {
-    container.appendChild(
-      el('div', { class: 'card mt-16' }, [
-        el('div', { class: 'row-between' }, [
-          el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
-          el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
-        ]),
-        el('div', { class: 'progress mt-12' }, [
-          el('div', {
-            class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
-            style: 'width:0%',
-          }),
-        ]),
-      ])
-    );
+    const progressCard = el('div', { class: 'card mt-16' }, [
+      el('div', { class: 'row-between' }, [
+        el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
+        el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
+      ]),
+      el('div', { class: 'progress mt-12' }, [
+        el('div', {
+          class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
+          style: 'width:0%',
+        }),
+      ]),
+    ]);
 
-    const fill = container.querySelector('.progress-fill');
+    container.appendChild(progressCard);
+
+    const fill = progressCard.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -2718,15 +2860,11 @@ function openMemberActionsModal(m) {
         class: 'btn btn-ghost btn-block mb-8',
         onclick: async () => {
           closeModal();
-          try {
-            await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, {
-              role: isTargetAdmin ? 'member' : 'admin',
-            });
-            toast('Роль изменена', 'success');
-            await renderActiveView();
-          } catch (err) {
-            toast(err.message, 'error');
-          }
+          await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, {
+            role: isTargetAdmin ? 'member' : 'admin',
+          });
+          toast('Роль изменена', 'success');
+          await renderActiveView();
         },
       },
       [isTargetAdmin ? 'Разжаловать до участника' : 'Сделать админом']
@@ -2741,13 +2879,9 @@ function openMemberActionsModal(m) {
           confirmDelete(
             `Вы уверены, что хотите исключить ${m.full_name || 'участника'}?`,
             async () => {
-              try {
-                await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
-                toast('Участник исключён', 'success');
-                await renderActiveView();
-              } catch (err) {
-                toast(err.message, 'error');
-              }
+              await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
+              toast('Участник исключён', 'success');
+              await renderActiveView();
             }
           );
         },
@@ -2768,7 +2902,8 @@ async function openGroupSettingsModal() {
   const g = activeGroup();
   if (!g) return;
 
-  const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []);
+  const membersRaw = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []);
+  const members = (membersRaw || []).filter((m) => !m.status || m.status === 'active');
   const me = members.find((m) => m.user_id === state.user?.id);
   const isAdmin = me?.role === 'admin';
   const isOwner = g.owner_id === state.user?.id;
@@ -2803,13 +2938,9 @@ async function openGroupSettingsModal() {
           onclick: () => {
             closeModal();
             confirmDelete('Вы уверены, что хотите покинуть группу?', async () => {
-              try {
-                await apiCall('POST', `/groups/${g.id}/leave`);
-                toast('Вы покинули группу', 'success');
-                await bootstrapApp();
-              } catch (err) {
-                toast(err.message, 'error');
-              }
+              await apiCall('POST', `/groups/${g.id}/leave`);
+              toast('Вы покинули группу', 'success');
+              await bootstrapApp();
             });
           },
         },
@@ -2830,13 +2961,9 @@ async function openGroupSettingsModal() {
             confirmDelete(
               'УДАЛИТЬ ГРУППУ? Это действие необратимо. Все данные будут потеряны.',
               async () => {
-                try {
-                  await apiCall('DELETE', `/groups/${g.id}`);
-                  toast('Группа удалена', 'success');
-                  await bootstrapApp();
-                } catch (err) {
-                  toast(err.message, 'error');
-                }
+                await apiCall('DELETE', `/groups/${g.id}`);
+                toast('Группа удалена', 'success');
+                await bootstrapApp();
               }
             );
           },
@@ -2876,24 +3003,20 @@ function openRenameGroupModal(g) {
       const newName = input.value.trim();
       if (!newName) throw new Error('Введите название');
 
-      try {
-        await apiCall('PATCH', `/groups/${g.id}`, {
-          name: newName,
-          version: Number(g.version ?? 0),
-        });
-        toast('Группа переименована', 'success');
-        await bootstrapApp();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('PATCH', `/groups/${g.id}`, {
+        name: newName,
+        version: Number(g.version ?? 0),
+      });
+
+      toast('Группа переименована', 'success');
+      await bootstrapApp();
     },
   });
 }
 
 /* =============================================================
-VIEW: GOALS
-============================================================= */
+   VIEW: GOALS
+   ============================================================= */
 async function renderGoals(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -2933,7 +3056,12 @@ async function renderGoals(container) {
   cards.forEach((card, i) => grid.appendChild(stagger(card, i)));
   container.appendChild(grid);
 
-  setTimeout(() => initSortableCategories(g.id, grid), 80);
+  setTimeout(() => {
+    initSortableCategories(g.id, grid);
+    $$('.goal-item-list', grid).forEach((list) => {
+      initSortableItems(list.dataset.catId, list);
+    });
+  }, 80);
 }
 
 async function renderGoalCategoryCard(g, c) {
@@ -2976,13 +3104,9 @@ async function renderGoalCategoryCard(g, c) {
             'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete(`Удалить категорию «${c.name}»?`, async () => {
-                try {
-                  await apiCall('DELETE', `/groups/${g.id}/goal-categories/${c.id}`);
-                  toast('Удалено', 'success');
-                  await renderActiveView();
-                } catch (err) {
-                  toast(err.message, 'error');
-                }
+                await apiCall('DELETE', `/groups/${g.id}/goal-categories/${c.id}`);
+                toast('Удалено', 'success');
+                await renderActiveView();
               }),
           },
           [icon('trash', 18)]
@@ -2991,7 +3115,7 @@ async function renderGoalCategoryCard(g, c) {
     ])
   );
 
-  const list = el('div', { class: 'list mt-12' });
+  const list = el('div', { class: 'list mt-12 goal-item-list', 'data-cat-id': c.id });
 
   items.forEach((it, i) => {
     const isDone = !!(it.done ?? it.is_done);
@@ -3022,13 +3146,9 @@ async function renderGoalCategoryCard(g, c) {
               'data-tip': 'Удалить',
               onclick: () =>
                 confirmDelete('Удалить элемент?', async () => {
-                  try {
-                    await apiCall('DELETE', `/groups/${g.id}/goal-items/${it.id}`);
-                    toast('Удалено', 'success');
-                    await renderActiveView();
-                  } catch (err) {
-                    toast(err.message, 'error');
-                  }
+                  await apiCall('DELETE', `/groups/${g.id}/goal-items/${it.id}`);
+                  toast('Удалено', 'success');
+                  await renderActiveView();
                 }),
             },
             [icon('trash', 18)]
@@ -3048,8 +3168,6 @@ async function renderGoalCategoryCard(g, c) {
   }
 
   card.appendChild(list);
-
-  setTimeout(() => initSortableItems(c.id, list), 80);
 
   card.appendChild(
     el(
@@ -3101,16 +3219,11 @@ function openCreateGoalCategoryModal(g) {
     title: 'Новая категория целей',
     body: field('Название', input),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/goal-categories`, {
-          name: input.value.trim(),
-        });
-        toast('Создано', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/goal-categories`, {
+        name: input.value.trim(),
+      });
+      toast('Создано', 'success');
+      await renderActiveView();
     },
   });
 }
@@ -3128,17 +3241,12 @@ function openRenameGoalCategoryModal(g, c) {
     title: 'Переименовать',
     body: field('Название', input),
     onSave: async () => {
-      try {
-        await apiCall('PATCH', `/groups/${g.id}/goal-categories/${c.id}`, {
-          name: input.value.trim(),
-          version: Number(c.version ?? 0),
-        });
-        toast('Обновлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('PATCH', `/groups/${g.id}/goal-categories/${c.id}`, {
+        name: input.value.trim(),
+        version: Number(c.version ?? 0),
+      });
+      toast('Обновлено', 'success');
+      await renderActiveView();
     },
   });
 }
@@ -3162,24 +3270,19 @@ function openCreateGoalItemModal(g, c) {
     title: 'Новый элемент',
     body: el('div', {}, [field('Название', title), field('Описание', description)]),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/goal-categories/${c.id}/items`, {
-          title: title.value.trim(),
-          description: description.value.trim(),
-        });
-        toast('Добавлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/goal-categories/${c.id}/items`, {
+        title: title.value.trim(),
+        description: description.value.trim(),
+      });
+      toast('Добавлено', 'success');
+      await renderActiveView();
     },
   });
 }
 
 /* =============================================================
-VIEW: BUDGET
-============================================================= */
+   VIEW: BUDGET
+   ============================================================= */
 async function renderBudget(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3192,43 +3295,46 @@ async function renderBudget(container) {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [cats, txs, summary, membersSpent, analytics] = await Promise.all([
+  const [cats, txs, summary, membersSpent, analytics, membersRaw] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
   ]);
+
+  const members = (membersRaw || []).filter((m) => !m.status || m.status === 'active');
 
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);
     const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
 
-    container.appendChild(
-      el('div', { class: 'card' }, [
-        el('div', { class: 'row-between' }, [
-          el('div', {}, [
-            el('div', { class: 'stat-label' }, ['Потрачено за месяц']),
-            el('div', { class: 'stat-value primary' }, [fmtMoney(spent)]),
-          ]),
-          el('div', { style: 'text-align:right;' }, [
-            el('div', { class: 'stat-label' }, ['Лимит']),
-            el('div', { class: 'stat-value' }, [fmtMoney(limit)]),
-          ]),
+    const card = el('div', { class: 'card' }, [
+      el('div', { class: 'row-between' }, [
+        el('div', {}, [
+          el('div', { class: 'stat-label' }, ['Потрачено за месяц']),
+          el('div', { class: 'stat-value primary' }, [fmtMoney(spent)]),
         ]),
-        limit > 0
-          ? el('div', { class: 'progress mt-16' }, [
-              el('div', {
-                class: `progress-fill${spent > limit ? ' danger' : ''}`,
-                style: 'width:0%',
-              }),
-            ])
-          : null,
-      ].filter(Boolean))
-    );
+        el('div', { style: 'text-align:right;' }, [
+          el('div', { class: 'stat-label' }, ['Лимит']),
+          el('div', { class: 'stat-value' }, [fmtMoney(limit)]),
+        ]),
+      ]),
+      limit > 0
+        ? el('div', { class: 'progress mt-16' }, [
+            el('div', {
+              class: `progress-fill${spent > limit ? ' danger' : ''}`,
+              style: 'width:0%',
+            }),
+          ])
+        : null,
+    ].filter(Boolean));
 
-    const fill = container.querySelector('.progress-fill');
+    container.appendChild(card);
+
+    const fill = card.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -3308,7 +3414,7 @@ async function renderBudget(container) {
     { class: 'input' },
     [
       el('option', { value: '' }, ['Все участники']),
-      ...membersSpent.map((m) =>
+      ...members.map((m) =>
         el('option', { value: m.user_id }, [m.full_name || 'Участник'])
       ),
     ]
@@ -3400,7 +3506,7 @@ function renderCategoryCard(g, c, summary) {
   const limit = Number(c.budget_limit ?? c.limit ?? 0);
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
 
-  return el('div', { class: 'card' }, [
+  const card = el('div', { class: 'card' }, [
     el('div', { class: 'card-head' }, [
       el('div', {}, [
         el('div', { class: 'card-title' }, [c.name]),
@@ -3431,13 +3537,9 @@ function renderCategoryCard(g, c, summary) {
             'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete(`Удалить «${c.name}»?`, async () => {
-                try {
-                  await apiCall('DELETE', `/groups/${g.id}/categories/${c.id}`);
-                  toast('Удалено', 'success');
-                  await renderActiveView();
-                } catch (err) {
-                  toast(err.message, 'error');
-                }
+                await apiCall('DELETE', `/groups/${g.id}/categories/${c.id}`);
+                toast('Удалено', 'success');
+                await renderActiveView();
               }),
           },
           [icon('trash', 18)]
@@ -3459,6 +3561,13 @@ function renderCategoryCard(g, c, summary) {
       }),
     ]),
   ]);
+
+  const fill = card.querySelector('.progress-fill');
+  animateLater(() => {
+    fill.style.width = `${pct}%`;
+  });
+
+  return card;
 }
 
 function renderTransactionRow(t, cats, swipe = true) {
@@ -3470,7 +3579,7 @@ function renderTransactionRow(t, cats, swipe = true) {
 
   const content = el(
     'div',
-    { class: 'item swipe-over', 'data-tx-id': t.id },
+    { class: 'item swipeable-content', 'data-tx-id': t.id },
     [
       el('div', { class: 'avatar-sm', style: `background:${colorFromId(t.category_id || t.id)}` }, [
         icon(type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle', 18),
@@ -3510,24 +3619,22 @@ function renderTransactionRow(t, cats, swipe = true) {
 
   if (!swipe) return content;
 
-  const wrapper = el('div', { class: 'swipe-row' }, [
-    el('div', { class: 'swipe-under' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
+  const wrapper = el('div', { class: 'swipeable' }, [
+    el('div', { class: 'swipeable-actions' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
     content,
   ]);
 
-  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g, wrapper));
+  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g));
   return wrapper;
 }
 
-function handleDeleteTransaction(t, g, row = null) {
+function handleDeleteTransaction(t, g) {
   if (!g) return;
 
-  const content = row || document.querySelector(`[data-tx-id="${t.id}"]`);
-  const wrapper = content?.closest('.swipe-row');
+  const content = document.querySelector(`[data-tx-id="${t.id}"]`);
+  const wrapper = content?.closest('.swipeable');
 
-  if (wrapper) {
-    wrapper.classList.add('removing');
-  }
+  if (wrapper) wrapper.style.display = 'none';
 
   deleteWithUndo({
     label: `Транзакция «${t.description || 'Без описания'}»`,
@@ -3537,19 +3644,11 @@ function handleDeleteTransaction(t, g, row = null) {
         await renderActiveView();
       } catch (err) {
         toast(err.message, 'error');
-        if (wrapper) {
-          wrapper.classList.remove('removing');
-          const over = wrapper.querySelector('.swipe-over');
-          if (over) over.style.transform = 'translateX(0)';
-        }
+        if (wrapper) wrapper.style.display = '';
       }
     },
     onCancel: () => {
-      if (wrapper) {
-        wrapper.classList.remove('removing');
-        const over = wrapper.querySelector('.swipe-over');
-        if (over) over.style.transform = 'translateX(0)';
-      }
+      if (wrapper) wrapper.style.display = '';
     },
   });
 }
@@ -3617,18 +3716,13 @@ function openCreateCategoryModal(g) {
       field(`Лимит в месяц (${currencySymbol()})`, limit),
     ]),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/categories`, {
-          name: name.value.trim(),
-          type: type.value,
-          budget_limit: Number(limit.value),
-        });
-        toast('Создано', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/categories`, {
+        name: name.value.trim(),
+        type: type.value,
+        budget_limit: Number(limit.value),
+      });
+      toast('Создано', 'success');
+      await renderActiveView();
     },
   });
 }
@@ -3669,130 +3763,122 @@ function openEditCategoryModal(g, c) {
       field(`Лимит в месяц (${currencySymbol()})`, limit),
     ]),
     onSave: async () => {
-      try {
-        await apiCall('PATCH', `/groups/${g.id}/categories/${c.id}`, {
-          name: name.value.trim(),
-          type: type.value,
-          budget_limit: Number(limit.value),
-          version: Number(c.version ?? 0),
-        });
-        toast('Обновлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('PATCH', `/groups/${g.id}/categories/${c.id}`, {
+        name: name.value.trim(),
+        type: type.value,
+        budget_limit: Number(limit.value),
+        version: Number(c.version ?? 0),
+      });
+      toast('Обновлено', 'success');
+      await renderActiveView();
     },
   });
 }
 
-async function openTransactionModal(g, presetType = 'expense') {
-  const cats = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+function openTransactionModal(g, presetType = 'expense') {
+  safeApi(apiCall('GET', `/groups/${g.id}/categories`), []).then((cats) => {
+    if (!cats.length) {
+      toast('Сначала создайте категорию в разделе Бюджет', 'warning');
+      switchView('budget');
+      return;
+    }
 
-  if (!cats.length) {
-    toast('Сначала создайте категорию в разделе Бюджет', 'warning');
-    switchView('budget');
-    openCreateCategoryModal(g);
-    return;
-  }
+    let type = presetType;
 
-  let type = presetType;
+    const amountInput = el('input', {
+      type: 'number',
+      step: '0.01',
+      min: '0.01',
+      required: true,
+      placeholder: `Сумма (${currencySymbol()})`,
+      class: 'input',
+      style:
+        'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
+    });
 
-  const amountInput = el('input', {
-    type: 'number',
-    step: '0.01',
-    min: '0.01',
-    required: true,
-    placeholder: `Сумма (${currencySymbol()})`,
-    class: 'input',
-    style:
-      'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
-  });
-
-  const presets = [100, 500, 1000, 5000];
-  const presetsRow = el(
-    'div',
-    { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
-    presets.map((p) =>
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'preset-btn',
-          onclick: () => {
-            amountInput.value = p;
-            amountInput.focus();
+    const presets = [100, 500, 1000, 5000];
+    const presetsRow = el(
+      'div',
+      { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
+      presets.map((p) =>
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'preset-btn',
+            onclick: () => {
+              amountInput.value = p;
+              amountInput.focus();
+            },
           },
-        },
-        [`${p} ${currencySymbol()}`]
+          [`${p} ${currencySymbol()}`]
+        )
       )
-    )
-  );
+    );
 
-  const expenseBtn = el(
-    'button',
-    {
-      type: 'button',
-      class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
-      onclick: () => {
-        type = 'expense';
-        expenseBtn.className = 'btn btn-danger btn-sm flex-1';
-        incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+    const expenseBtn = el(
+      'button',
+      {
+        type: 'button',
+        class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
+        onclick: () => {
+          type = 'expense';
+          expenseBtn.className = 'btn btn-danger btn-sm flex-1';
+          incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+        },
       },
-    },
-    ['Расход']
-  );
+      ['Расход']
+    );
 
-  const incomeBtn = el(
-    'button',
-    {
-      type: 'button',
-      class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
-      onclick: () => {
-        type = 'income';
-        expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
-        incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+    const incomeBtn = el(
+      'button',
+      {
+        type: 'button',
+        class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
+        onclick: () => {
+          type = 'income';
+          expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
+          incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+        },
       },
-    },
-    ['Доход']
-  );
+      ['Доход']
+    );
 
-  const catSelect = el(
-    'select',
-    { class: 'input', required: true },
-    cats.map((c) => el('option', { value: c.id }, [c.name]))
-  );
+    const catSelect = el(
+      'select',
+      { class: 'input', required: true },
+      cats.map((c) => el('option', { value: c.id }, [c.name]))
+    );
 
-  const dateInput = el('input', {
-    class: 'input',
-    type: 'datetime-local',
-    value: toLocalInput(new Date().toISOString()),
-    required: true,
-  });
+    const dateInput = el('input', {
+      class: 'input',
+      type: 'datetime-local',
+      value: toLocalInput(new Date().toISOString()),
+      required: true,
+    });
 
-  const descInput = el('input', {
-    type: 'text',
-    placeholder: 'Описание (необязательно)',
-    maxlength: '255',
-    class: 'input',
-  });
+    const descInput = el('input', {
+      type: 'text',
+      placeholder: 'Описание (необязательно)',
+      maxlength: '255',
+      class: 'input',
+    });
 
-  openModal({
-    title: '⚡ Быстрая запись',
-    body: el('div', {}, [
-      amountInput,
-      presetsRow,
-      el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
-      field('Категория', catSelect),
-      field('Дата', dateInput),
-      field('Описание', descInput),
-    ]),
-    saveLabel: 'Добавить',
-    onSave: async () => {
-      const amount = parseFloat(amountInput.value);
-      if (!amount || amount <= 0) throw new Error('Введите сумму');
+    openModal({
+      title: '⚡ Быстрая запись',
+      body: el('div', {}, [
+        amountInput,
+        presetsRow,
+        el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
+        field('Категория', catSelect),
+        field('Дата', dateInput),
+        field('Описание', descInput),
+      ]),
+      saveLabel: 'Добавить',
+      onSave: async () => {
+        const amount = parseFloat(amountInput.value);
+        if (!amount || amount <= 0) throw new Error('Введите сумму');
 
-      try {
         await apiCall('POST', `/groups/${g.id}/transactions`, {
           category_id: catSelect.value,
           amount,
@@ -3800,19 +3886,17 @@ async function openTransactionModal(g, presetType = 'expense') {
           date: fromLocalInput(dateInput.value) || new Date().toISOString(),
           description: descInput.value.trim(),
         });
+
         toast('Добавлено!', 'success');
         await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
-    },
+      },
+    });
   });
 }
 
 /* =============================================================
-VIEW: PLANS
-============================================================= */
+   VIEW: PLANS
+   ============================================================= */
 async function renderPlans(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3877,12 +3961,10 @@ async function renderPlans(container) {
   if (calendarState.view === 'calendar') {
     const calFrom = new Date(calendarState.year, calendarState.month - 1, 1).toISOString();
     const calTo = new Date(calendarState.year, calendarState.month + 2, 0).toISOString();
-
     const calPlans = await safeApi(
       apiCall('GET', `/groups/${g.id}/plans?from=${calFrom}&to=${calTo}`),
       []
     );
-
     container.appendChild(renderCalendar(g, calPlans));
     return;
   }
@@ -3951,13 +4033,9 @@ async function renderPlanCard(g, p) {
             'data-tip': 'Удалить',
             onclick: () =>
               confirmDelete('Удалить событие?', async () => {
-                try {
-                  await apiCall('DELETE', `/groups/${g.id}/plans/${p.id}`);
-                  toast('Удалено', 'success');
-                  await renderActiveView();
-                } catch (err) {
-                  toast(err.message, 'error');
-                }
+                await apiCall('DELETE', `/groups/${g.id}/plans/${p.id}`);
+                toast('Удалено', 'success');
+                await renderActiveView();
               }),
           },
           [icon('trash', 18)]
@@ -4005,13 +4083,9 @@ async function renderPlanCard(g, p) {
                 class: 'icon-btn sm',
                 'data-tip': 'Удалить',
                 onclick: async () => {
-                  try {
-                    await apiCall('DELETE', `/groups/${g.id}/checklist/${it.id}`);
-                    toast('Удалено', 'success');
-                    await renderActiveView();
-                  } catch (err) {
-                    toast(err.message, 'error');
-                  }
+                  await apiCall('DELETE', `/groups/${g.id}/checklist/${it.id}`);
+                  toast('Удалено', 'success');
+                  await renderActiveView();
                 },
               },
               [icon('trash', 18)]
@@ -4042,7 +4116,6 @@ async function renderPlanCard(g, p) {
 
 async function togglePlan(g, p) {
   const next = !p.is_done;
-
   try {
     await apiCall('PATCH', `/groups/${g.id}/plans/${p.id}`, {
       title: p.title,
@@ -4051,7 +4124,6 @@ async function togglePlan(g, p) {
       is_done: next,
       version: Number(p.version ?? 0),
     });
-
     toast(next ? 'Событие выполнено' : 'Событие возвращено в планы', 'success');
     await renderActiveView();
   } catch (err) {
@@ -4113,18 +4185,13 @@ function openCreatePlanModal(g) {
       field('Дата и время', eventDate),
     ]),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/plans`, {
-          title: title.value.trim(),
-          description: description.value.trim(),
-          event_date: fromLocalInput(eventDate.value),
-        });
-        toast('Создано', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/plans`, {
+        title: title.value.trim(),
+        description: description.value.trim(),
+        event_date: fromLocalInput(eventDate.value),
+      });
+      toast('Создано', 'success');
+      await renderActiveView();
     },
   });
 }
@@ -4159,20 +4226,15 @@ function openEditPlanModal(g, plan) {
       field('Дата и время', eventDate),
     ]),
     onSave: async () => {
-      try {
-        await apiCall('PATCH', `/groups/${g.id}/plans/${plan.id}`, {
-          title: title.value.trim(),
-          description: description.value.trim(),
-          event_date: fromLocalInput(eventDate.value),
-          is_done: !!plan.is_done,
-          version: Number(plan.version ?? 0),
-        });
-        toast('Обновлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('PATCH', `/groups/${g.id}/plans/${plan.id}`, {
+        title: title.value.trim(),
+        description: description.value.trim(),
+        event_date: fromLocalInput(eventDate.value),
+        is_done: !!plan.is_done,
+        version: Number(plan.version ?? 0),
+      });
+      toast('Обновлено', 'success');
+      await renderActiveView();
     },
   });
 }
@@ -4190,23 +4252,18 @@ function openCreateChecklistModal(g, p) {
     title: 'Новый пункт',
     body: field('Текст', text),
     onSave: async () => {
-      try {
-        await apiCall('POST', `/groups/${g.id}/plans/${p.id}/checklist`, {
-          text: text.value.trim(),
-        });
-        toast('Добавлено', 'success');
-        await renderActiveView();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${g.id}/plans/${p.id}/checklist`, {
+        text: text.value.trim(),
+      });
+      toast('Добавлено', 'success');
+      await renderActiveView();
     },
   });
 }
 
 /* =============================================================
-VIEW: PROFILE
-============================================================= */
+   VIEW: PROFILE
+   ============================================================= */
 async function renderProfile(container) {
   const me = await apiCall('GET', '/users/me');
   state.user = me.data;
@@ -4217,6 +4274,7 @@ async function renderProfile(container) {
   container.innerHTML = '';
 
   const u = state.user;
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
   const wrap = el('div', { style: 'max-width:680px;' });
 
   wrap.appendChild(
@@ -4304,6 +4362,31 @@ async function renderProfile(container) {
       el('div', { class: 'text-xs text-3 mt-16' }, [
         `Создан: ${fmtDate(u.created_at)}${u.version != null ? ` · версия ${u.version}` : ''}`,
       ]),
+    ])
+  );
+
+  wrap.appendChild(
+    el('div', { class: 'card mt-16' }, [
+      el('div', { class: 'card-title' }, ['Тема интерфейса']),
+      el('div', { class: 'text-sm text-3 mt-8' }, ['Тёмная, светлая и пудровая розовая.']),
+      el(
+        'div',
+        { class: 'row gap-8 flex-wrap mt-12' },
+        THEMES.map((t) =>
+          el(
+            'button',
+            {
+              type: 'button',
+              class: `btn btn-sm ${currentTheme === t ? 'btn-primary' : 'btn-ghost'}`,
+              onclick: () => {
+                setTheme(t);
+                renderActiveView();
+              },
+            },
+            [themeLabel(t)]
+          )
+        )
+      ),
     ])
   );
 
@@ -4429,17 +4512,11 @@ function openChangePasswordModal() {
     saveLabel: 'Сохранить',
     onSave: async () => {
       if (!oldPwd.value || !newPwd.value) throw new Error('Заполните все поля');
-
-      try {
-        await apiCall('PATCH', '/users/me/password', {
-          old_password: oldPwd.value,
-          new_password: newPwd.value,
-        });
-        toast('Пароль успешно изменён', 'success');
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('PATCH', '/users/me/password', {
+        old_password: oldPwd.value,
+        new_password: newPwd.value,
+      });
+      toast('Пароль успешно изменён', 'success');
     },
   });
 }
@@ -4463,23 +4540,18 @@ function openDeleteAccountModal() {
     saveLabel: 'Удалить навсегда',
     danger: true,
     onSave: async () => {
-      try {
-        await apiCall('DELETE', '/users/me', {
-          password: password.value,
-        });
-        toast('Аккаунт удалён', 'success');
-        logout();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('DELETE', '/users/me', {
+        password: password.value,
+      });
+      toast('Аккаунт удалён', 'success');
+      logout();
     },
   });
 }
 
 /* =============================================================
-MODAL
-============================================================= */
+   MODAL
+   ============================================================= */
 function openModal({ title, body, onSave, saveLabel = 'Сохранить', danger = false }) {
   const root = $('#modal-root');
   if (!root) return;
@@ -4603,8 +4675,8 @@ function confirmDelete(message, onConfirm, confirmLabel = 'Удалить') {
 }
 
 /* =============================================================
-UNDO DELETE
-============================================================= */
+   UNDO DELETE
+   ============================================================= */
 function deleteWithUndo({ label, onConfirm, onCancel }) {
   const root = $('#toasts');
   if (!root) {
@@ -4646,8 +4718,8 @@ function deleteWithUndo({ label, onConfirm, onCancel }) {
 }
 
 /* =============================================================
-GROUP MODALS
-============================================================= */
+   GROUP MODALS
+   ============================================================= */
 function openCreateGroupModal() {
   const name = el('input', {
     class: 'input',
@@ -4661,22 +4733,17 @@ function openCreateGroupModal() {
     title: 'Новая группа',
     body: field('Название', name),
     onSave: async () => {
-      try {
-        const res = await apiCall('POST', '/groups', {
-          name: name.value.trim(),
-        });
+      const res = await apiCall('POST', '/groups', {
+        name: name.value.trim(),
+      });
 
-        state.groups.push(res.data);
-        state.activeGroupId = res.data.id;
-        localStorage.setItem('active_group', res.data.id);
+      state.groups.push(res.data);
+      state.activeGroupId = res.data.id;
+      localStorage.setItem('active_group', res.data.id);
 
-        renderShell();
-        await renderActiveView();
-        toast('Группа создана', 'success');
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      renderShell();
+      await renderActiveView();
+      toast('Группа создана', 'success');
     },
   });
 }
@@ -4700,14 +4767,9 @@ function openJoinGroupModal() {
     saveLabel: 'Присоединиться',
     onSave: async () => {
       const gid = groupId.value.trim();
-      try {
-        await apiCall('POST', `/groups/${gid}/join`);
-        toast('Вы присоединились', 'success');
-        await bootstrapApp();
-      } catch (err) {
-        toast(err.message, 'error');
-        throw err;
-      }
+      await apiCall('POST', `/groups/${gid}/join`);
+      toast('Вы присоединились', 'success');
+      await bootstrapApp();
     },
   });
 }
@@ -4770,8 +4832,8 @@ function openInviteModal(g) {
 }
 
 /* =============================================================
-COMMAND PALETTE
-============================================================= */
+   COMMAND PALETTE
+   ============================================================= */
 function getCommands() {
   const cmds = [];
   const g = activeGroup();
@@ -4812,13 +4874,15 @@ function getCommands() {
     run: openJoinGroupModal,
   });
 
-  cmds.push({
-    id: 'action-invitations',
-    title: 'Открыть приглашения',
-    hint: 'Действие',
-    icon: 'bell',
-    run: openInvitationsModal,
-  });
+  if (state.invitations?.length) {
+    cmds.push({
+      id: 'action-invitations',
+      title: `Приглашения (${state.invitations.length})`,
+      hint: 'Действие',
+      icon: 'bell',
+      run: () => openInvitationsPopover($('#invitations-btn')),
+    });
+  }
 
   if (g) {
     cmds.push(
@@ -4867,13 +4931,18 @@ function getCommands() {
     );
   }
 
-  cmds.push({
-    id: 'action-toggle-theme',
-    title: 'Переключить тему',
-    hint: 'Интерфейс',
-    icon: document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
-    run: toggleTheme,
-  });
+  for (const t of THEMES) {
+    cmds.push({
+      id: `theme-${t}`,
+      title: `Тема: ${themeLabel(t)}`,
+      hint: 'Интерфейс',
+      icon: themeIconName(t),
+      run: () => {
+        setTheme(t);
+        if (state.view === 'profile') renderActiveView();
+      },
+    });
+  }
 
   if (state.user) {
     cmds.push({
@@ -4892,7 +4961,6 @@ function openCommandPalette() {
   if (ui.command.open) return;
 
   ui.command.open = true;
-
   const root = $('#command-palette');
   const input = $('#command-input');
 
@@ -4908,7 +4976,6 @@ function openCommandPalette() {
 
 function closeCommandPalette() {
   if (!ui.command.open) return;
-
   ui.command.open = false;
   $('#command-palette')?.classList.add('hidden');
 }
@@ -4958,7 +5025,6 @@ function renderCommands(query = '') {
         ]),
       ]
     );
-
     list.appendChild(item);
   });
 }
@@ -4973,10 +5039,8 @@ function updateCommandSelection() {
 
 function moveCommandSelection(delta) {
   if (!ui.command.filtered.length) return;
-
   ui.command.selected =
     (ui.command.selected + delta + ui.command.filtered.length) % ui.command.filtered.length;
-
   updateCommandSelection();
 }
 
@@ -5020,8 +5084,8 @@ function initCommandPalette() {
 }
 
 /* =============================================================
-RIPPLE
-============================================================= */
+   RIPPLE
+   ============================================================= */
 function initRipple() {
   document.addEventListener('pointerdown', (e) => {
     const btn = e.target.closest('.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip');
@@ -5042,15 +5106,14 @@ function initRipple() {
 }
 
 /* =============================================================
-GLOBAL KEYS
-============================================================= */
+   GLOBAL KEYS
+   ============================================================= */
 function initGlobalKeys() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       const appVisible = !$('#screen-app')?.classList.contains('hidden');
       if (!appVisible) return;
-
       if (ui.command.open) closeCommandPalette();
       else openCommandPalette();
       return;
@@ -5061,17 +5124,14 @@ function initGlobalKeys() {
         closeCommandPalette();
         return;
       }
-
       if ($('#modal-root')?.children.length) {
         closeModal();
         return;
       }
-
       if (ui.popover) {
         closePopover();
         return;
       }
-
       if (ui.fabOpen) {
         closeFab();
       }
@@ -5080,8 +5140,8 @@ function initGlobalKeys() {
 }
 
 /* =============================================================
-INIT
-============================================================= */
+   INIT
+   ============================================================= */
 function initApp() {
   hydrateIcons();
   initTooltip();
@@ -5102,12 +5162,12 @@ function initApp() {
   });
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.addEventListener('click', toggleTheme);
+    btn.addEventListener('click', cycleTheme);
   });
 }
 
 async function main() {
-  applyTheme(localStorage.getItem('zunno-theme') || getPreferredTheme());
+  setTheme(getInitialTheme());
   initApp();
 
   if (state.token) {

@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#7c5cff" />
+  <defs>
+    <linearGradient id="zunnoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="55%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#zunnoGrad)" />
   <path
     d="M144 144 L368 144 L368 200 L224 340 L368 340 L368 368 L144 368 L144 312 L288 172 L144 172 Z"
     fill="#fff"

@@ -1,138 +1,174 @@
 <!doctype html>
 <html lang="ru" data-theme="dark">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0610" />
-  <title>Zunno — совместные планы и бюджет</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Zunno — совместное планирование</title>
+    <meta name="description" content="Планируйте вместе. Тратьте осознанно." />
+    <meta name="theme-color" content="#070912" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
 
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap"
-    rel="stylesheet"
-  />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/driver.js@1.3.1/dist/driver.css"
+    />
+    <link rel="stylesheet" href="/styles.css" />
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/driver.js@1.3.1/dist/driver.css"
-  />
-
-  <link rel="stylesheet" href="styles.css" />
-
-  <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-  <script defer src="https://unpkg.com/driver.js@1.3.1/dist/driver.js.iife.js"></script>
-</head>
-<body>
-  <div id="preloader" class="preloader">
-    <div class="preloader-orbit">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
-  </div>
-
-  <!-- AUTH -->
-  <section id="screen-auth" class="screen-auth hidden">
-    <div class="auth-shell">
-      <button class="icon-btn auth-theme-btn" data-theme-toggle aria-label="Переключить тему">
-        <span data-icon="moon" data-theme-icon></span>
-      </button>
-
-      <div class="auth-brand">
-        <img class="brand-logo" src="/icon.svg" alt="Zunno" />
-        <h1 class="auth-title">Zunno</h1>
-        <p class="auth-subtitle">Планируйте вместе. Тратьте осознанно.</p>
-      </div>
-
-      <div class="auth-panel glass-strong">
-        <div class="segmented">
-          <button type="button" class="segmented-btn is-active" data-tab="login">Вход</button>
-          <button type="button" class="segmented-btn" data-tab="register">Регистрация</button>
-          <span class="segmented-thumb"></span>
-        </div>
-
-        <form id="form-login" class="form">
-          <label class="field">
-            <span class="field-label">Телефон</span>
-            <input class="input" name="phone_number" type="tel" placeholder="+79991234567" required />
-          </label>
-          <label class="field">
-            <span class="field-label">Пароль</span>
-            <input class="input" name="password" type="password" placeholder="••••••••" required />
-          </label>
-          <button class="btn btn-primary btn-block btn-lg" type="submit">
-            <span data-icon="login" data-size="sm"></span>
-            <span>Войти</span>
-          </button>
-        </form>
-
-        <form id="form-register" class="form hidden">
-          <label class="field">
-            <span class="field-label">Имя</span>
-            <input class="input" name="full_name" type="text" placeholder="Иван Петров" minlength="3" maxlength="100" required />
-          </label>
-          <label class="field">
-            <span class="field-label">Возраст</span>
-            <input class="input" name="age" type="number" min="18" max="100" placeholder="25" required />
-          </label>
-          <label class="field">
-            <span class="field-label">Телефон</span>
-            <input class="input" name="phone_number" type="tel" placeholder="+79991234567" required />
-            <span class="field-hint">Формат: +79991234567</span>
-          </label>
-          <label class="field">
-            <span class="field-label">Пароль</span>
-            <input class="input" name="password" type="password" placeholder="Минимум 8 символов" minlength="8" required />
-          </label>
-          <button class="btn btn-primary btn-block btn-lg" type="submit">
-            <span data-icon="sparkles" data-size="sm"></span>
-            <span>Создать аккаунт</span>
-          </button>
-        </form>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('zunno-theme');
+          var valid = ['dark', 'light', 'pink'];
+          var theme = valid.indexOf(saved) !== -1 ? saved : null;
+          if (!theme) {
+            theme =
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark';
+          }
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="preloader" class="preloader">
+      <div class="preloader-orbit">
+        <span></span>
+        <span></span>
+        <span></span>
       </div>
     </div>
-  </section>
 
-  <!-- APP -->
-  <section id="screen-app" class="screen-app hidden" data-sidebar="expanded">
-    <aside class="sidebar glass-strong">
-      <div class="sidebar-head">
-        <img class="brand-logo sm" src="/icon.svg" alt="" />
-        <div class="brand-text">
-          <div class="brand-title">Zunno</div>
-          <div class="brand-sub">Совместный бюджет и планы</div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <div id="tooltip-root"></div>
+    <div id="popover-root"></div>
+    <div id="modal-root"></div>
+
+    <div id="command-palette" class="cmdk hidden" role="dialog" aria-modal="true" aria-label="Командная палитра">
+      <div class="cmdk-panel">
+        <div class="cmdk-search">
+          <span data-icon="search" data-size="sm"></span>
+          <input id="command-input" type="text" placeholder="Поиск команд, групп, действий..." autocomplete="off" />
+          <kbd>ESC</kbd>
         </div>
-        <button id="sidebar-collapse" class="icon-btn sm" data-tip="Свернуть меню" aria-label="Свернуть меню">
-          <span data-icon="panelLeft"></span>
-        </button>
+        <div id="command-list" class="cmdk-list"></div>
       </div>
+    </div>
 
-      <nav class="sidebar-nav">
-        <div class="nav-section-label nav-label">Работа</div>
-        <button type="button" class="nav-item is-active" data-view="dashboard">
-          <span data-icon="dashboard"></span>
-          <span class="nav-label">Обзор</span>
-        </button>
-        <button type="button" class="nav-item" data-view="goals">
-          <span data-icon="target"></span>
-          <span class="nav-label">Цели</span>
-        </button>
-        <button type="button" class="nav-item" data-view="budget">
-          <span data-icon="wallet"></span>
-          <span class="nav-label">Бюджет</span>
-        </button>
-        <button type="button" class="nav-item" data-view="plans">
-          <span data-icon="calendar"></span>
-          <span class="nav-label">Планы</span>
+    <section id="screen-auth" class="screen-auth hidden">
+      <div class="auth-shell">
+        <button class="icon-btn auth-theme-btn" data-theme-toggle data-tip="Сменить тему" aria-label="Сменить тему">
+          <span class="icon-slot" data-theme-icon></span>
         </button>
 
-        <div class="sidebar-group-block">
-          <div class="sidebar-label nav-label">Группы</div>
+        <div class="auth-brand">
+          <img class="brand-logo" src="/icon.svg" alt="Zunno" />
+          <h1 class="auth-title">Zunno</h1>
+          <p class="auth-subtitle">Планируйте вместе. Тратьте осознанно.</p>
+        </div>
+
+        <div class="auth-panel glass-strong">
+          <div class="segmented" role="tablist" aria-label="Вход или регистрация">
+            <button type="button" class="segmented-btn is-active" data-tab="login" role="tab">Вход</button>
+            <button type="button" class="segmented-btn" data-tab="register" role="tab">Регистрация</button>
+            <span class="segmented-thumb"></span>
+          </div>
+
+          <form id="form-login" class="form" novalidate>
+            <label class="field">
+              <span class="field-label">Телефон</span>
+              <input class="input" name="phone_number" type="tel" required placeholder="+79991234567" inputmode="tel" autocomplete="tel" />
+            </label>
+            <label class="field">
+              <span class="field-label">Пароль</span>
+              <input class="input" name="password" type="password" required minlength="8" placeholder="••••••••" autocomplete="current-password" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Войти</button>
+          </form>
+
+          <form id="form-register" class="form hidden" novalidate>
+            <label class="field">
+              <span class="field-label">Имя</span>
+              <input class="input" name="full_name" type="text" required minlength="3" maxlength="100" placeholder="Иван Петров" autocomplete="name" />
+            </label>
+            <label class="field">
+              <span class="field-label">Возраст</span>
+              <input class="input" name="age" type="number" required min="18" max="100" placeholder="25" />
+            </label>
+            <label class="field">
+              <span class="field-label">Телефон</span>
+              <input class="input" name="phone_number" type="tel" required placeholder="+79991234567" inputmode="tel" autocomplete="tel" />
+              <span class="field-hint">Формат: +79991234567</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Пароль</span>
+              <input class="input" name="password" type="password" required minlength="8" placeholder="Минимум 8 символов" autocomplete="new-password" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">Создать аккаунт</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <main id="screen-app" class="screen-app hidden" data-sidebar="expanded">
+      <aside class="sidebar glass-strong">
+        <div class="sidebar-head">
+          <img class="brand-logo sm" src="/icon.svg" alt="" />
+          <div class="brand-text">
+            <div class="brand-title">Zunno</div>
+            <div class="brand-sub">Совместный бюджет и планы</div>
+          </div>
+          <button id="sidebar-collapse" class="icon-btn sm" data-tip="Свернуть панель" aria-label="Свернуть панель">
+            <span data-icon="panelLeft" data-size="sm"></span>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Основная навигация">
+          <div class="nav-section-label nav-label">Работа</div>
+          <button type="button" class="nav-item is-active" data-view="dashboard">
+            <span data-icon="dashboard" data-size="sm"></span>
+            <span class="nav-label">Обзор</span>
+          </button>
+          <button type="button" class="nav-item" data-view="goals">
+            <span data-icon="target" data-size="sm"></span>
+            <span class="nav-label">Цели</span>
+          </button>
+          <button type="button" class="nav-item" data-view="budget">
+            <span data-icon="wallet" data-size="sm"></span>
+            <span class="nav-label">Бюджет</span>
+          </button>
+          <button type="button" class="nav-item" data-view="plans">
+            <span data-icon="calendar" data-size="sm"></span>
+            <span class="nav-label">Планы</span>
+          </button>
+
+          <div class="nav-section-label nav-label">Аккаунт</div>
+          <button type="button" class="nav-item" data-view="profile">
+            <span data-icon="user" data-size="sm"></span>
+            <span class="nav-label">Профиль</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-group-block" id="sidebar-group-block">
+          <div class="row-between sidebar-label-row">
+            <span class="sidebar-label nav-label">Группы</span>
+            <button id="sidebar-groups-toggle" class="icon-btn sm" data-tip="Показать/скрыть группы" aria-label="Показать/скрыть группы">
+              <span data-icon="chevronDown" data-size="sm"></span>
+            </button>
+          </div>
           <div id="sidebar-group-list" class="sidebar-group-list"></div>
           <div class="sidebar-group-actions">
             <button id="btn-new-group" type="button" class="btn btn-ghost btn-sm btn-block">
@@ -145,114 +181,89 @@
             </button>
           </div>
         </div>
-      </nav>
 
-      <div id="sidebar-user" class="sidebar-user"></div>
-    </aside>
+        <div class="sidebar-user" id="sidebar-user"></div>
+      </aside>
 
-    <div class="main">
-      <header class="topbar glass-strong">
-        <button id="group-switcher-btn" type="button" class="group-pill">
-          <span id="topbar-group-avatar" class="group-avatar">?</span>
-          <span class="group-pill-info">
-            <span id="topbar-group-name" class="group-pill-name">—</span>
-            <span id="topbar-group-meta" class="group-pill-meta">Нет группы</span>
-          </span>
-          <span class="group-pill-caret" data-icon="chevronDown" data-size="sm"></span>
-        </button>
-
-        <div class="topbar-actions">
-          <button id="command-btn" type="button" class="icon-btn" data-tip="Команды · Ctrl+K" aria-label="Команды">
-            <span data-icon="command"></span>
+      <div class="main">
+        <header class="topbar">
+          <button id="group-switcher-btn" type="button" class="group-pill" data-tip="Сменить группу">
+            <span id="topbar-group-avatar" class="group-avatar">?</span>
+            <span class="group-pill-info">
+              <span id="topbar-group-name" class="group-pill-name">Нет группы</span>
+              <span id="topbar-group-meta" class="group-pill-meta">Создайте или присоединитесь</span>
+            </span>
+            <span class="group-pill-caret" data-icon="chevronDown" data-size="sm"></span>
           </button>
 
-          <button id="invitations-btn" type="button" class="icon-btn badge-btn" data-tip="Приглашения" aria-label="Приглашения">
-            <span data-icon="bell"></span>
-            <span id="invitation-badge" class="badge hidden">0</span>
+          <div class="topbar-actions">
+            <button id="command-btn" type="button" class="icon-btn" data-tip="Команды (Ctrl+K)" aria-label="Команды">
+              <span data-icon="search"></span>
+            </button>
+            <button id="invitations-btn" type="button" class="icon-btn badge-btn" data-tip="Приглашения" aria-label="Приглашения">
+              <span data-icon="bell"></span>
+              <span id="invitation-badge" class="badge hidden">0</span>
+            </button>
+            <button id="theme-btn" type="button" class="icon-btn" data-theme-toggle data-tip="Тема интерфейса" aria-label="Сменить тему">
+              <span class="icon-slot" data-theme-icon></span>
+            </button>
+            <button id="user-menu-btn" type="button" class="avatar-btn" data-tip="Меню пользователя" aria-label="Меню пользователя">?</button>
+          </div>
+        </header>
+
+        <main id="view" class="view" tabindex="-1"></main>
+
+        <nav class="mobile-nav" aria-label="Мобильная навигация">
+          <button type="button" class="mobile-nav-item is-active" data-view="dashboard">
+            <span data-icon="dashboard"></span>
+            <span class="mobile-nav-label">Обзор</span>
           </button>
-
-          <button id="quick-actions-btn" type="button" class="icon-btn" data-tip="Быстрые действия" aria-label="Быстрые действия">
-            <span data-icon="plus"></span>
+          <button type="button" class="mobile-nav-item" data-view="goals">
+            <span data-icon="target"></span>
+            <span class="mobile-nav-label">Цели</span>
           </button>
-
-          <button type="button" class="icon-btn" data-theme-toggle data-tip="Тема" aria-label="Переключить тему">
-            <span data-icon="moon" data-theme-icon></span>
+          <button type="button" class="mobile-nav-item" data-view="budget">
+            <span data-icon="wallet"></span>
+            <span class="mobile-nav-label">Бюджет</span>
           </button>
-
-          <button id="user-menu-btn" type="button" id="topbar-user-btn" class="avatar-btn" data-tip="Профиль" aria-label="Профиль">
-            ?
+          <button type="button" class="mobile-nav-item" data-view="plans">
+            <span data-icon="calendar"></span>
+            <span class="mobile-nav-label">Планы</span>
           </button>
-        </div>
-      </header>
-
-      <main id="view" class="view"></main>
-
-      <nav class="mobile-nav">
-        <button type="button" class="mobile-nav-item is-active" data-view="dashboard">
-          <span data-icon="dashboard" data-size="sm"></span>
-          <span class="mobile-nav-label">Обзор</span>
-        </button>
-        <button type="button" class="mobile-nav-item" data-view="goals">
-          <span data-icon="target" data-size="sm"></span>
-          <span class="mobile-nav-label">Цели</span>
-        </button>
-        <button type="button" class="mobile-nav-item" data-view="budget">
-          <span data-icon="wallet" data-size="sm"></span>
-          <span class="mobile-nav-label">Бюджет</span>
-        </button>
-        <button type="button" class="mobile-nav-item" data-view="plans">
-          <span data-icon="calendar" data-size="sm"></span>
-          <span class="mobile-nav-label">Планы</span>
-        </button>
-        <button type="button" class="mobile-nav-item" data-view="profile">
-          <span data-icon="user" data-size="sm"></span>
-          <span class="mobile-nav-label">Профиль</span>
-        </button>
-      </nav>
-    </div>
-  </section>
-
-  <!-- FAB -->
-  <div id="fab">
-    <div id="fab-menu" class="fab-menu">
-      <button type="button" class="fab-item" data-action="expense">
-        <span class="fab-icon danger" data-icon="arrowDownCircle"></span>
-        <span class="fab-label">Расход</span>
-      </button>
-      <button type="button" class="fab-item" data-action="income">
-        <span class="fab-icon success" data-icon="arrowUpCircle"></span>
-        <span class="fab-label">Доход</span>
-      </button>
-      <button type="button" class="fab-item" data-action="plan">
-        <span class="fab-icon accent" data-icon="calendarPlus"></span>
-        <span class="fab-label">Событие</span>
-      </button>
-      <button type="button" class="fab-item" data-action="goal">
-        <span class="fab-icon primary" data-icon="target"></span>
-        <span class="fab-label">Цель</span>
-      </button>
-    </div>
-    <button id="fab-main" type="button" class="fab-main" aria-expanded="false" aria-label="Быстрые действия">
-      <span data-icon="plus"></span>
-    </button>
-  </div>
-
-  <div id="modal-root"></div>
-  <div id="popover-root"></div>
-  <div id="tooltip-root"></div>
-  <div id="toasts" class="toasts"></div>
-
-  <div id="command-palette" class="cmdk hidden">
-    <div class="cmdk-panel glass-strong">
-      <div class="cmdk-search">
-        <span data-icon="search" data-size="sm"></span>
-        <input id="command-input" type="text" placeholder="Поиск команд, групп, действий..." autocomplete="off" />
-        <kbd>ESC</kbd>
+          <button type="button" class="mobile-nav-item" data-view="profile">
+            <span data-icon="user"></span>
+            <span class="mobile-nav-label">Профиль</span>
+          </button>
+        </nav>
       </div>
-      <div id="command-list" class="cmdk-list"></div>
-    </div>
-  </div>
+    </main>
 
-  <script src="app.js"></script>
-</body>
+    <div id="fab" aria-hidden="false">
+      <div id="fab-menu" class="fab-menu">
+        <button type="button" class="fab-item" data-action="expense">
+          <span class="fab-icon danger" data-icon="arrowDownCircle"></span>
+          <span class="fab-label">Расход</span>
+        </button>
+        <button type="button" class="fab-item" data-action="income">
+          <span class="fab-icon success" data-icon="arrowUpCircle"></span>
+          <span class="fab-label">Доход</span>
+        </button>
+        <button type="button" class="fab-item" data-action="plan">
+          <span class="fab-icon accent" data-icon="calendarPlus"></span>
+          <span class="fab-label">Событие</span>
+        </button>
+        <button type="button" class="fab-item" data-action="goal">
+          <span class="fab-icon primary" data-icon="target"></span>
+          <span class="fab-label">Цель</span>
+        </button>
+      </div>
+      <button id="fab-main" type="button" class="fab-main" aria-label="Добавить" aria-expanded="false">
+        <span data-icon="plus" data-size="lg"></span>
+      </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script src="https://unpkg.com/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+    <script src="/app.js"></script>
+  </body>
 </html>

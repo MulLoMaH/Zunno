@@ -1,14 +1,16 @@
 /* =============================================================
-ZUNNO · Pink Premium Glass / Neu
-============================================================= */
+   ZUNNO · Premium Glassmorphism / Neumorphism
+   Themes: dark, light, pink
+   ============================================================= */
+
 :root {
   color-scheme: dark;
   --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --sidebar-w: 292px;
-  --topbar-h: 72px;
-  --mobile-nav-h: 72px;
+  --sidebar-w: 286px;
+  --topbar-h: 70px;
+  --mobile-nav-h: 70px;
 
   --r-xs: 10px;
   --r-sm: 14px;
@@ -22,49 +24,49 @@ ZUNNO · Pink Premium Glass / Neu
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
-  --bg: #0b0610;
+  --bg: #070912;
   --bg-image:
-    radial-gradient(circle at 10% 10%, rgba(255, 79, 216, 0.26), transparent 28%),
-    radial-gradient(circle at 90% 8%, rgba(244, 114, 182, 0.18), transparent 24%),
-    radial-gradient(circle at 82% 82%, rgba(168, 85, 247, 0.16), transparent 26%),
-    radial-gradient(circle at 16% 88%, rgba(34, 211, 238, 0.10), transparent 24%);
+    radial-gradient(circle at 10% 10%, rgba(139, 92, 246, 0.24), transparent 28%),
+    radial-gradient(circle at 90% 8%, rgba(34, 211, 238, 0.18), transparent 24%),
+    radial-gradient(circle at 82% 82%, rgba(244, 114, 182, 0.14), transparent 26%),
+    radial-gradient(circle at 16% 88%, rgba(52, 211, 153, 0.12), transparent 24%);
 
-  --text: #fff1fb;
-  --text-2: #d8b7d0;
-  --text-3: #a17d9b;
+  --text: #eef2ff;
+  --text-2: #a3adc2;
+  --text-3: #6b7590;
 
-  --surface-solid: #140a18;
-  --surface-1: rgba(42, 20, 50, 0.58);
-  --surface-2: rgba(255, 255, 255, 0.05);
-  --surface-3: rgba(255, 255, 255, 0.08);
+  --surface-solid: #0e1222;
+  --surface-1: rgba(17, 22, 38, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.045);
+  --surface-3: rgba(255, 255, 255, 0.075);
 
   --border: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.16);
 
   --glass: var(--surface-1);
   --glass-soft: var(--surface-2);
-  --glass-strong: rgba(18, 8, 24, 0.82);
+  --glass-strong: rgba(9, 12, 22, 0.82);
   --glass-border: var(--border);
   --glass-border-strong: var(--border-strong);
   --glass-highlight: rgba(255, 255, 255, 0.08);
 
-  --input-bg: rgba(10, 5, 14, 0.56);
+  --input-bg: rgba(8, 11, 20, 0.56);
   --input-border: rgba(255, 255, 255, 0.10);
 
-  --item-bg: rgba(255, 255, 255, 0.04);
-  --item-hover: rgba(255, 255, 255, 0.07);
+  --item-bg: rgba(255, 255, 255, 0.035);
+  --item-hover: rgba(255, 255, 255, 0.06);
 
-  --segment-bg: rgba(8, 4, 12, 0.58);
-  --progress-track: rgba(255, 255, 255, 0.08);
+  --segment-bg: rgba(4, 6, 12, 0.58);
+  --progress-track: rgba(255, 255, 255, 0.07);
 
   --skeleton-base: rgba(255, 255, 255, 0.05);
-  --skeleton-highlight: rgba(255, 255, 255, 0.11);
+  --skeleton-highlight: rgba(255, 255, 255, 0.10);
 
-  --overlay: rgba(5, 2, 8, 0.66);
+  --overlay: rgba(3, 5, 12, 0.66);
 
   --shadow-dark: rgba(0, 0, 0, 0.58);
   --shadow-light: rgba(255, 255, 255, 0.055);
-  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.42);
+  --shadow-soft: 0 24px 70px rgba(0, 0, 0, 0.40);
   --shadow-neu-out:
     10px 10px 24px var(--shadow-dark),
     -10px -10px 24px var(--shadow-light);
@@ -72,14 +74,14 @@ ZUNNO · Pink Premium Glass / Neu
     inset 5px 5px 12px var(--shadow-dark),
     inset -5px -5px 12px var(--shadow-light);
 
-  --primary: #ff4fd8;
-  --primary-rgb: 255, 79, 216;
-  --primary-hi: #ff8ae6;
-  --primary-soft: rgba(255, 79, 216, 0.14);
+  --primary: #8b5cf6;
+  --primary-rgb: 139, 92, 246;
+  --primary-hi: #a78bfa;
+  --primary-soft: rgba(139, 92, 246, 0.14);
 
-  --accent: #f472b6;
-  --accent-rgb: 244, 114, 182;
-  --accent-soft: rgba(244, 114, 182, 0.12);
+  --accent: #22d3ee;
+  --accent-rgb: 34, 211, 238;
+  --accent-soft: rgba(34, 211, 238, 0.12);
 
   --success: #34d399;
   --success-rgb: 52, 211, 153;
@@ -98,66 +100,67 @@ ZUNNO · Pink Premium Glass / Neu
   --info-soft: rgba(96, 165, 250, 0.13);
 
   --focus-ring:
-    0 0 0 3px rgba(var(--primary-rgb), 0.24),
-    0 0 26px rgba(var(--primary-rgb), 0.18);
+    0 0 0 3px rgba(var(--primary-rgb), 0.22),
+    0 0 26px rgba(var(--primary-rgb), 0.16);
 
-  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d8b7d0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a3adc2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #fff5fb;
-  --bg-image:
-    radial-gradient(circle at 10% 10%, rgba(255, 79, 216, 0.16), transparent 28%),
-    radial-gradient(circle at 90% 8%, rgba(244, 114, 182, 0.12), transparent 24%),
-    radial-gradient(circle at 82% 82%, rgba(168, 85, 247, 0.10), transparent 26%),
-    radial-gradient(circle at 16% 88%, rgba(34, 211, 238, 0.08), transparent 24%);
 
-  --text: #2b0f27;
-  --text-2: #6f4865;
-  --text-3: #9b7b95;
+  --bg: #eef2f8;
+  --bg-image:
+    radial-gradient(circle at 10% 10%, rgba(124, 58, 237, 0.13), transparent 28%),
+    radial-gradient(circle at 90% 8%, rgba(8, 145, 178, 0.10), transparent 24%),
+    radial-gradient(circle at 82% 82%, rgba(219, 39, 119, 0.08), transparent 26%),
+    radial-gradient(circle at 16% 88%, rgba(5, 150, 105, 0.08), transparent 24%);
+
+  --text: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
 
   --surface-solid: #ffffff;
-  --surface-1: rgba(255, 255, 255, 0.76);
-  --surface-2: rgba(43, 15, 39, 0.04);
-  --surface-3: rgba(43, 15, 39, 0.07);
+  --surface-1: rgba(255, 255, 255, 0.74);
+  --surface-2: rgba(15, 23, 42, 0.04);
+  --surface-3: rgba(15, 23, 42, 0.07);
 
-  --border: rgba(43, 15, 39, 0.08);
-  --border-strong: rgba(43, 15, 39, 0.13);
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.13);
 
   --glass: var(--surface-1);
   --glass-soft: var(--surface-2);
-  --glass-strong: rgba(255, 255, 255, 0.92);
+  --glass-strong: rgba(255, 255, 255, 0.90);
   --glass-border: var(--border);
   --glass-border-strong: var(--border-strong);
   --glass-highlight: rgba(255, 255, 255, 0.9);
 
-  --input-bg: rgba(255, 255, 255, 0.74);
-  --input-border: rgba(43, 15, 39, 0.10);
+  --input-bg: rgba(255, 255, 255, 0.72);
+  --input-border: rgba(15, 23, 42, 0.10);
 
-  --item-bg: rgba(255, 255, 255, 0.58);
-  --item-hover: rgba(255, 255, 255, 0.82);
+  --item-bg: rgba(255, 255, 255, 0.56);
+  --item-hover: rgba(255, 255, 255, 0.80);
 
-  --segment-bg: rgba(43, 15, 39, 0.05);
-  --progress-track: rgba(43, 15, 39, 0.08);
+  --segment-bg: rgba(15, 23, 42, 0.05);
+  --progress-track: rgba(15, 23, 42, 0.08);
 
-  --skeleton-base: rgba(43, 15, 39, 0.06);
-  --skeleton-highlight: rgba(255, 255, 255, 0.84);
+  --skeleton-base: rgba(15, 23, 42, 0.06);
+  --skeleton-highlight: rgba(255, 255, 255, 0.82);
 
-  --overlay: rgba(43, 15, 39, 0.28);
+  --overlay: rgba(15, 23, 42, 0.30);
 
-  --shadow-dark: rgba(190, 150, 180, 0.38);
+  --shadow-dark: rgba(148, 163, 184, 0.45);
   --shadow-light: rgba(255, 255, 255, 0.95);
-  --shadow-soft: 0 18px 50px rgba(43, 15, 39, 0.10);
+  --shadow-soft: 0 18px 50px rgba(15, 23, 42, 0.10);
 
-  --primary: #d926a9;
-  --primary-rgb: 217, 38, 169;
-  --primary-hi: #be188b;
-  --primary-soft: rgba(217, 38, 169, 0.10);
+  --primary: #7c3aed;
+  --primary-rgb: 124, 58, 237;
+  --primary-hi: #6d28d9;
+  --primary-soft: rgba(124, 58, 237, 0.10);
 
-  --accent: #db2777;
-  --accent-rgb: 219, 39, 119;
-  --accent-soft: rgba(219, 39, 119, 0.10);
+  --accent: #0891b2;
+  --accent-rgb: 8, 145, 178;
+  --accent-soft: rgba(8, 145, 178, 0.10);
 
   --success: #059669;
   --success-rgb: 5, 150, 105;
@@ -175,7 +178,82 @@ ZUNNO · Pink Premium Glass / Neu
   --info-rgb: 37, 99, 235;
   --info-soft: rgba(37, 99, 235, 0.10);
 
-  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236f4865' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
+[data-theme="pink"] {
+  color-scheme: light;
+
+  --bg: #fff5f9;
+  --bg-image:
+    radial-gradient(circle at 12% 10%, rgba(236, 72, 153, 0.18), transparent 30%),
+    radial-gradient(circle at 88% 12%, rgba(168, 85, 247, 0.14), transparent 26%),
+    radial-gradient(circle at 82% 84%, rgba(251, 146, 60, 0.10), transparent 28%),
+    radial-gradient(circle at 16% 88%, rgba(244, 114, 182, 0.12), transparent 26%);
+
+  --text: #3f2435;
+  --text-2: #7a5365;
+  --text-3: #a18392;
+
+  --surface-solid: #fffafc;
+  --surface-1: rgba(255, 255, 255, 0.74);
+  --surface-2: rgba(236, 72, 153, 0.055);
+  --surface-3: rgba(236, 72, 153, 0.09);
+
+  --border: rgba(190, 24, 93, 0.10);
+  --border-strong: rgba(190, 24, 93, 0.16);
+
+  --glass: var(--surface-1);
+  --glass-soft: var(--surface-2);
+  --glass-strong: rgba(255, 246, 250, 0.88);
+  --glass-border: var(--border);
+  --glass-border-strong: var(--border-strong);
+  --glass-highlight: rgba(255, 255, 255, 0.92);
+
+  --input-bg: rgba(255, 255, 255, 0.76);
+  --input-border: rgba(190, 24, 93, 0.12);
+
+  --item-bg: rgba(255, 255, 255, 0.62);
+  --item-hover: rgba(255, 255, 255, 0.88);
+
+  --segment-bg: rgba(190, 24, 93, 0.06);
+  --progress-track: rgba(190, 24, 93, 0.09);
+
+  --skeleton-base: rgba(190, 24, 93, 0.06);
+  --skeleton-highlight: rgba(255, 255, 255, 0.86);
+
+  --overlay: rgba(103, 23, 69, 0.22);
+
+  --shadow-dark: rgba(157, 23, 77, 0.13);
+  --shadow-light: rgba(255, 255, 255, 0.92);
+  --shadow-soft: 0 18px 48px rgba(157, 23, 77, 0.10);
+
+  --primary: #ec4899;
+  --primary-rgb: 236, 72, 153;
+  --primary-hi: #db2777;
+  --primary-soft: rgba(236, 72, 153, 0.12);
+
+  --accent: #a855f7;
+  --accent-rgb: 168, 85, 247;
+  --accent-soft: rgba(168, 85, 247, 0.12);
+
+  --success: #10b981;
+  --success-rgb: 16, 185, 129;
+  --success-soft: rgba(16, 185, 129, 0.12);
+
+  --warning: #f59e0b;
+  --warning-rgb: 245, 158, 11;
+  --warning-soft: rgba(245, 158, 11, 0.13);
+
+  --danger: #f43f5e;
+  --danger-rgb: 244, 63, 94;
+  --danger-soft: rgba(244, 63, 94, 0.12);
+
+  --info: #3b82f6;
+  --info-rgb: 59, 130, 246;
+  --info-soft: rgba(59, 130, 246, 0.12);
+
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a5365' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 *,
@@ -187,19 +265,21 @@ ZUNNO · Pink Premium Glass / Neu
 html,
 body {
   height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
 }
 
 body {
-  margin: 0;
-  overflow: hidden;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
   background: var(--bg-image), var(--bg);
   background-attachment: fixed;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background 0.35s var(--ease), color 0.25s var(--ease);
 }
 
 button,
@@ -245,8 +325,7 @@ a:hover {
 }
 
 /* Scrollbar */
-/* Scrollbar */
-html {
+* {
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--primary-rgb), 0.24) transparent;
 }
@@ -286,12 +365,19 @@ textarea:focus-visible,
 /* Icons */
 [data-icon] {
   --size: 20px;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: var(--size);
   height: var(--size);
   flex: 0 0 auto;
   line-height: 0;
+}
+
+[data-icon] svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 [data-size="sm"] {
@@ -302,9 +388,18 @@ textarea:focus-visible,
   --size: 24px;
 }
 
-[data-icon] svg {
-  width: var(--size);
-  height: var(--size);
+.icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+
+.icon-slot svg {
+  width: 20px;
+  height: 20px;
   display: block;
 }
 
@@ -412,7 +507,7 @@ textarea:focus-visible,
   position: fixed;
   top: 18px;
   right: 18px;
-  z-index: 10001;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -532,16 +627,9 @@ textarea:focus-visible,
 }
 
 /* Tooltip */
-#tooltip-root {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  pointer-events: none;
-}
-
 .app-tooltip {
   position: fixed;
-  z-index: 10000;
+  z-index: 10050;
   max-width: 260px;
   padding: 8px 10px;
   border-radius: 11px;
@@ -564,6 +652,11 @@ textarea:focus-visible,
 .app-tooltip.visible {
   opacity: 1;
   transform: none;
+}
+
+.app-tooltip.measuring {
+  opacity: 0 !important;
+  transform: none !important;
 }
 
 /* Popover */
@@ -849,7 +942,7 @@ textarea:focus-visible,
   border-radius: 12px;
   background: linear-gradient(
     135deg,
-    rgba(var(--primary-rgb), 0.28),
+    rgba(var(--primary-rgb), 0.26),
     rgba(var(--accent-rgb), 0.18)
   );
   border: 1px solid var(--glass-border-strong);
@@ -871,7 +964,7 @@ textarea:focus-visible,
 }
 
 .screen-app[data-sidebar="collapsed"] {
-  --sidebar-w: 90px;
+  --sidebar-w: 88px;
 }
 
 .sidebar {
@@ -957,8 +1050,8 @@ textarea:focus-visible,
   color: var(--text);
   background: linear-gradient(
     90deg,
-    rgba(var(--primary-rgb), 0.22),
-    rgba(var(--accent-rgb), 0.10)
+    rgba(var(--primary-rgb), 0.20),
+    rgba(var(--accent-rgb), 0.08)
   );
   box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
@@ -982,8 +1075,11 @@ textarea:focus-visible,
   border-top: 1px solid var(--glass-border);
 }
 
+.sidebar-label-row {
+  padding: 0 4px 8px 10px;
+}
+
 .sidebar-label {
-  padding: 0 10px 8px;
   font-size: 10.5px;
   font-weight: 800;
   color: var(--text-3);
@@ -991,11 +1087,24 @@ textarea:focus-visible,
   letter-spacing: 0.1em;
 }
 
+.sidebar-group-block.collapsed .sidebar-group-list,
+.sidebar-group-block.collapsed .sidebar-group-actions {
+  display: none;
+}
+
+.sidebar-group-block.collapsed #sidebar-groups-toggle [data-icon] svg {
+  transform: rotate(-90deg);
+}
+
+#sidebar-groups-toggle [data-icon] svg {
+  transition: transform 0.22s var(--ease);
+}
+
 .sidebar-group-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 220px;
+  gap: 3px;
+  max-height: 210px;
   overflow-y: auto;
   margin-bottom: 10px;
   padding-right: 2px;
@@ -1006,8 +1115,8 @@ textarea:focus-visible,
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 14px;
+  padding: 9px 10px;
+  border-radius: 13px;
   color: var(--text-2);
   font-size: 13px;
   text-align: left;
@@ -1024,24 +1133,23 @@ textarea:focus-visible,
 }
 
 .sidebar-group-item.is-active {
-  background: var(--primary-soft);
+  background: var(--item-bg);
   color: var(--text);
   font-weight: 750;
-  border: 1px solid rgba(var(--primary-rgb), 0.20);
+  border: 1px solid var(--glass-border);
 }
 
-.sidebar-group-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
+.group-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   flex-shrink: 0;
-  font-size: 10.5px;
-  font-weight: 900;
-  color: #fff;
+  background: var(--text-3);
+}
+
+.sidebar-group-item.is-active .group-dot {
   background: linear-gradient(135deg, var(--primary), var(--accent));
-  box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.18);
+  box-shadow: 0 0 14px rgba(var(--primary-rgb), 0.45);
 }
 
 .sidebar-group-item-name {
@@ -1294,6 +1402,7 @@ textarea:focus-visible,
   margin: 0 auto;
   padding: 24px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mobile-nav {
@@ -1342,24 +1451,7 @@ textarea:focus-visible,
   animation: fadeUp 0.34s var(--ease) both;
 }
 
-.card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--primary-rgb), 0.08),
-    transparent 40%,
-    rgba(var(--accent-rgb), 0.06)
-  );
-  opacity: 0.7;
-}
-
 .card-head {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1487,17 +1579,17 @@ textarea:focus-visible,
 .hero-card {
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(var(--primary-rgb), 0.20), rgba(var(--accent-rgb), 0.10)),
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(var(--accent-rgb), 0.08)),
     var(--glass);
-  border-color: rgba(var(--primary-rgb), 0.26);
+  border-color: rgba(var(--primary-rgb), 0.24);
 }
 
 .hero-bg {
   position: absolute;
   inset: -40%;
   background:
-    radial-gradient(circle at 30% 30%, rgba(var(--primary-rgb), 0.26), transparent 45%),
-    radial-gradient(circle at 70% 60%, rgba(var(--accent-rgb), 0.20), transparent 45%),
+    radial-gradient(circle at 30% 30%, rgba(var(--primary-rgb), 0.24), transparent 45%),
+    radial-gradient(circle at 70% 60%, rgba(var(--accent-rgb), 0.18), transparent 45%),
     radial-gradient(circle at 50% 80%, rgba(var(--success-rgb), 0.12), transparent 40%);
   animation: heroFloat 14s ease-in-out infinite alternate;
   pointer-events: none;
@@ -1820,7 +1912,6 @@ textarea:focus-visible,
 }
 
 .progress-ring .ring-fg {
-  stroke: url(#ringGradient);
   transition: stroke-dashoffset 0.9s var(--ease);
 }
 
@@ -2093,18 +2184,10 @@ select option {
 }
 
 /* Modal */
-#modal-root {
-  position: fixed;
-  inset: 0;
-  z-index: 9700;
-  pointer-events: none;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9700;
-  pointer-events: auto;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -2115,7 +2198,7 @@ select option {
 }
 
 .modal {
-  width: min(520px, 100%);
+  width: min(480px, 100%);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding: 22px;
@@ -2165,7 +2248,7 @@ select option {
 }
 
 .cmdk-panel {
-  width: min(680px, 100%);
+  width: min(660px, 100%);
   border-radius: var(--r-2xl);
   overflow: hidden;
   background: var(--glass-strong);
@@ -2333,6 +2416,10 @@ kbd {
 .flex-1 {
   flex: 1;
   min-width: 0;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
 }
 
 .gap-8 {
@@ -2579,8 +2666,8 @@ kbd {
   border-color: rgba(var(--primary-rgb), 0.28);
   background: linear-gradient(
     135deg,
-    rgba(var(--primary-rgb), 0.12),
-    rgba(var(--accent-rgb), 0.06)
+    rgba(var(--primary-rgb), 0.10),
+    rgba(var(--accent-rgb), 0.05)
   );
 }
 
@@ -2624,7 +2711,7 @@ kbd {
   position: fixed;
   right: max(22px, env(safe-area-inset-right));
   bottom: max(22px, env(safe-area-inset-bottom));
-  z-index: 1200;
+  z-index: 260;
   display: none;
   flex-direction: column;
   align-items: flex-end;
@@ -2683,6 +2770,7 @@ body.app-active #fab {
   transition:
     opacity 0.2s var(--ease),
     transform 0.26s var(--ease-spring);
+  max-width: calc(100vw - 44px);
 }
 
 #fab.open .fab-menu {
@@ -2747,6 +2835,10 @@ body.app-active #fab {
   place-items: center;
 }
 
+.fab-icon [data-icon] {
+  --size: 18px;
+}
+
 .fab-icon.primary {
   color: var(--primary-hi);
   background: var(--primary-soft);
@@ -2769,7 +2861,7 @@ body.app-active #fab {
 
 @media (max-width: 1024px) {
   #fab {
-    bottom: calc(var(--mobile-nav-h) + 22px + env(safe-area-inset-bottom));
+    bottom: calc(var(--mobile-nav-h) + 20px + env(safe-area-inset-bottom));
     right: max(16px, env(safe-area-inset-right));
   }
 }
@@ -2923,61 +3015,59 @@ body.app-active #fab {
     min-height: 58px;
     padding: 3px;
   }
-
   .calendar-event {
     font-size: 9px;
     padding: 1px 3px;
   }
-
   .calendar-day-num {
     font-size: 11px;
   }
 }
 
 /* Swipe */
-.swipe-row {
+.swipeable {
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
   touch-action: pan-y;
   user-select: none;
+  border-radius: 16px;
+  overscroll-behavior-x: contain;
 }
 
-.swipe-under {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 16px;
-  background: linear-gradient(
-    90deg,
-    rgba(var(--danger-rgb), 0.12),
-    rgba(var(--danger-rgb), 0.34)
-  );
-  color: var(--danger);
-  font-weight: 850;
-  font-size: 13px;
-}
-
-.swipe-over {
+.swipeable-content {
   position: relative;
   z-index: 2;
-  background: var(--item-bg);
-  transition: transform 0.22s var(--ease);
+  transition: transform 0.2s var(--ease);
   will-change: transform;
 }
 
-.swipe-row.dragging .swipe-over {
+.swipeable.dragging .swipeable-content {
   transition: none;
 }
 
-.swipe-row.removing {
-  opacity: 0;
-  transform: scale(0.98);
-  transition: 0.18s var(--ease);
-  pointer-events: none;
+.swipeable-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 12px;
+  z-index: 1;
+  background: linear-gradient(90deg, transparent, var(--danger-soft));
+}
+
+.swipe-action {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--danger);
+  white-space: nowrap;
 }
 
 /* Drag & Drop */
@@ -3112,6 +3202,10 @@ body.app-active #fab {
     color: var(--text-3);
     padding: 6px 4px;
     transition: color 0.16s var(--ease);
+  }
+
+  .mobile-nav-item [data-icon] {
+    --size: 22px;
   }
 
   .mobile-nav-item.is-active {
