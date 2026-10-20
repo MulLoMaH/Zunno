@@ -4566,6 +4566,8 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
   closeModal();
   ui.modalPrevFocus = document.activeElement;
 
+  const isTouch = window.matchMedia?.('(pointer: coarse)').matches || 'ontouchstart' in window;
+
   const backdrop = el('div', {
     class: 'modal-backdrop',
     onclick: (e) => {
@@ -4587,35 +4589,22 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
 
   const submit = el(
     'button',
-    {
-      type: 'submit',
-      class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`,
-    },
+    { type: 'submit', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}` },
     [saveLabel]
   );
 
   form.appendChild(
     el('div', { class: 'modal-actions' }, [
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-ghost',
-          onclick: closeModal,
-        },
-        ['Отмена']
-      ),
+      el('button', { type: 'button', class: 'btn btn-ghost', onclick: closeModal }, ['Отмена']),
       submit,
     ])
   );
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const oldLabel = submit.textContent;
     submit.disabled = true;
     submit.textContent = '…';
-
     try {
       await onSave(new FormData(form));
       closeModal();
@@ -4627,17 +4616,16 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
     }
   });
 
+  // ловушка фокуса
   modal.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab') return;
-
-    const focusable = $$('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])', modal)
-      .filter((node) => node.offsetParent !== null);
-
+    const focusable = $$(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      modal
+    ).filter((n) => n.offsetParent !== null);
     if (!focusable.length) return;
-
     const first = focusable[0];
     const last = focusable.at(-1);
-
     if (e.shiftKey && document.activeElement === first) {
       e.preventDefault();
       last.focus();
@@ -4649,11 +4637,48 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
 
   backdrop.appendChild(modal);
   root.appendChild(backdrop);
-
   hydrateIcons(modal);
 
-  const first = modal.querySelector('input, select, textarea, button');
-  if (first) setTimeout(() => first.focus(), 80);
+  // ВАЖНО: на телефоне НЕ фокусим input автоматически — иначе клавиатура
+  // сдвигает модалку и она обрезается. Фокус только по тапу пользователя.
+  if (!isTouch) {
+    const first = modal.querySelector('input, select, textarea');
+    if (first) setTimeout(() => first.focus(), 80);
+  }
+
+  // если всё же что-то сдвинулось клаваурой — возвращаем модалку в видимую зону
+  if (window.visualViewport) {
+    const onVV = () => {
+      const vv = window.visualViewport;
+      // при открытой клавиатуре backdrop уже fixed inset:0, но на iOS бывает сдвиг
+      modal.style.transform = '';
+      if (vv.height < window.innerHeight - 80) {
+        // клавиатура открыта — прокрутим тело к активному полю
+        const active = modal.querySelector(':focus');
+        if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    window.visualViewport.addEventListener('resize', onVV);
+    window.visualViewport.addEventListener('scroll', onVV);
+    modal._vvCleanup = () => {
+      window.visualViewport.removeEventListener('resize', onVV);
+      window.visualViewport.removeEventListener('scroll', onVV);
+    };
+  }
+}
+
+function closeModal() {
+  const root = $('#modal-root');
+  if (!root) return;
+  const modal = root.querySelector('.modal');
+  if (modal && modal._vvCleanup) {
+    try { modal._vvCleanup(); } catch { /* ignore */ }
+  }
+  root.innerHTML = '';
+  if (ui.modalPrevFocus && ui.modalPrevFocus.isConnected) {
+    ui.modalPrevFocus.focus();
+  }
+  ui.modalPrevFocus = null;
 }
 
 function closeModal() {

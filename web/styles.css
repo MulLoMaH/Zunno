@@ -2138,25 +2138,28 @@ select option {
   }
 }
 
+/* ===== Modal (desktop + mobile safe) ===== */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9700;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   background: var(--overlay);
   backdrop-filter: blur(14px) saturate(135%);
   -webkit-backdrop-filter: blur(14px) saturate(135%);
   animation: fadeIn 0.18s var(--ease);
+  overflow: hidden; /* скроллим ВНУТРИ модалки, не страницы */
 }
 
 .modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(480px, 100%);
-  max-height: calc(100vh - 48px);
-  max-height: calc(100dvh - 48px);
-  overflow-y: auto;
-  padding: 22px;
+  max-height: min(86dvh, 760px);
+  overflow: hidden; /* тело скроллится внутри, шапка/подвал липкие */
   border-radius: var(--r-2xl);
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
@@ -2165,22 +2168,36 @@ select option {
 }
 
 .modal-title {
-  margin-bottom: 16px;
+  flex: 0 0 auto;
+  padding: 20px 22px 6px;
   font-size: 17px;
   font-weight: 850;
 }
 
 .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 14px 22px;
 }
 
 .modal-actions {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 20px;
+  margin: 0;
+  padding: 14px 22px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--glass-strong) 70%, transparent);
+  border-top: 1px solid var(--glass-border);
 }
 
 .confirm-text {
@@ -3080,10 +3097,38 @@ body.app-active #fab {
   color: var(--text-3) !important;
 }
 
-@media (min-width: 720px) {
+/* Мобильный: модалка НЕ sheet-обрезок, а центрированный диалог во всю ширину */
+@media (max-width: 520px) {
   .modal-backdrop {
-    align-items: center;
-    justify-content: center;
+    align-items: end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: var(--r-2xl) var(--r-2xl) 0 0;
+    animation: sheetUp 0.26s var(--ease);
+  }
+
+  .modal-title {
+    padding: 18px 18px 4px;
+  }
+
+  .modal-body {
+    padding: 12px 18px;
+  }
+
+  .modal-actions {
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .input {
+    font-size: 16px; /* анти-зум на iOS */
   }
 }
 
