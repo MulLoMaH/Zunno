@@ -1,3 +1,6 @@
+/* =============================================================
+ZUNNO · Pink Premium SPA
+============================================================= */
 'use strict';
 
 const API = '/api/v1';
@@ -25,60 +28,35 @@ const ui = {
 };
 
 let viewAnimators = [];
-let uidCounter = 0;
-
 let calendarState = {
   view: 'list',
   month: new Date().getMonth(),
   year: new Date().getFullYear(),
 };
 
-const THEMES = ['dark', 'light', 'pink'];
-const THEME_COLORS = {
-  dark: '#070912',
-  light: '#eef2f8',
-  pink: '#fff7fa',
-};
-const THEME_ICONS = {
-  dark: 'moon',
-  light: 'sun',
-  pink: 'heart',
-};
-const THEME_LABELS = {
-  dark: 'Тёмная',
-  light: 'Светлая',
-  pink: 'Розовая',
-};
-
+/* =============================================================
+DOM HELPERS
+============================================================= */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-function uid() {
-  return `u${++uidCounter}`;
-}
-
 function appendContent(parent, content) {
   if (content == null || content === false) return;
-
   if (Array.isArray(content)) {
     content.forEach((child) => appendContent(parent, child));
     return;
   }
-
   if (content instanceof Node) {
     parent.appendChild(content);
     return;
   }
-
   parent.appendChild(document.createTextNode(String(content)));
 }
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
-
   for (const [key, value] of Object.entries(attrs)) {
     if (value == null || value === false) continue;
-
     if (key === 'class') {
       node.className = value;
     } else if (key === 'html') {
@@ -91,14 +69,12 @@ function el(tag, attrs = {}, children = []) {
       node.setAttribute(key, value === true ? '' : value);
     }
   }
-
   appendContent(node, children);
   return node;
 }
 
 function svgEl(tag, attrs = {}, children = []) {
   const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
-
   for (const [key, value] of Object.entries(attrs)) {
     if (value == null || value === false) continue;
     if (key === 'text') {
@@ -107,7 +83,6 @@ function svgEl(tag, attrs = {}, children = []) {
       node.setAttribute(key, value === true ? '' : value);
     }
   }
-
   appendContent(node, children);
   return node;
 }
@@ -134,17 +109,6 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function isVisible(target) {
-  const node = typeof target === 'string' ? document.querySelector(target) : target;
-  if (!node) return false;
-
-  const style = getComputedStyle(node);
-  if (style.display === 'none' || style.visibility === 'hidden') return false;
-
-  const rect = node.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
-}
-
 function animateLater(fn) {
   viewAnimators.push(fn);
 }
@@ -152,7 +116,6 @@ function animateLater(fn) {
 function flushAnimators() {
   const animators = viewAnimators;
   viewAnimators = [];
-
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       animators.forEach((fn) => {
@@ -166,6 +129,9 @@ function flushAnimators() {
   });
 }
 
+/* =============================================================
+ICONS
+============================================================= */
 const ICONS = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
@@ -190,8 +156,6 @@ const ICONS = {
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   sun:
     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
-  heart:
-    '<path d="M12 20.5s-6.8-4.2-9.1-8.7A5.1 5.1 0 0 1 12 6.8a5.1 5.1 0 0 1 9.1 5c-2.3 4.5-9.1 8.7-9.1 8.7z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -250,7 +214,6 @@ function icon(name, size = 20) {
     'aria-hidden': 'true',
     focusable: 'false',
   });
-
   svg.innerHTML = ICONS[name] || ICONS.info;
   return svg;
 }
@@ -258,25 +221,23 @@ function icon(name, size = 20) {
 function hydrateIcons(root = document) {
   $$('[data-icon]', root).forEach((node) => {
     if (node.dataset.hydrated === '1') return;
-
     const name = node.dataset.icon;
-    if (!name) return;
-
     const size = node.dataset.size === 'sm' ? 18 : node.dataset.size === 'lg' ? 24 : 20;
-
     node.innerHTML = '';
     node.appendChild(icon(name, size));
     node.dataset.hydrated = '1';
   });
 }
 
+/* =============================================================
+FORMATTERS
+============================================================= */
 const CURRENCY_SYMBOLS = {
   RUB: '₽',
   USD: '$',
   EUR: '€',
   KZT: '₸',
   BYN: 'Br',
-  UAH: '₴',
 };
 
 function currencySymbol(code = state.user?.currency || 'RUB') {
@@ -287,10 +248,8 @@ function currencySymbol(code = state.user?.currency || 'RUB') {
 function fmtMoney(n) {
   const num = Number(n);
   if (!Number.isFinite(num)) return '—';
-
   const code = String(state.user?.currency || 'RUB').toUpperCase();
   const symbol = currencySymbol(code);
-
   try {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
@@ -302,22 +261,6 @@ function fmtMoney(n) {
       maximumFractionDigits: 2,
     }).format(num);
     return `${symbol}${formatted}`;
-  }
-}
-
-function fmtMoneyShort(n) {
-  const num = Number(n) || 0;
-  const code = String(state.user?.currency || 'RUB').toUpperCase();
-
-  try {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: code,
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(num);
-  } catch {
-    return fmtMoney(num);
   }
 }
 
@@ -348,12 +291,10 @@ function fmtRelative(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
-
   try {
     const rtf = new Intl.RelativeTimeFormat('ru', { numeric: 'auto' });
     const diffSec = (d - Date.now()) / 1000;
     const abs = Math.abs(diffSec);
-
     if (abs < 60) return 'сейчас';
     if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
     if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour');
@@ -387,14 +328,14 @@ function shortId(id) {
 }
 
 function colorFromId(id) {
-  if (!id) return 'hsl(250, 60%, 60%)';
+  if (!id) return 'hsl(320, 85%, 62%)';
   let hash = 0;
   const str = String(id);
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 31 + str.charCodeAt(i)) | 0;
   }
-  const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 58%, 58%)`;
+  const h = 300 + (Math.abs(hash) % 70); // pink/purple range
+  return `hsl(${h}, 78%, 62%)`;
 }
 
 function toLocalInput(iso) {
@@ -427,12 +368,10 @@ function formatMonthLabel(value) {
     const d = new Date(Number(match[1]), Number(match[2]) - 1, 1);
     return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
   }
-
   const d = new Date(raw);
   if (!Number.isNaN(d.getTime())) {
     return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
   }
-
   return raw;
 }
 
@@ -440,10 +379,8 @@ function monthSortValue(value) {
   const raw = String(value || '');
   const match = raw.match(/^(\d{4})-(\d{2})/);
   if (match) return Number(match[1]) * 100 + Number(match[2]);
-
   const d = new Date(raw);
   if (!Number.isNaN(d.getTime())) return d.getFullYear() * 100 + d.getMonth();
-
   return 0;
 }
 
@@ -452,36 +389,42 @@ function setBusy(busy) {
   if (preloader) preloader.classList.toggle('hide', !busy);
 }
 
+/* =============================================================
+THEME
+============================================================= */
 function getPreferredTheme() {
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 function applyTheme(theme) {
-  const safeTheme = THEMES.includes(theme) ? theme : 'dark';
   const root = document.documentElement;
-
-  root.dataset.theme = safeTheme;
-  localStorage.setItem('zunno-theme', safeTheme);
+  root.dataset.theme = theme;
+  localStorage.setItem('zunno-theme', theme);
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.setAttribute('aria-label', `Тема: ${THEME_LABELS[safeTheme]}. Переключить`);
+    btn.setAttribute(
+      'aria-label',
+      theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
+    );
   });
 
   $$('[data-theme-icon]').forEach((slot) => {
     slot.innerHTML = '';
-    slot.appendChild(icon(THEME_ICONS[safeTheme] || 'moon'));
+    slot.appendChild(icon(theme === 'dark' ? 'moon' : 'sun'));
   });
 
   const meta = $('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', THEME_COLORS[safeTheme] || THEME_COLORS.dark);
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0610' : '#fff5fb');
 }
 
-function cycleTheme() {
+function toggleTheme() {
   const current = document.documentElement.dataset.theme || 'dark';
-  const idx = THEMES.indexOf(current);
-  applyTheme(THEMES[(idx + 1) % THEMES.length]);
+  applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 
+/* =============================================================
+TOASTS
+============================================================= */
 function toast(message, type = 'info', timeout = 3600) {
   const root = $('#toasts');
   if (!root) return;
@@ -517,40 +460,49 @@ function toast(message, type = 'info', timeout = 3600) {
   }, timeout);
 }
 
+/* =============================================================
+TOOLTIP
+============================================================= */
 function initTooltip() {
   let hideTimer;
-  let touchTimer;
-  let touchActive = false;
 
   function ensureTooltip() {
     if (ui.tooltipEl) return ui.tooltipEl;
     ui.tooltipEl = el('div', { class: 'app-tooltip', role: 'tooltip' });
-    $('#tooltip-root')?.appendChild(ui.tooltipEl);
+    $('#tooltip-root').appendChild(ui.tooltipEl);
     return ui.tooltipEl;
   }
 
   function position(target) {
     const tip = ensureTooltip();
+    tip.style.visibility = 'hidden';
+    tip.classList.add('visible');
+
     const r = target.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
+    const gap = 10;
 
-    let top = r.bottom + 10;
+    let top = r.bottom + gap;
     if (top + tr.height > window.innerHeight - 12) {
-      top = r.top - tr.height - 10;
+      top = r.top - tr.height - gap;
     }
-    top = clamp(top, 12, window.innerHeight - tr.height - 12);
+    if (top < 12) {
+      top = r.bottom + gap;
+    }
+
+    top = clamp(top, 12, Math.max(12, window.innerHeight - tr.height - 12));
 
     let left = r.left + r.width / 2 - tr.width / 2;
-    left = clamp(left, 12, window.innerWidth - tr.width - 12);
+    left = clamp(left, 12, Math.max(12, window.innerWidth - tr.width - 12));
 
     tip.style.top = `${top}px`;
     tip.style.left = `${left}px`;
+    tip.style.visibility = '';
   }
 
   function show(target) {
     const text = target.getAttribute('data-tip');
     if (!text) return;
-
     clearTimeout(hideTimer);
     const tip = ensureTooltip();
     tip.textContent = text;
@@ -561,7 +513,6 @@ function initTooltip() {
   function hide() {
     if (!ui.tooltipEl) return;
     ui.tooltipEl.classList.remove('visible');
-    touchActive = false;
   }
 
   document.addEventListener('mouseover', (e) => {
@@ -581,40 +532,35 @@ function initTooltip() {
 
   document.addEventListener('focusout', () => hide());
 
+  let touchTimer;
   document.addEventListener(
     'touchstart',
     (e) => {
       const target = e.target.closest('[data-tip]');
-
-      if (touchActive && !target) {
-        hide();
-      }
-
-      clearTimeout(touchTimer);
-
       if (!target) return;
-
-      touchTimer = setTimeout(() => {
-        show(target);
-        touchActive = true;
-        if (navigator.vibrate) navigator.vibrate(15);
-      }, 400);
+      touchTimer = setTimeout(() => show(target), 400);
     },
     { passive: true }
   );
 
-  document.addEventListener('touchend', () => clearTimeout(touchTimer));
+  document.addEventListener('touchend', () => {
+    clearTimeout(touchTimer);
+    hide();
+  });
 
   document.addEventListener('touchmove', () => {
     clearTimeout(touchTimer);
-    if (touchActive) hide();
+    hide();
   });
 
   window.addEventListener('scroll', hide, true);
   window.addEventListener('resize', hide);
 }
 
-function openPopover(anchor, content) {
+/* =============================================================
+POPOVER
+============================================================= */
+function openPopover(anchor, content, opts = {}) {
   closePopover();
 
   const panel = el('div', {
@@ -625,14 +571,13 @@ function openPopover(anchor, content) {
 
   panel.appendChild(el('div', { class: 'popover-arrow' }));
   appendContent(panel, content);
-
-  $('#popover-root')?.appendChild(panel);
+  $('#popover-root').appendChild(panel);
   hydrateIcons(panel);
 
-  ui.popover = { anchor, panel };
+  ui.popover = { anchor, panel, opts };
 
   requestAnimationFrame(() => {
-    positionPopover(anchor, panel);
+    positionPopover(anchor, panel, opts);
     panel.classList.add('open');
   });
 
@@ -643,27 +588,26 @@ function openPopover(anchor, content) {
   }, 0);
 }
 
-function positionPopover(anchor, panel) {
+function positionPopover(anchor, panel, opts = {}) {
   const a = anchor.getBoundingClientRect();
   const p = panel.getBoundingClientRect();
   const gap = 10;
 
   let top = a.bottom + gap;
-  let left = a.left + a.width / 2 - p.width / 2;
-
   if (top + p.height > window.innerHeight - 12) {
     top = a.top - p.height - gap;
   }
+  top = clamp(top, 12, Math.max(12, window.innerHeight - p.height - 12));
 
-  top = clamp(top, 12, window.innerHeight - p.height - 12);
-  left = clamp(left, 12, window.innerWidth - p.width - 12);
+  let left = a.left + a.width / 2 - p.width / 2;
+  left = clamp(left, 12, Math.max(12, window.innerWidth - p.width - 12));
 
   panel.style.top = `${top}px`;
   panel.style.left = `${left}px`;
 
   const arrow = panel.querySelector('.popover-arrow');
   if (arrow) {
-    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, p.width - 18);
+    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, Math.max(18, p.width - 18));
     arrow.style.left = `${arrowLeft}px`;
     arrow.classList.toggle('above', top < a.top);
   }
@@ -671,10 +615,8 @@ function positionPopover(anchor, panel) {
 
 function closePopover() {
   if (!ui.popover) return;
-
   const { panel } = ui.popover;
   ui.popover = null;
-
   panel.classList.remove('open');
   setTimeout(() => panel.remove(), 170);
 
@@ -691,7 +633,7 @@ function onPopoverPointer(e) {
 
 function onPopoverReposition() {
   if (!ui.popover) return;
-  positionPopover(ui.popover.anchor, ui.popover.panel);
+  positionPopover(ui.popover.anchor, ui.popover.panel, ui.popover.opts);
 }
 
 function onPopoverScroll(e) {
@@ -728,6 +670,9 @@ function popoverEmpty(text) {
   return el('div', { class: 'popover-empty' }, [text]);
 }
 
+/* =============================================================
+CLIPBOARD
+============================================================= */
 function copyText(text, successMsg = 'Скопировано') {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard
@@ -786,6 +731,9 @@ function showCopyFallback(text) {
   });
 }
 
+/* =============================================================
+API CLIENT
+============================================================= */
 async function apiCall(method, path, body, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -843,16 +791,13 @@ async function tryRefresh() {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
     });
-
     if (!res.ok) return false;
-
     const data = await res.json();
     if (data && data.access_token) {
       state.token = data.access_token;
       localStorage.setItem('access_token', data.access_token);
       return true;
     }
-
     return false;
   } catch {
     return false;
@@ -869,6 +814,9 @@ async function safeApi(promise, fallback) {
   }
 }
 
+/* =============================================================
+AUTH
+============================================================= */
 async function login(phone, password) {
   const res = await apiCall(
     'POST',
@@ -876,7 +824,6 @@ async function login(phone, password) {
     { phone_number: phone, password },
     { noRetry: true }
   );
-
   state.token = res.data.access_token;
   localStorage.setItem('access_token', state.token);
   await bootstrapApp();
@@ -894,7 +841,6 @@ async function register(fullName, age, phone, password) {
     },
     { noRetry: true }
   );
-
   state.token = res.data.access_token;
   localStorage.setItem('access_token', state.token);
   await bootstrapApp();
@@ -905,15 +851,6 @@ async function logout() {
     await apiCall('POST', '/auth/logout', null, { noRetry: true });
   } catch {
     // ignore
-  }
-
-  if (ui.tour) {
-    try {
-      ui.tour.destroy();
-    } catch {
-      // ignore
-    }
-    ui.tour = null;
   }
 
   state.token = '';
@@ -929,11 +866,13 @@ async function logout() {
   showScreen('auth');
 }
 
+/* =============================================================
+SCREENS
+============================================================= */
 function showScreen(name) {
   $('#screen-auth')?.classList.toggle('hidden', name !== 'auth');
   $('#screen-app')?.classList.toggle('hidden', name !== 'app');
   document.body.classList.toggle('app-active', name === 'app');
-
   if (name !== 'app') {
     closeFab();
   }
@@ -946,6 +885,9 @@ function closeAllOverlays() {
   closeFab();
 }
 
+/* =============================================================
+AUTH SCREEN
+============================================================= */
 function initAuthScreen() {
   const tabs = $$('.segmented-btn');
   const thumb = $('.segmented-thumb');
@@ -966,7 +908,6 @@ function initAuthScreen() {
     const fd = new FormData(e.target);
     const phone = String(fd.get('phone_number') || '').replace(/\s+/g, '').trim();
     const password = String(fd.get('password') || '');
-
     try {
       setBusy(true);
       await login(phone, password);
@@ -984,7 +925,6 @@ function initAuthScreen() {
     const age = fd.get('age');
     const phone = String(fd.get('phone_number') || '').replace(/\s+/g, '').trim();
     const password = String(fd.get('password') || '');
-
     try {
       setBusy(true);
       await register(fullName, age, phone, password);
@@ -996,6 +936,9 @@ function initAuthScreen() {
   });
 }
 
+/* =============================================================
+BOOTSTRAP
+============================================================= */
 async function bootstrapApp() {
   try {
     setBusy(true);
@@ -1045,10 +988,12 @@ function renderShell() {
   hydrateIcons();
 }
 
+/* =============================================================
+SIDEBAR
+============================================================= */
 function isPersonalGroup(g) {
   if (!g) return false;
   if (g.is_personal === true || g.type === 'personal') return true;
-
   const name = String(g.name || '').trim().toLowerCase();
   return ['моё', 'мое', 'личное', 'личная', 'my', 'personal'].includes(name);
 }
@@ -1056,8 +1001,8 @@ function isPersonalGroup(g) {
 function renderSidebarUser() {
   const box = $('#sidebar-user');
   if (!box) return;
-
   box.innerHTML = '';
+
   const u = state.user;
   if (!u) return;
 
@@ -1083,12 +1028,11 @@ function renderSidebarUser() {
 function renderSidebarGroups() {
   const box = $('#sidebar-group-list');
   if (!box) return;
-
   box.innerHTML = '';
 
   if (!state.groups.length) {
     box.appendChild(
-      el('div', { class: 'text-xs text-3 nav-label', style: 'padding: 8px 10px;' }, ['Нет групп'])
+      el('div', { class: 'text-xs text-3', style: 'padding: 8px 10px;' }, ['Нет групп'])
     );
     return;
   }
@@ -1107,7 +1051,6 @@ function renderSidebarGroups() {
         ['Личное']
       )
     );
-
     box.appendChild(renderSidebarGroupItem(personalGroup, true));
 
     if (otherGroups.length) {
@@ -1126,7 +1069,6 @@ function renderSidebarGroups() {
         ['Мои группы']
       )
     );
-
     otherGroups.forEach((g) => box.appendChild(renderSidebarGroupItem(g, false)));
   }
 }
@@ -1142,11 +1084,11 @@ function renderSidebarGroupItem(g, personal) {
     },
     [
       el('span', {
-        class: 'group-dot',
+        class: 'sidebar-group-avatar',
         style: personal
           ? 'background: linear-gradient(135deg, var(--primary), var(--accent));'
           : `background:${colorFromId(g.id)}`,
-      }),
+      }, [initials(g.name)]),
       el('span', { class: 'sidebar-group-item-name nav-label' }, [g.name]),
     ]
   );
@@ -1164,9 +1106,11 @@ function initSidebar() {
   });
 }
 
+/* =============================================================
+TOPBAR
+============================================================= */
 function renderTopbarGroup() {
   const g = activeGroup();
-
   const nameEl = $('#topbar-group-name');
   const metaEl = $('#topbar-group-meta');
   const avatarEl = $('#topbar-group-avatar');
@@ -1202,7 +1146,6 @@ function renderTopbarUser() {
 function updateInvitationBadge() {
   const badge = $('#invitation-badge');
   if (!badge) return;
-
   const count = state.invitations?.length || 0;
   badge.textContent = String(count);
   badge.classList.toggle('hidden', count === 0);
@@ -1214,33 +1157,30 @@ function activeGroup() {
 
 function switchGroup(id) {
   if (!id) return;
-
   state.activeGroupId = id;
   localStorage.setItem('active_group', id);
-
-  closePopover();
-  closeCommandPalette();
-  closeFab();
-
   renderSidebarGroups();
   renderTopbarGroup();
   renderActiveView();
+  closePopover();
+  closeCommandPalette();
 }
 
 function initTopbar() {
   $('#group-switcher-btn')?.addEventListener('click', (e) => {
-    if (ui.popover?.anchor === e.currentTarget) closePopover();
-    else openGroupPopover(e.currentTarget);
+    openGroupPopover(e.currentTarget);
   });
 
-  $('#invitations-btn')?.addEventListener('click', (e) => {
-    if (ui.popover?.anchor === e.currentTarget) closePopover();
-    else openInvitationsPopover(e.currentTarget);
+  $('#invitations-btn')?.addEventListener('click', () => {
+    openInvitationsModal();
+  });
+
+  $('#quick-actions-btn')?.addEventListener('click', (e) => {
+    openQuickActionsPopover(e.currentTarget);
   });
 
   $('#user-menu-btn')?.addEventListener('click', (e) => {
-    if (ui.popover?.anchor === e.currentTarget) closePopover();
-    else openUserPopover(e.currentTarget);
+    openUserPopover(e.currentTarget);
   });
 
   $('#btn-new-group')?.addEventListener('click', openCreateGroupModal);
@@ -1266,14 +1206,10 @@ function openGroupPopover(anchor) {
               },
             },
             [
-              el(
-                'span',
-                {
-                  class: 'group-avatar',
-                  style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
-                },
-                [initials(group.name)]
-              ),
+              el('span', {
+                class: 'group-avatar',
+                style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
+              }, [initials(group.name)]),
               el('span', { class: 'popover-item-main' }, [
                 el('span', { class: 'popover-item-title' }, [group.name]),
                 el('span', { class: 'popover-item-sub' }, [
@@ -1307,9 +1243,42 @@ function openGroupPopover(anchor) {
   );
 }
 
+function openQuickActionsPopover(anchor) {
+  const g = activeGroup();
+
+  if (!g) {
+    openPopover(
+      anchor,
+      el('div', {}, [
+        popoverHeader('Быстрые действия', 'Сначала выберите группу'),
+        el('div', { class: 'popover-actions' }, [
+          popoverAction('plus', 'Создать группу', openCreateGroupModal),
+          popoverAction('login', 'Присоединиться по ID', openJoinGroupModal),
+        ]),
+      ])
+    );
+    return;
+  }
+
+  openPopover(
+    anchor,
+    el('div', {}, [
+      popoverHeader('Быстрые действия', g.name),
+      el('div', { class: 'popover-actions' }, [
+        popoverAction('arrowDownCircle', 'Добавить расход', () => openTransactionModal(g, 'expense')),
+        popoverAction('arrowUpCircle', 'Добавить доход', () => openTransactionModal(g, 'income')),
+        popoverAction('calendarPlus', 'Создать событие', () => openCreatePlanModal(g)),
+        popoverAction('target', 'Создать категорию целей', () => openCreateGoalCategoryModal(g)),
+        popoverAction('invite', 'Пригласить в группу', () => openInviteModal(g)),
+        popoverAction('copy', 'Скопировать ID группы', () => copyText(g.id, 'ID группы скопирован')),
+        popoverAction('settings', 'Настройки группы', openGroupSettingsModal),
+      ]),
+    ])
+  );
+}
+
 function openUserPopover(anchor) {
   const u = state.user;
-  const currentTheme = document.documentElement.dataset.theme || 'dark';
 
   openPopover(
     anchor,
@@ -1326,31 +1295,21 @@ function openUserPopover(anchor) {
       el('div', { class: 'popover-divider' }),
       el('div', { class: 'popover-actions' }, [
         popoverAction('user', 'Мой профиль', () => switchView('profile')),
-        popoverAction('bell', 'Приглашения', () => openInvitationsPopover($('#invitations-btn'))),
-        popoverAction(THEME_ICONS[currentTheme] || 'moon', `Тема: ${THEME_LABELS[currentTheme]}`, cycleTheme),
+        popoverAction('bell', 'Приглашения', openInvitationsModal),
+        popoverAction(
+          document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
+          'Переключить тему',
+          toggleTheme
+        ),
         popoverAction('logout', 'Выйти', logout, true),
       ]),
     ])
   );
 }
 
-function openInvitationsPopover(anchor) {
-  const target = anchor || $('#invitations-btn');
-  if (!target) return;
-
-  const items = state.invitations?.length
-    ? state.invitations.map((inv) => renderInvitationRow(inv))
-    : [popoverEmpty('Новых приглашений нет')];
-
-  openPopover(
-    target,
-    el('div', {}, [
-      popoverHeader('Приглашения', state.invitations?.length ? `${state.invitations.length} новых` : ''),
-      el('div', { class: 'popover-list' }, items),
-    ])
-  );
-}
-
+/* =============================================================
+VIEW ROUTER
+============================================================= */
 const VIEWS = {
   dashboard: { title: 'Обзор', icon: 'dashboard', render: renderDashboard },
   goals: { title: 'Цели', icon: 'target', render: renderGoals },
@@ -1389,10 +1348,10 @@ async function renderActiveView() {
 
 function switchView(name) {
   state.view = name;
+  renderActiveView();
   closePopover();
   closeCommandPalette();
   closeFab();
-  renderActiveView();
 }
 
 function renderSkeleton(container) {
@@ -1419,6 +1378,9 @@ function renderError(container, err) {
   );
 }
 
+/* =============================================================
+UI HELPERS
+============================================================= */
 function field(label, control, hint) {
   const children = [el('span', { class: 'field-label' }, [label]), control];
   if (hint) children.push(el('span', { class: 'field-hint' }, [hint]));
@@ -1472,7 +1434,6 @@ function statTile(label, value, variant = '', formatter = fmtMoney) {
     el('div', { class: 'stat-label' }, [label]),
     valueNode,
   ]);
-
   animateNumber(valueNode, Number(value) || 0, formatter);
   return node;
 }
@@ -1483,7 +1444,7 @@ function animateNumber(node, value, formatter) {
     return;
   }
 
-  const duration = 850;
+  const duration = 900;
   const start = performance.now();
 
   function tick(now) {
@@ -1508,10 +1469,9 @@ function progressRing(percent, size = 48, stroke = 5) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (clamp(percent, 0, 100) / 100) * c;
-  const gradId = `ringGrad-${uid()}`;
 
   const defs = svgEl('defs', {}, [
-    svgEl('linearGradient', { id: gradId, x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
+    svgEl('linearGradient', { id: 'ringGradient', x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
       svgEl('stop', { offset: '0%', 'stop-color': 'var(--primary)' }),
       svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)' }),
     ]),
@@ -1532,7 +1492,6 @@ function progressRing(percent, size = 48, stroke = 5) {
     cy: size / 2,
     r,
     fill: 'none',
-    stroke: `url(#${gradId})`,
     'stroke-width': stroke,
     transform: `rotate(-90 ${size / 2} ${size / 2})`,
     style: `stroke-dasharray:${c}; stroke-dashoffset:${c};`,
@@ -1545,6 +1504,9 @@ function progressRing(percent, size = 48, stroke = 5) {
   return svgEl('svg', { class: 'progress-ring', viewBox: `0 0 ${size} ${size}` }, [defs, bg, fg]);
 }
 
+/* =============================================================
+CHARTS
+============================================================= */
 function donutChart(items, options = {}) {
   const valid = items
     .map((item) => ({
@@ -1561,7 +1523,6 @@ function donutChart(items, options = {}) {
   const stroke = 20;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-
   let offset = 0;
 
   const circles = valid.map((item, idx) => {
@@ -1591,7 +1552,7 @@ function donutChart(items, options = {}) {
     return circle;
   });
 
-  const centerValue = options.centerValue === false ? String(valid.length) : fmtMoneyShort(total);
+  const centerValue = options.centerValue === false ? String(valid.length) : fmtMoney(total);
 
   const svgNode = svgEl(
     'svg',
@@ -1761,22 +1722,18 @@ function trendChart(items) {
     });
   });
 
-  const svg = svgEl(
-    'svg',
-    {
-      viewBox: `0 0 ${w} ${h}`,
-      class: 'line-svg',
-      preserveAspectRatio: 'xMidYMid meet',
-    },
-    [
-      svgEl('path', { d: areaPath, class: 'chart-area' }),
-      expenseLine,
-      incomeLine,
-      ...expenseDots,
-      ...incomeDots,
-      ...labels,
-    ]
-  );
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${w} ${h}`,
+    class: 'line-svg',
+    preserveAspectRatio: 'none',
+  }, [
+    svgEl('path', { d: areaPath, class: 'chart-area' }),
+    expenseLine,
+    incomeLine,
+    ...expenseDots,
+    ...incomeDots,
+    ...labels,
+  ]);
 
   const legend = el('div', { class: 'chart-legend', style: 'margin-top:10px;' }, [
     el('div', { class: 'legend-item' }, [
@@ -1792,6 +1749,9 @@ function trendChart(items) {
   return el('div', {}, [el('div', { class: 'line-chart-wrap' }, [svg]), legend]);
 }
 
+/* =============================================================
+INVITATIONS
+============================================================= */
 function getInvitationTitle(inv) {
   return (
     inv.group_name ||
@@ -1819,66 +1779,14 @@ function getInvitationTask(inv) {
     inv.event_title ||
     inv.title ||
     '';
-
   return title && title !== getInvitationTitle(inv) ? title : '';
-}
-
-function getInvitationRoleLabel(inv) {
-  const role = String(inv.role || '').toLowerCase();
-  return role === 'admin' ? 'Администратор' : 'Участник';
-}
-
-function renderInvitationRow(inv) {
-  const title = getInvitationTitle(inv);
-  const inviter = getInviterName(inv);
-  const roleLabel = getInvitationRoleLabel(inv);
-  const disabled = !inv.group_id;
-
-  const meta = [
-    roleLabel,
-    inviter ? `от ${inviter}` : '',
-    inv.created_at ? fmtRelative(inv.created_at) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  return el('div', { class: 'invite-item' }, [
-    el('div', { class: 'invite-avatar' }, [initials(title)]),
-    el('div', { class: 'item-main' }, [
-      el('div', { class: 'item-title' }, [title]),
-      el('div', { class: 'item-sub' }, [meta]),
-    ]),
-    el('div', { class: 'row gap-8' }, [
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-primary btn-sm',
-          disabled: disabled || undefined,
-          onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')),
-        },
-        ['Принять']
-      ),
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'btn btn-ghost btn-sm',
-          disabled: disabled || undefined,
-          onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')),
-        },
-        ['Отклонить']
-      ),
-    ]),
-  ]);
 }
 
 function renderInvitationCard(inv) {
   const title = getInvitationTitle(inv);
   const inviter = getInviterName(inv);
   const task = getInvitationTask(inv);
-  const roleLabel = getInvitationRoleLabel(inv);
-  const disabled = !inv.group_id;
+  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
 
   const meta = [
     roleLabel,
@@ -1888,7 +1796,7 @@ function renderInvitationCard(inv) {
     .filter(Boolean)
     .join(' · ');
 
-  return el('div', { class: 'invite-item' }, [
+  return el('div', { class: 'invite-item invitation-card' }, [
     el('div', { class: 'invite-avatar' }, [initials(title)]),
     el('div', { class: 'item-main' }, [
       el('div', { class: 'item-title' }, [title]),
@@ -1901,7 +1809,6 @@ function renderInvitationCard(inv) {
         {
           type: 'button',
           class: 'btn btn-primary btn-sm',
-          disabled: disabled || undefined,
           onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')),
         },
         ['Принять']
@@ -1911,13 +1818,25 @@ function renderInvitationCard(inv) {
         {
           type: 'button',
           class: 'btn btn-ghost btn-sm',
-          disabled: disabled || undefined,
           onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')),
         },
         ['Отклонить']
       ),
     ]),
   ]);
+}
+
+function openInvitationsModal() {
+  const items = state.invitations?.length
+    ? state.invitations.map((inv) => renderInvitationCard(inv))
+    : [emptyState('bell', 'Новых приглашений нет', 'Когда вас пригласят в группу, приглашение появится здесь.')];
+
+  openModal({
+    title: 'Приглашения',
+    body: el('div', { class: 'invite-list' }, items),
+    saveLabel: 'Закрыть',
+    onSave: async () => {},
+  });
 }
 
 async function respondInvitation(inv, accept, row = null) {
@@ -1932,6 +1851,11 @@ async function respondInvitation(inv, accept, row = null) {
   try {
     await apiCall('POST', `/groups/${inv.group_id}/${accept ? 'join' : 'decline'}`);
     toast(accept ? 'Вы присоединились к группе' : 'Приглашение отклонено', 'success');
+
+    state.invitations = state.invitations.filter((x) => x.group_id !== inv.group_id);
+    updateInvitationBadge();
+
+    closeAllOverlays();
     await bootstrapApp();
   } catch (err) {
     toast(err.message || 'Не удалось обработать приглашение', 'error');
@@ -1939,6 +1863,9 @@ async function respondInvitation(inv, accept, row = null) {
   }
 }
 
+/* =============================================================
+ONBOARDING TOUR
+============================================================= */
 function startOnboardingTour(force = false) {
   if (!window.driver || !window.driver.js) {
     toast('Модуль тура не загружен', 'warning');
@@ -2009,13 +1936,26 @@ function startOnboardingTour(force = false) {
     });
   }
 
-  if (isVisible('#fab-main')) {
+  if (isVisible('#quick-actions-btn')) {
     steps.push({
-      element: '#fab-main',
+      element: '#quick-actions-btn',
       popover: {
         title: 'Быстрые действия',
         description:
           'Добавляйте расход, доход, событие или цель в один тап.',
+        side: 'bottom',
+        align: 'end',
+      },
+    });
+  }
+
+  if (isVisible('#fab-main')) {
+    steps.push({
+      element: '#fab-main',
+      popover: {
+        title: 'Плавающая кнопка',
+        description:
+          'Дублирует быстрые действия и всегда доступна на мобильных.',
         side: 'left',
         align: 'end',
       },
@@ -2065,6 +2005,14 @@ function startOnboardingTour(force = false) {
   ui.tour.drive();
 }
 
+function isVisible(selector) {
+  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
+  return !!node && node.offsetParent !== null;
+}
+
+/* =============================================================
+DRAG & DROP
+============================================================= */
 function createSortable(container, options) {
   if (!window.Sortable || !container) return null;
 
@@ -2133,6 +2081,9 @@ function initSortableCategories(groupID, containerEl) {
   });
 }
 
+/* =============================================================
+FAB
+============================================================= */
 function initFab() {
   const wrap = $('#fab');
   const main = $('#fab-main');
@@ -2151,22 +2102,9 @@ function initFab() {
     });
   });
 
-  document.addEventListener(
-    'pointerdown',
-    (e) => {
-      if (!ui.fabOpen) return;
-
-      if (
-        e.target.closest('#fab-main') ||
-        e.target.closest('.fab-item')
-      ) {
-        return;
-      }
-
-      closeFab();
-    },
-    true
-  );
+  document.addEventListener('pointerdown', (e) => {
+    if (ui.fabOpen && !wrap.contains(e.target)) closeFab();
+  });
 }
 
 function openFab() {
@@ -2183,7 +2121,6 @@ function closeFab() {
 
 function handleFabAction(action) {
   const g = activeGroup();
-
   if (!g) {
     toast('Сначала создайте или выберите группу', 'warning');
     openCreateGroupModal();
@@ -2196,6 +2133,9 @@ function handleFabAction(action) {
   if (action === 'goal') openCreateGoalCategoryModal(g);
 }
 
+/* =============================================================
+CALENDAR
+============================================================= */
 function shiftCalendarMonth(delta) {
   calendarState.month += delta;
   if (calendarState.month < 0) {
@@ -2223,45 +2163,31 @@ function renderCalendar(g, plans) {
   const lastDay = new Date(year, month + 1, 0);
   const startWeekday = (firstDay.getDay() + 6) % 7;
   const daysInMonth = lastDay.getDate();
-
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
-
   const monthName = firstDay.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
   const head = el('div', { class: 'calendar-head' }, [
     el('div', { class: 'calendar-title' }, [monthName]),
     el('div', { class: 'calendar-nav' }, [
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'icon-btn sm',
-          'data-tip': 'Предыдущий месяц',
-          onclick: () => shiftCalendarMonth(-1),
-        },
-        [icon('chevronLeft', 18)]
-      ),
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'icon-btn sm',
-          'data-tip': 'Сегодня',
-          onclick: resetCalendarMonth,
-        },
-        [icon('clock', 18)]
-      ),
-      el(
-        'button',
-        {
-          type: 'button',
-          class: 'icon-btn sm',
-          'data-tip': 'Следующий месяц',
-          onclick: () => shiftCalendarMonth(1),
-        },
-        [icon('chevronRight', 18)]
-      ),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        'data-tip': 'Предыдущий месяц',
+        onclick: () => shiftCalendarMonth(-1),
+      }, [icon('chevronLeft', 18)]),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        'data-tip': 'Сегодня',
+        onclick: resetCalendarMonth,
+      }, [icon('clock', 18)]),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        'data-tip': 'Следующий месяц',
+        onclick: () => shiftCalendarMonth(1),
+      }, [icon('chevronRight', 18)]),
     ]),
   ]);
 
@@ -2362,7 +2288,6 @@ function openCreatePlanModalWithDate(g, date) {
           description: descInput.value.trim(),
           event_date: fromLocalInput(dateInput.value),
         });
-
         toast('Событие создано', 'success');
         await renderActiveView();
       } catch (err) {
@@ -2373,97 +2298,110 @@ function openCreatePlanModalWithDate(g, date) {
   });
 }
 
-function makeSwipeable(node, onSwipeLeft) {
+/* =============================================================
+SWIPE GESTURES
+============================================================= */
+function makeSwipeable(row, onSwipeLeft) {
+  const content = row.querySelector('.swipe-over');
+  if (!content) return;
+
   let startX = 0;
   let startY = 0;
   let currentX = 0;
-  let isDragging = false;
-  let direction = null;
+  let pointerId = null;
+  let dragging = false;
+  let horizontal = null;
 
-  const content = node.querySelector('.swipeable-content') || node;
-  const THRESHOLD = 80;
-  const START_THRESHOLD = 12;
-  const RATIO = 1.35;
+  const THRESHOLD = 72;
+  const MAX_PULL = 140;
 
-  node.addEventListener(
-    'touchstart',
-    (e) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      currentX = 0;
-      isDragging = false;
-      direction = null;
-      content.style.transform = '';
-      node.classList.remove('dragging');
-    },
-    { passive: true }
-  );
+  function down(e) {
+    if (e.button && e.button !== 0) return;
+    startX = e.clientX;
+    startY = e.clientY;
+    currentX = 0;
+    dragging = false;
+    horizontal = null;
+    pointerId = e.pointerId;
 
-  node.addEventListener(
-    'touchmove',
-    (e) => {
-      const dx = e.touches[0].clientX - startX;
-      const dy = e.touches[0].clientY - startY;
-
-      if (direction === null) {
-        const absX = Math.abs(dx);
-        const absY = Math.abs(dy);
-
-        if (absX < START_THRESHOLD && absY < START_THRESHOLD) {
-          return;
-        }
-
-        direction = absX > absY * RATIO ? 'horizontal' : 'vertical';
-      }
-
-      if (direction !== 'horizontal') {
-        return;
-      }
-
-      if (dx >= 0) {
-        content.style.transform = 'translateX(0)';
-        return;
-      }
-
-      isDragging = true;
-      currentX = dx;
-      node.classList.add('dragging');
-
-      const offset = Math.max(dx, -120);
-      content.style.transform = `translateX(${offset}px)`;
-    },
-    { passive: true }
-  );
-
-  node.addEventListener('touchend', () => {
-    if (!isDragging) {
-      node.classList.remove('dragging');
-      content.style.transform = '';
-      direction = null;
-      return;
+    try {
+      row.setPointerCapture(pointerId);
+    } catch {
+      // ignore
     }
 
-    node.classList.remove('dragging');
+    row.classList.remove('removing');
+  }
 
-    if (currentX < -THRESHOLD) {
-      content.style.transform = 'translateX(-100%)';
-      setTimeout(() => {
-        if (onSwipeLeft) onSwipeLeft();
-      }, 200);
+  function move(e) {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    if (horizontal === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+      horizontal = Math.abs(dx) > Math.abs(dy);
+    }
+
+    if (!horizontal) return;
+
+    dragging = true;
+    row.classList.add('dragging');
+    currentX = clamp(dx, -MAX_PULL, 0);
+    content.style.transform = `translateX(${currentX}px)`;
+  }
+
+  function up(e) {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+
+    const wasDragging = dragging;
+    pointerId = null;
+    row.classList.remove('dragging');
+
+    if (wasDragging) {
+      if (currentX < -THRESHOLD) {
+        content.style.transform = 'translateX(-100%)';
+        row.classList.add('swiped');
+        setTimeout(() => {
+          onSwipeLeft?.();
+          resetSwipe(row, content);
+        }, 220);
+      } else {
+        content.style.transform = 'translateX(0)';
+      }
     } else {
       content.style.transform = 'translateX(0)';
     }
+  }
 
-    isDragging = false;
-    direction = null;
-  });
-
-  node.addEventListener('touchcancel', () => {
-    node.classList.remove('dragging');
+  function cancel() {
+    pointerId = null;
+    dragging = false;
+    row.classList.remove('dragging');
     content.style.transform = 'translateX(0)';
-    isDragging = false;
-    direction = null;
-  });
+  }
+
+  row.addEventListener('pointerdown', down);
+  row.addEventListener('pointermove', move);
+  row.addEventListener('pointerup', up);
+  row.addEventListener('pointercancel', cancel);
+  row.addEventListener('lostpointercapture', cancel);
+
+  row.addEventListener(
+    'click',
+    (e) => {
+      if (dragging || row.classList.contains('swiped')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true
+  );
+}
+
+function resetSwipe(row, content) {
+  row.classList.remove('swiped');
+  content.style.transform = 'translateX(0)';
 }
 
 function noGroupBanner() {
@@ -2496,6 +2434,9 @@ function noGroupBanner() {
   ]);
 }
 
+/* =============================================================
+VIEW: DASHBOARD
+============================================================= */
 async function renderDashboard(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -2510,15 +2451,16 @@ async function renderDashboard(container) {
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const [summary, membersSpent, plans, members, analytics, recentTx, cats] = await Promise.all([
+  const [summary, membersSpent, plans, members, analytics, recentTx] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=5`), []),
-    safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
   ]);
+
+  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
 
   container.appendChild(renderHero(g, members.length, plans.length));
 
@@ -2548,21 +2490,22 @@ async function renderDashboard(container) {
   );
 
   if (limit > 0) {
-    const fill = el('div', {
-      class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
-      style: 'width:0%',
-    });
-
     container.appendChild(
       el('div', { class: 'card mt-16' }, [
         el('div', { class: 'row-between' }, [
           el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
           el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
         ]),
-        el('div', { class: 'progress mt-12' }, [fill]),
+        el('div', { class: 'progress mt-12' }, [
+          el('div', {
+            class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
+            style: 'width:0%',
+          }),
+        ]),
       ])
     );
 
+    const fill = container.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -2644,23 +2587,15 @@ async function renderDashboard(container) {
           { class: 'list' },
           upcoming.map((p, i) =>
             stagger(
-              el(
-                'button',
-                {
-                  type: 'button',
-                  class: 'item',
-                  onclick: () => openEditPlanModal(g, p),
-                },
-                [
-                  el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
-                  el('div', { class: 'item-main' }, [
-                    el('div', { class: 'item-title' }, [p.title]),
-                    el('div', { class: 'item-sub' }, [
-                      `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
-                    ]),
+              el('div', { class: 'item' }, [
+                el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
+                el('div', { class: 'item-main' }, [
+                  el('div', { class: 'item-title' }, [p.title]),
+                  el('div', { class: 'item-sub' }, [
+                    `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
                   ]),
-                ]
-              ),
+                ]),
+              ]),
               i
             )
           )
@@ -2686,7 +2621,7 @@ async function renderDashboard(container) {
         el(
           'div',
           { class: 'list' },
-          recentTx.map((t, i) => stagger(renderTransactionRow(t, cats, g, false, members), i))
+          recentTx.map((t, i) => stagger(renderTransactionRow(t, categories, false), i))
         )
       )
     );
@@ -2698,7 +2633,6 @@ function renderHero(g, membersCount, plansCount) {
   const hour = new Date().getHours();
   const greet = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
   const dateStr = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-  const personal = isPersonalGroup(g);
 
   return el('section', { class: 'card hero-card' }, [
     el('div', { class: 'hero-bg' }),
@@ -2713,7 +2647,7 @@ function renderHero(g, membersCount, plansCount) {
           el('div', {}, [
             el('strong', {}, [g.name]),
             el('small', {}, [
-              personal
+              isPersonalGroup(g)
                 ? 'Личное пространство'
                 : `${membersCount} ${plural(membersCount, 'участник', 'участника', 'участников')} · ${plansCount} ${plural(plansCount, 'план', 'плана', 'планов')}`,
             ]),
@@ -2724,8 +2658,8 @@ function renderHero(g, membersCount, plansCount) {
         chip('arrowDownCircle', 'Расход', () => openTransactionModal(g, 'expense')),
         chip('arrowUpCircle', 'Доход', () => openTransactionModal(g, 'income')),
         chip('calendarPlus', 'Событие', () => openCreatePlanModal(g)),
-        !personal ? chip('invite', 'Пригласить', () => openInviteModal(g)) : null,
-      ].filter(Boolean)),
+        chip('invite', 'Пригласить', () => openInviteModal(g)),
+      ]),
     ]),
   ]);
 }
@@ -2957,6 +2891,9 @@ function openRenameGroupModal(g) {
   });
 }
 
+/* =============================================================
+VIEW: GOALS
+============================================================= */
 async function renderGoals(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3111,6 +3048,7 @@ async function renderGoalCategoryCard(g, c) {
   }
 
   card.appendChild(list);
+
   setTimeout(() => initSortableItems(c.id, list), 80);
 
   card.appendChild(
@@ -3167,7 +3105,6 @@ function openCreateGoalCategoryModal(g) {
         await apiCall('POST', `/groups/${g.id}/goal-categories`, {
           name: input.value.trim(),
         });
-
         toast('Создано', 'success');
         await renderActiveView();
       } catch (err) {
@@ -3196,7 +3133,6 @@ function openRenameGoalCategoryModal(g, c) {
           name: input.value.trim(),
           version: Number(c.version ?? 0),
         });
-
         toast('Обновлено', 'success');
         await renderActiveView();
       } catch (err) {
@@ -3231,7 +3167,6 @@ function openCreateGoalItemModal(g, c) {
           title: title.value.trim(),
           description: description.value.trim(),
         });
-
         toast('Добавлено', 'success');
         await renderActiveView();
       } catch (err) {
@@ -3242,6 +3177,9 @@ function openCreateGoalItemModal(g, c) {
   });
 }
 
+/* =============================================================
+VIEW: BUDGET
+============================================================= */
 async function renderBudget(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3254,23 +3192,18 @@ async function renderBudget(container) {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [cats, txs, summary, membersSpent, analytics, members] = await Promise.all([
+  const [cats, txs, summary, membersSpent, analytics] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
-    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
   ]);
 
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);
     const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
-    const fill = el('div', {
-      class: `progress-fill${spent > limit ? ' danger' : ''}`,
-      style: 'width:0%',
-    });
 
     container.appendChild(
       el('div', { class: 'card' }, [
@@ -3285,11 +3218,17 @@ async function renderBudget(container) {
           ]),
         ]),
         limit > 0
-          ? el('div', { class: 'progress mt-16' }, [fill])
+          ? el('div', { class: 'progress mt-16' }, [
+              el('div', {
+                class: `progress-fill${spent > limit ? ' danger' : ''}`,
+                style: 'width:0%',
+              }),
+            ])
           : null,
       ].filter(Boolean))
     );
 
+    const fill = container.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -3369,7 +3308,7 @@ async function renderBudget(container) {
     { class: 'input' },
     [
       el('option', { value: '' }, ['Все участники']),
-      ...members.map((m) =>
+      ...membersSpent.map((m) =>
         el('option', { value: m.user_id }, [m.full_name || 'Участник'])
       ),
     ]
@@ -3395,17 +3334,12 @@ async function renderBudget(container) {
     if (searchInput.value.trim()) params.append('q', searchInput.value.trim());
     if (catSelect.value) params.append('category_id', catSelect.value);
     if (userSelect.value) params.append('user_id', userSelect.value);
+    if (typeSelect.value) params.append('type', typeSelect.value);
     params.append('limit', '50');
 
     try {
       const res = await apiCall('GET', `/groups/${g.id}/transactions?${params.toString()}`);
-      let data = res.data || [];
-
-      if (typeSelect.value) {
-        data = data.filter((t) => (t.type || 'expense') === typeSelect.value);
-      }
-
-      renderTransactionRows(list, data, cats, g, members);
+      renderTransactionRows(list, res.data || [], cats);
     } catch (err) {
       list.innerHTML = '';
       list.appendChild(el('div', { class: 'mini-empty text-danger' }, [err.message || 'Ошибка']));
@@ -3444,10 +3378,10 @@ async function renderBudget(container) {
     )
   );
 
-  renderTransactionRows(list, txs, cats, g, members);
+  renderTransactionRows(list, txs, cats);
 }
 
-function renderTransactionRows(list, txs, cats, g, members = []) {
+function renderTransactionRows(list, txs, cats) {
   list.innerHTML = '';
 
   if (!txs.length) {
@@ -3457,7 +3391,7 @@ function renderTransactionRows(list, txs, cats, g, members = []) {
     return;
   }
 
-  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, g, true, members), i)));
+  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, true), i)));
 }
 
 function renderCategoryCard(g, c, summary) {
@@ -3465,14 +3399,6 @@ function renderCategoryCard(g, c, summary) {
   const spent = Number(item?.spent || 0);
   const limit = Number(c.budget_limit ?? c.limit ?? 0);
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
-  const fill = el('div', {
-    class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`,
-    style: 'width:0%',
-  });
-
-  animateLater(() => {
-    fill.style.width = `${pct}%`;
-  });
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card-head' }, [
@@ -3526,20 +3452,25 @@ function renderCategoryCard(g, c, summary) {
       el('span', { class: 'text-2' }, ['Лимит']),
       el('span', { class: 'mono' }, [fmtMoney(limit)]),
     ]),
-    el('div', { class: 'progress mt-12' }, [fill]),
+    el('div', { class: 'progress mt-12' }, [
+      el('div', {
+        class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`,
+        style: 'width:0%',
+      }),
+    ]),
   ]);
 }
 
-function renderTransactionRow(t, cats, g, swipe = true, members = []) {
+function renderTransactionRow(t, cats, swipe = true) {
+  const g = activeGroup();
   const cat = cats.find((c) => c.id === t.category_id);
   const isMe = state.user && t.user_id === state.user.id;
-  const member = members.find((m) => m.user_id === t.user_id);
-  const userName = t.user_full_name || t.full_name || member?.full_name || '';
+  const userName = t.user_full_name || t.full_name || t.user?.full_name || '';
   const type = t.type || 'expense';
 
   const content = el(
     'div',
-    { class: 'item swipeable-content', 'data-tx-id': t.id },
+    { class: 'item swipe-over', 'data-tx-id': t.id },
     [
       el('div', { class: 'avatar-sm', style: `background:${colorFromId(t.category_id || t.id)}` }, [
         icon(type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle', 18),
@@ -3579,21 +3510,24 @@ function renderTransactionRow(t, cats, g, swipe = true, members = []) {
 
   if (!swipe) return content;
 
-  const wrapper = el('div', { class: 'swipeable' }, [
-    el('div', { class: 'swipeable-actions' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
+  const wrapper = el('div', { class: 'swipe-row' }, [
+    el('div', { class: 'swipe-under' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
     content,
   ]);
 
-  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g));
+  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g, wrapper));
   return wrapper;
 }
 
-function handleDeleteTransaction(t, g) {
+function handleDeleteTransaction(t, g, row = null) {
   if (!g) return;
 
-  const content = document.querySelector(`[data-tx-id="${t.id}"]`);
-  const wrapper = content?.closest('.swipeable');
-  if (wrapper) wrapper.style.display = 'none';
+  const content = row || document.querySelector(`[data-tx-id="${t.id}"]`);
+  const wrapper = content?.closest('.swipe-row');
+
+  if (wrapper) {
+    wrapper.classList.add('removing');
+  }
 
   deleteWithUndo({
     label: `Транзакция «${t.description || 'Без описания'}»`,
@@ -3603,11 +3537,19 @@ function handleDeleteTransaction(t, g) {
         await renderActiveView();
       } catch (err) {
         toast(err.message, 'error');
-        if (wrapper) wrapper.style.display = '';
+        if (wrapper) {
+          wrapper.classList.remove('removing');
+          const over = wrapper.querySelector('.swipe-over');
+          if (over) over.style.transform = 'translateX(0)';
+        }
       }
     },
     onCancel: () => {
-      if (wrapper) wrapper.style.display = '';
+      if (wrapper) {
+        wrapper.classList.remove('removing');
+        const over = wrapper.querySelector('.swipe-over');
+        if (over) over.style.transform = 'translateX(0)';
+      }
     },
   });
 }
@@ -3618,11 +3560,6 @@ async function exportTransactionsCsv(g) {
       headers: { Authorization: `Bearer ${state.token}` },
       credentials: 'include',
     });
-
-    if (res.status === 401) {
-      logout();
-      return;
-    }
 
     if (!res.ok) throw new Error('Не удалось экспортировать');
 
@@ -3636,8 +3573,8 @@ async function exportTransactionsCsv(g) {
     document.body.appendChild(link);
     link.click();
     link.remove();
-
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+
     toast('CSV скачан', 'success');
   } catch (err) {
     toast(err.message, 'error');
@@ -3686,7 +3623,6 @@ function openCreateCategoryModal(g) {
           type: type.value,
           budget_limit: Number(limit.value),
         });
-
         toast('Создано', 'success');
         await renderActiveView();
       } catch (err) {
@@ -3702,7 +3638,7 @@ function openEditCategoryModal(g, c) {
     class: 'input',
     name: 'name',
     required: true,
-    maxlength: '100',
+    maxlength: 100,
     value: c.name,
   });
 
@@ -3719,9 +3655,9 @@ function openEditCategoryModal(g, c) {
     class: 'input',
     name: 'budget_limit',
     type: 'number',
-    min: '0',
+    min: 0,
     step: '0.01',
-    value: String(Number(c.budget_limit ?? c.limit ?? 0)),
+    value: Number(c.budget_limit ?? c.limit ?? 0),
     required: true,
   });
 
@@ -3740,7 +3676,6 @@ function openEditCategoryModal(g, c) {
           budget_limit: Number(limit.value),
           version: Number(c.version ?? 0),
         });
-
         toast('Обновлено', 'success');
         await renderActiveView();
       } catch (err) {
@@ -3751,133 +3686,133 @@ function openEditCategoryModal(g, c) {
   });
 }
 
-function openTransactionModal(g, presetType = 'expense') {
-  safeApi(apiCall('GET', `/groups/${g.id}/categories`), [])
-    .then((cats) => {
-      if (!cats.length) {
-        toast('Сначала создайте категорию в разделе Бюджет', 'warning');
-        switchView('budget');
-        return;
+async function openTransactionModal(g, presetType = 'expense') {
+  const cats = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+
+  if (!cats.length) {
+    toast('Сначала создайте категорию в разделе Бюджет', 'warning');
+    switchView('budget');
+    openCreateCategoryModal(g);
+    return;
+  }
+
+  let type = presetType;
+
+  const amountInput = el('input', {
+    type: 'number',
+    step: '0.01',
+    min: '0.01',
+    required: true,
+    placeholder: `Сумма (${currencySymbol()})`,
+    class: 'input',
+    style:
+      'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
+  });
+
+  const presets = [100, 500, 1000, 5000];
+  const presetsRow = el(
+    'div',
+    { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
+    presets.map((p) =>
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'preset-btn',
+          onclick: () => {
+            amountInput.value = p;
+            amountInput.focus();
+          },
+        },
+        [`${p} ${currencySymbol()}`]
+      )
+    )
+  );
+
+  const expenseBtn = el(
+    'button',
+    {
+      type: 'button',
+      class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
+      onclick: () => {
+        type = 'expense';
+        expenseBtn.className = 'btn btn-danger btn-sm flex-1';
+        incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+      },
+    },
+    ['Расход']
+  );
+
+  const incomeBtn = el(
+    'button',
+    {
+      type: 'button',
+      class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
+      onclick: () => {
+        type = 'income';
+        expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
+        incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+      },
+    },
+    ['Доход']
+  );
+
+  const catSelect = el(
+    'select',
+    { class: 'input', required: true },
+    cats.map((c) => el('option', { value: c.id }, [c.name]))
+  );
+
+  const dateInput = el('input', {
+    class: 'input',
+    type: 'datetime-local',
+    value: toLocalInput(new Date().toISOString()),
+    required: true,
+  });
+
+  const descInput = el('input', {
+    type: 'text',
+    placeholder: 'Описание (необязательно)',
+    maxlength: '255',
+    class: 'input',
+  });
+
+  openModal({
+    title: '⚡ Быстрая запись',
+    body: el('div', {}, [
+      amountInput,
+      presetsRow,
+      el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
+      field('Категория', catSelect),
+      field('Дата', dateInput),
+      field('Описание', descInput),
+    ]),
+    saveLabel: 'Добавить',
+    onSave: async () => {
+      const amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0) throw new Error('Введите сумму');
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/transactions`, {
+          category_id: catSelect.value,
+          amount,
+          type,
+          date: fromLocalInput(dateInput.value) || new Date().toISOString(),
+          description: descInput.value.trim(),
+        });
+        toast('Добавлено!', 'success');
+        await renderActiveView();
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
       }
-
-      let type = presetType;
-
-      const amountInput = el('input', {
-        type: 'number',
-        step: '0.01',
-        min: '0.01',
-        required: true,
-        placeholder: `Сумма (${currencySymbol()})`,
-        class: 'input',
-        style:
-          'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
-      });
-
-      const presets = [100, 500, 1000, 5000];
-
-      const presetsRow = el(
-        'div',
-        { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
-        presets.map((p) =>
-          el(
-            'button',
-            {
-              type: 'button',
-              class: 'preset-btn',
-              onclick: () => {
-                amountInput.value = String(p);
-                amountInput.focus();
-              },
-            },
-            [`${p} ${currencySymbol()}`]
-          )
-        )
-      );
-
-      const expenseBtn = el(
-        'button',
-        {
-          type: 'button',
-          class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
-          onclick: () => {
-            type = 'expense';
-            expenseBtn.className = 'btn btn-danger btn-sm flex-1';
-            incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
-          },
-        },
-        ['Расход']
-      );
-
-      const incomeBtn = el(
-        'button',
-        {
-          type: 'button',
-          class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
-          onclick: () => {
-            type = 'income';
-            expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
-            incomeBtn.className = 'btn btn-primary btn-sm flex-1';
-          },
-        },
-        ['Доход']
-      );
-
-      const catSelect = el(
-        'select',
-        { class: 'input', required: true },
-        cats.map((c) => el('option', { value: c.id }, [c.name]))
-      );
-
-      const dateInput = el('input', {
-        class: 'input',
-        type: 'datetime-local',
-        value: toLocalInput(new Date().toISOString()),
-        required: true,
-      });
-
-      const descInput = el('input', {
-        type: 'text',
-        placeholder: 'Описание (необязательно)',
-        maxlength: '255',
-        class: 'input',
-      });
-
-      openModal({
-        title: '⚡ Быстрая запись',
-        body: el('div', {}, [
-          amountInput,
-          presetsRow,
-          el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
-          field('Категория', catSelect),
-          field('Дата', dateInput),
-          field('Описание', descInput),
-        ]),
-        saveLabel: 'Добавить',
-        onSave: async () => {
-          const amount = parseFloat(amountInput.value);
-          if (!amount || amount <= 0) throw new Error('Введите сумму');
-
-          try {
-            await apiCall('POST', `/groups/${g.id}/transactions`, {
-              category_id: catSelect.value,
-              amount,
-              type,
-              date: fromLocalInput(dateInput.value) || new Date().toISOString(),
-              description: descInput.value.trim(),
-            });
-
-            toast('Добавлено!', 'success');
-            await renderActiveView();
-          } catch (err) {
-            toast(err.message, 'error');
-            throw err;
-          }
-        },
-      });
-    })
-    .catch((err) => toast(err.message, 'error'));
+    },
+  });
 }
 
+/* =============================================================
+VIEW: PLANS
+============================================================= */
 async function renderPlans(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -4046,7 +3981,6 @@ async function renderPlanCard(g, p) {
 
     items.forEach((it, i) => {
       const isChecked = !!(it.is_checked ?? it.checked);
-
       const check = el(
         'button',
         {
@@ -4139,7 +4073,6 @@ async function toggleChecklistItem(g, item, checkNode) {
       is_checked: next,
       version: Number(item.version ?? 0),
     });
-
     await renderActiveView();
   } catch (err) {
     item.is_checked = current;
@@ -4154,7 +4087,7 @@ function openCreatePlanModal(g) {
     class: 'input',
     name: 'title',
     required: true,
-    maxlength: '200',
+    maxlength: 200,
     placeholder: 'Пикник в парке',
   });
 
@@ -4186,7 +4119,6 @@ function openCreatePlanModal(g) {
           description: description.value.trim(),
           event_date: fromLocalInput(eventDate.value),
         });
-
         toast('Создано', 'success');
         await renderActiveView();
       } catch (err) {
@@ -4202,7 +4134,7 @@ function openEditPlanModal(g, plan) {
     class: 'input',
     name: 'title',
     required: true,
-    maxlength: '200',
+    maxlength: 200,
     value: plan.title,
   });
 
@@ -4235,7 +4167,6 @@ function openEditPlanModal(g, plan) {
           is_done: !!plan.is_done,
           version: Number(plan.version ?? 0),
         });
-
         toast('Обновлено', 'success');
         await renderActiveView();
       } catch (err) {
@@ -4251,7 +4182,7 @@ function openCreateChecklistModal(g, p) {
     class: 'input',
     name: 'text',
     required: true,
-    maxlength: '500',
+    maxlength: 500,
     placeholder: 'Взять плед',
   });
 
@@ -4263,7 +4194,6 @@ function openCreateChecklistModal(g, p) {
         await apiCall('POST', `/groups/${g.id}/plans/${p.id}/checklist`, {
           text: text.value.trim(),
         });
-
         toast('Добавлено', 'success');
         await renderActiveView();
       } catch (err) {
@@ -4274,6 +4204,9 @@ function openCreateChecklistModal(g, p) {
   });
 }
 
+/* =============================================================
+VIEW: PROFILE
+============================================================= */
 async function renderProfile(container) {
   const me = await apiCall('GET', '/users/me');
   state.user = me.data;
@@ -4297,7 +4230,6 @@ async function renderProfile(container) {
           el('div', { class: 'text-sm text-3' }, [u.phone_number || '—']),
         ]),
       ]),
-
       el(
         'form',
         {
@@ -4305,7 +4237,6 @@ async function renderProfile(container) {
           onsubmit: async (e) => {
             e.preventDefault();
             const fd = new FormData(e.target);
-
             try {
               const res = await apiCall('PATCH', '/users/me', {
                 full_name: String(fd.get('full_name') || '').trim(),
@@ -4314,9 +4245,7 @@ async function renderProfile(container) {
                 currency: String(fd.get('currency') || 'RUB').trim(),
                 version: Number(u.version ?? 0),
               });
-
               state.user = res.data;
-
               toast('Профиль обновлён', 'success');
               renderShell();
               await renderProfile(container);
@@ -4333,8 +4262,8 @@ async function renderProfile(container) {
               name: 'full_name',
               value: u.full_name || '',
               required: true,
-              minlength: '3',
-              maxlength: '100',
+              minlength: 3,
+              maxlength: 100,
             })
           ),
           field(
@@ -4344,8 +4273,8 @@ async function renderProfile(container) {
               name: 'age',
               type: 'number',
               value: u.age ?? '',
-              min: '18',
-              max: '100',
+              min: 18,
+              max: 100,
               required: true,
             })
           ),
@@ -4372,7 +4301,6 @@ async function renderProfile(container) {
           el('button', { type: 'submit', class: 'btn btn-primary btn-block mt-8' }, ['Сохранить']),
         ]
       ),
-
       el('div', { class: 'text-xs text-3 mt-16' }, [
         `Создан: ${fmtDate(u.created_at)}${u.version != null ? ` · версия ${u.version}` : ''}`,
       ]),
@@ -4401,9 +4329,7 @@ async function renderProfile(container) {
                   ]),
                   el('div', { class: 'item-main' }, [
                     el('div', { class: 'item-title' }, [g.name]),
-                    el('div', { class: 'item-sub' }, [
-                      isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`,
-                    ]),
+                    el('div', { class: 'item-sub' }, [isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`]),
                   ]),
                   g.id === state.activeGroupId ? el('span', { class: 'tag tag-primary' }, ['активна']) : null,
                 ].filter(Boolean)
@@ -4422,7 +4348,6 @@ async function renderProfile(container) {
       el('div', { class: 'text-sm text-3 mt-8' }, [
         'Управление паролем, Telegram-уведомлениями и опасные действия.',
       ]),
-
       el(
         'button',
         {
@@ -4432,7 +4357,6 @@ async function renderProfile(container) {
         },
         [el('span', { 'data-icon': 'key', 'data-size': 'sm' }), el('span', {}, ['Сменить пароль'])]
       ),
-
       el(
         'button',
         {
@@ -4442,7 +4366,6 @@ async function renderProfile(container) {
         },
         [el('span', { 'data-icon': 'sparkles', 'data-size': 'sm' }), el('span', {}, ['Пройти тур заново'])]
       ),
-
       el(
         'button',
         {
@@ -4456,9 +4379,7 @@ async function renderProfile(container) {
         },
         [el('span', { 'data-icon': 'send', 'data-size': 'sm' }), el('span', {}, ['Привязать Telegram'])]
       ),
-
       el('div', { class: 'card-title mt-16', style: 'color: var(--danger);' }, ['Опасная зона']),
-
       el(
         'button',
         {
@@ -4468,7 +4389,6 @@ async function renderProfile(container) {
         },
         [el('span', { 'data-icon': 'trash', 'data-size': 'sm' }), el('span', {}, ['Удалить аккаунт'])]
       ),
-
       el(
         'button',
         {
@@ -4515,7 +4435,6 @@ function openChangePasswordModal() {
           old_password: oldPwd.value,
           new_password: newPwd.value,
         });
-
         toast('Пароль успешно изменён', 'success');
       } catch (err) {
         toast(err.message, 'error');
@@ -4548,7 +4467,6 @@ function openDeleteAccountModal() {
         await apiCall('DELETE', '/users/me', {
           password: password.value,
         });
-
         toast('Аккаунт удалён', 'success');
         logout();
       } catch (err) {
@@ -4559,14 +4477,15 @@ function openDeleteAccountModal() {
   });
 }
 
+/* =============================================================
+MODAL
+============================================================= */
 function openModal({ title, body, onSave, saveLabel = 'Сохранить', danger = false }) {
   const root = $('#modal-root');
   if (!root) return;
 
   closeModal();
   ui.modalPrevFocus = document.activeElement;
-
-  const isTouch = window.matchMedia?.('(pointer: coarse)').matches || 'ontouchstart' in window;
 
   const backdrop = el('div', {
     class: 'modal-backdrop',
@@ -4589,13 +4508,24 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
 
   const submit = el(
     'button',
-    { type: 'submit', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}` },
+    {
+      type: 'submit',
+      class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`,
+    },
     [saveLabel]
   );
 
   form.appendChild(
     el('div', { class: 'modal-actions' }, [
-      el('button', { type: 'button', class: 'btn btn-ghost', onclick: closeModal }, ['Отмена']),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-ghost',
+          onclick: closeModal,
+        },
+        ['Отмена']
+      ),
       submit,
     ])
   );
@@ -4605,6 +4535,7 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
     const oldLabel = submit.textContent;
     submit.disabled = true;
     submit.textContent = '…';
+
     try {
       await onSave(new FormData(form));
       closeModal();
@@ -4616,16 +4547,19 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
     }
   });
 
-  // ловушка фокуса
+  modal.appendChild(form);
+
   modal.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab') return;
-    const focusable = $$(
-      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
-      modal
-    ).filter((n) => n.offsetParent !== null);
+
+    const focusable = $$('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])', modal)
+      .filter((node) => node.offsetParent !== null);
+
     if (!focusable.length) return;
+
     const first = focusable[0];
     const last = focusable.at(-1);
+
     if (e.shiftKey && document.activeElement === first) {
       e.preventDefault();
       last.focus();
@@ -4639,46 +4573,8 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
   root.appendChild(backdrop);
   hydrateIcons(modal);
 
-  // ВАЖНО: на телефоне НЕ фокусим input автоматически — иначе клавиатура
-  // сдвигает модалку и она обрезается. Фокус только по тапу пользователя.
-  if (!isTouch) {
-    const first = modal.querySelector('input, select, textarea');
-    if (first) setTimeout(() => first.focus(), 80);
-  }
-
-  // если всё же что-то сдвинулось клаваурой — возвращаем модалку в видимую зону
-  if (window.visualViewport) {
-    const onVV = () => {
-      const vv = window.visualViewport;
-      // при открытой клавиатуре backdrop уже fixed inset:0, но на iOS бывает сдвиг
-      modal.style.transform = '';
-      if (vv.height < window.innerHeight - 80) {
-        // клавиатура открыта — прокрутим тело к активному полю
-        const active = modal.querySelector(':focus');
-        if (active) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    };
-    window.visualViewport.addEventListener('resize', onVV);
-    window.visualViewport.addEventListener('scroll', onVV);
-    modal._vvCleanup = () => {
-      window.visualViewport.removeEventListener('resize', onVV);
-      window.visualViewport.removeEventListener('scroll', onVV);
-    };
-  }
-}
-
-function closeModal() {
-  const root = $('#modal-root');
-  if (!root) return;
-  const modal = root.querySelector('.modal');
-  if (modal && modal._vvCleanup) {
-    try { modal._vvCleanup(); } catch { /* ignore */ }
-  }
-  root.innerHTML = '';
-  if (ui.modalPrevFocus && ui.modalPrevFocus.isConnected) {
-    ui.modalPrevFocus.focus();
-  }
-  ui.modalPrevFocus = null;
+  const first = modal.querySelector('input, select, textarea, button');
+  if (first) setTimeout(() => first.focus(), 80);
 }
 
 function closeModal() {
@@ -4706,6 +4602,9 @@ function confirmDelete(message, onConfirm, confirmLabel = 'Удалить') {
   });
 }
 
+/* =============================================================
+UNDO DELETE
+============================================================= */
 function deleteWithUndo({ label, onConfirm, onCancel }) {
   const root = $('#toasts');
   if (!root) {
@@ -4746,12 +4645,15 @@ function deleteWithUndo({ label, onConfirm, onCancel }) {
   }, 5000);
 }
 
+/* =============================================================
+GROUP MODALS
+============================================================= */
 function openCreateGroupModal() {
   const name = el('input', {
     class: 'input',
     name: 'name',
     required: true,
-    maxlength: '100',
+    maxlength: 100,
     placeholder: 'Например, Семья',
   });
 
@@ -4770,7 +4672,6 @@ function openCreateGroupModal() {
 
         renderShell();
         await renderActiveView();
-
         toast('Группа создана', 'success');
       } catch (err) {
         toast(err.message, 'error');
@@ -4799,7 +4700,6 @@ function openJoinGroupModal() {
     saveLabel: 'Присоединиться',
     onSave: async () => {
       const gid = groupId.value.trim();
-
       try {
         await apiCall('POST', `/groups/${gid}/join`);
         toast('Вы присоединились', 'success');
@@ -4858,7 +4758,6 @@ function openInviteModal(g) {
         await apiCall('POST', `/groups/${g.id}/invite`, {
           phone_number: value,
         });
-
         toast('Приглашение отправлено', 'success');
       } catch (err) {
         if (err.status === 404) {
@@ -4870,6 +4769,9 @@ function openInviteModal(g) {
   });
 }
 
+/* =============================================================
+COMMAND PALETTE
+============================================================= */
 function getCommands() {
   const cmds = [];
   const g = activeGroup();
@@ -4908,6 +4810,14 @@ function getCommands() {
     hint: 'Действие',
     icon: 'login',
     run: openJoinGroupModal,
+  });
+
+  cmds.push({
+    id: 'action-invitations',
+    title: 'Открыть приглашения',
+    hint: 'Действие',
+    icon: 'bell',
+    run: openInvitationsModal,
   });
 
   if (g) {
@@ -4957,14 +4867,12 @@ function getCommands() {
     );
   }
 
-  const currentTheme = document.documentElement.dataset.theme || 'dark';
-
   cmds.push({
     id: 'action-toggle-theme',
     title: 'Переключить тему',
-    hint: `Текущая: ${THEME_LABELS[currentTheme] || currentTheme}`,
-    icon: THEME_ICONS[currentTheme] || 'moon',
-    run: cycleTheme,
+    hint: 'Интерфейс',
+    icon: document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
+    run: toggleTheme,
   });
 
   if (state.user) {
@@ -5057,11 +4965,9 @@ function renderCommands(query = '') {
 
 function updateCommandSelection() {
   const items = $$('#command-list .cmdk-item');
-
   items.forEach((node, index) => {
     node.classList.toggle('is-selected', index === ui.command.selected);
   });
-
   items[ui.command.selected]?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -5113,18 +5019,18 @@ function initCommandPalette() {
   });
 }
 
+/* =============================================================
+RIPPLE
+============================================================= */
 function initRipple() {
   document.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest(
-      '.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip'
-    );
-
+    const btn = e.target.closest('.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip');
     if (!btn || btn.disabled) return;
 
     const rect = btn.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height) * 2;
-
     const span = el('span', { class: 'ripple' });
+
     span.style.width = `${size}px`;
     span.style.height = `${size}px`;
     span.style.left = `${e.clientX - rect.left - size / 2}px`;
@@ -5135,17 +5041,18 @@ function initRipple() {
   });
 }
 
+/* =============================================================
+GLOBAL KEYS
+============================================================= */
 function initGlobalKeys() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-
       const appVisible = !$('#screen-app')?.classList.contains('hidden');
       if (!appVisible) return;
 
       if (ui.command.open) closeCommandPalette();
       else openCommandPalette();
-
       return;
     }
 
@@ -5172,6 +5079,9 @@ function initGlobalKeys() {
   });
 }
 
+/* =============================================================
+INIT
+============================================================= */
 function initApp() {
   hydrateIcons();
   initTooltip();
@@ -5192,7 +5102,7 @@ function initApp() {
   });
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.addEventListener('click', cycleTheme);
+    btn.addEventListener('click', toggleTheme);
   });
 }
 
