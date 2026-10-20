@@ -12,6 +12,11 @@ type GoalCategory struct {
 	GroupID  uuid.UUID
 	Name     string
 	Position int
+
+	// DueDate — дедлайн категории (nil = без дедлайна).
+	DueDate *time.Time
+	// NotifiedDueAt — когда отправили напоминание о дедлайне (nil = ещё нет).
+	NotifiedDueAt *time.Time
 }
 
 type GoalItem struct {

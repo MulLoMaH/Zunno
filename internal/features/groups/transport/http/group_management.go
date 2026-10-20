@@ -17,11 +17,17 @@ func (h *GroupsHTTPHandler) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		return
+	}
 	requesterID, _ := uuid.Parse(claims.UserID)
 
 	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
+		return
+	}
 
 	if err := h.groupService.LeaveGroup(ctx, requesterID, info.GroupID); err != nil {
 		responseHandler.ErrorResponse(err, "leave group")
@@ -36,11 +42,17 @@ func (h *GroupsHTTPHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) 
 	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		return
+	}
 	requesterID, _ := uuid.Parse(claims.UserID)
 
 	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
+		return
+	}
 
 	if err := h.groupService.DeleteGroup(ctx, requesterID, info.GroupID); err != nil {
 		responseHandler.ErrorResponse(err, "delete group")
@@ -55,14 +67,23 @@ func (h *GroupsHTTPHandler) KickMember(w http.ResponseWriter, r *http.Request) {
 	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		return
+	}
 	requesterID, _ := uuid.Parse(claims.UserID)
 
 	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
+		return
+	}
 
 	targetUserID, err := uuid.Parse(r.PathValue("userId"))
-	if err != nil { responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "invalid user id"); return }
+	if err != nil {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "invalid user id")
+		return
+	}
 
 	if err := h.groupService.KickMember(ctx, requesterID, info.GroupID, targetUserID); err != nil {
 		responseHandler.ErrorResponse(err, "kick member")
@@ -77,18 +98,30 @@ func (h *GroupsHTTPHandler) ChangeRole(w http.ResponseWriter, r *http.Request) {
 	responseHandler := core_http_response.NewHTTPResponseHendler(log, w)
 
 	claims, ok := core_http_middleware.ClaimsFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidToken, "no claims")
+		return
+	}
 	requesterID, _ := uuid.Parse(claims.UserID)
 
 	info, ok := core_http_middleware.GroupInfoFrom(ctx)
-	if !ok { responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info"); return }
+	if !ok {
+		responseHandler.ErrorResponse(core_errors.ErrForbidden, "no group info")
+		return
+	}
 
 	targetUserID, err := uuid.Parse(r.PathValue("userId"))
-	if err != nil { responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "invalid user id"); return }
+	if err != nil {
+		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "invalid user id")
+		return
+	}
 
-	var req struct { Role string `json:"role"` }
+	var req struct {
+		Role string `json:"role"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "decode request"); return
+		responseHandler.ErrorResponse(core_errors.ErrInvalidArgument, "decode request")
+		return
 	}
 
 	if err := h.groupService.ChangeRole(ctx, requesterID, info.GroupID, targetUserID, req.Role); err != nil {

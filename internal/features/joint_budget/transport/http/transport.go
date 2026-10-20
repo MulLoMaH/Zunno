@@ -9,8 +9,8 @@ import (
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
-	budget_service "github.com/MulLoMaH/Zunno/internal/features/joint_budget/service"
 	budget_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/joint_budget/repository/postgres"
+	budget_service "github.com/MulLoMaH/Zunno/internal/features/joint_budget/service"
 )
 
 type BudgetHTTPHandler struct {
@@ -32,6 +32,11 @@ type BudgetService interface {
 
 	GetBudgetSummary(ctx context.Context, groupID uuid.UUID, month string) (domain.BudgetSummary, error)
 	GetStatistics(ctx context.Context, groupID uuid.UUID, month string, userID *uuid.UUID) ([]domain.CategoryStats, error)
+
+	// Долги и сплит
+	SplitTransaction(ctx context.Context, groupID, payerID uuid.UUID, in budget_service.SplitInput) (domain.Transaction, []domain.Debt, error)
+	GetUserDebts(ctx context.Context, userID uuid.UUID) ([]domain.Debt, error)
+	MarkDebtPaid(ctx context.Context, userID, debtID uuid.UUID) error
 }
 
 // Дублируем типы, чтобы не тянуть repository в transport.
@@ -91,5 +96,10 @@ func (h *BudgetHTTPHandler) Routes() []core_http_server.Route {
 
 		{Method: http.MethodGet, Path: "/groups/{id}/budget/summary", Handler: h.GetBudgetSummary},
 		{Method: http.MethodGet, Path: "/groups/{id}/statistics", Handler: h.GetStatistics},
+
+		// Долги и сплит
+		{Method: http.MethodPost, Path: "/groups/{id}/transactions/split", Handler: h.SplitTransaction},
+		{Method: http.MethodGet, Path: "/groups/{id}/debts", Handler: h.GetMyDebts},
+		{Method: http.MethodPost, Path: "/groups/{id}/debts/{debtId}/pay", Handler: h.PayDebt},
 	}
 }

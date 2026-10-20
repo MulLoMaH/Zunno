@@ -3,6 +3,7 @@ package goal_transport_http
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
@@ -25,6 +26,9 @@ type GoalService interface {
 	GetGoalItems(ctx context.Context, groupID, categoryID uuid.UUID) ([]domain.GoalItem, error)
 	MarkGoalItemDone(ctx context.Context, groupID, itemID uuid.UUID, done bool, expectedVersion int64) (domain.GoalItem, error)
 	DeleteGoalItem(ctx context.Context, groupID, itemID uuid.UUID) error
+
+	// Дедлайн категории
+	SetGoalCategoryDueDate(ctx context.Context, groupID, categoryID uuid.UUID, dueDate *time.Time) (domain.GoalCategory, error)
 }
 
 func NewGoalsHTTPHandler(goalService GoalService) *GoalsHTTPHandler {
@@ -58,6 +62,11 @@ func (h *GoalsHTTPHandler) Routes() []core_http_server.Route {
 			Method:  http.MethodPatch,
 			Path:    "/groups/{id}/goal-categories/{catId}",
 			Handler: h.UpdateCategory,
+		},
+		{
+			Method:  http.MethodPut,
+			Path:    "/groups/{id}/goal-categories/{catId}/due",
+			Handler: h.SetDueDate,
 		},
 		{
 			Method:  http.MethodDelete,

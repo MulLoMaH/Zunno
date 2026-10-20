@@ -13,24 +13,24 @@ import (
 
 func (r *GroupsRepository) InviteMember(
 	ctx context.Context,
-	userID, groupID uuid.UUID,
+	userID, groupID, inviterID uuid.UUID,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, r.pool.OpTimeout())
 	defer cancel()
 
 	query := `
-		INSERT INTO zunno.memberships (user_id, group_id, role, status)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO zunno.memberships (user_id, group_id, role, status, invited_by)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
 	_, err := r.pool.Exec(ctx, query,
 		userID, groupID,
 		domain.GroupRoleMember,
 		domain.MembershipStatusPending,
+		inviterID,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrUniqueViolation) {
-			// пользователь уже в группе или уже приглашён
 			return core_errors.ErrAlreadyMember
 		}
 		return fmt.Errorf("insert membership: %w", err)

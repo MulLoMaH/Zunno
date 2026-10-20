@@ -2,6 +2,7 @@ package user_service
 
 import (
 	"context"
+	"time"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	"github.com/google/uuid"
@@ -19,6 +20,10 @@ type UsersRepository interface {
 	FindByPhone(ctx context.Context, phoneNumber string) (domain.User, error)
 	UpdateUser(ctx context.Context, user domain.User, expectedVersion int64) (domain.User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
+
+	// Telegram binding
+	SetTelegramLinkCode(ctx context.Context, userID uuid.UUID, code string, expiresAt time.Time) error
+	ClearTelegramChatID(ctx context.Context, userID uuid.UUID) error
 }
 
 func NewUserService(UsersRepository UsersRepository) *UserService {

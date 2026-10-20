@@ -4,12 +4,16 @@ import (
 	"context"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
+	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
+	"github.com/MulLoMaH/Zunno/internal/core/telegram"
 	"github.com/google/uuid"
 )
 
 type GroupService struct {
 	groups GroupsRepository
 	users  UsersRepository
+	tg     *telegram.Client
+	logger *core_logger.Logger
 }
 
 type GroupsRepository interface {
@@ -25,14 +29,26 @@ type GroupsRepository interface {
 	GetUserGroups(ctx context.Context, userID uuid.UUID) ([]domain.Group, error)
 	GetMembership(ctx context.Context, userID, groupID uuid.UUID) (domain.Membership, error)
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]domain.GroupMember, error)
-	InviteMember(ctx context.Context, userID, groupID uuid.UUID) error
+	InviteMember(ctx context.Context, userID, groupID, inviterID uuid.UUID) error
 	JoinGroup(ctx context.Context, userID, groupID uuid.UUID) error
 }
 
 type UsersRepository interface {
 	FindByPhone(ctx context.Context, phone string) (domain.User, error)
+	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
+	GetUserTelegramChatID(ctx context.Context, id uuid.UUID) (int64, bool, error)
 }
 
-func NewGroupService(groups GroupsRepository, users UsersRepository) *GroupService {
-	return &GroupService{groups: groups, users: users}
+func NewGroupService(
+	groups GroupsRepository,
+	users UsersRepository,
+	tg *telegram.Client,
+	logger *core_logger.Logger,
+) *GroupService {
+	return &GroupService{
+		groups: groups,
+		users:  users,
+		tg:     tg,
+		logger: logger,
+	}
 }

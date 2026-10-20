@@ -3,6 +3,7 @@ package user_transport_http
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
@@ -22,6 +23,10 @@ type UserService interface {
 	GetMe(ctx context.Context, userID uuid.UUID) (domain.User, error)
 	UpdateMe(ctx context.Context, userID uuid.UUID, in user_service.UpdateUserInput) (domain.User, error)
 	DeleteMe(ctx context.Context, userID uuid.UUID, password string) error
+
+	// Telegram binding
+	GenerateTelegramLinkCode(ctx context.Context, userID uuid.UUID) (string, time.Time, error)
+	UnlinkTelegram(ctx context.Context, userID uuid.UUID) error
 }
 
 func NewUsersHTTPHandler(userService UserService) *UsersHTTPHandler {
@@ -29,6 +34,7 @@ func NewUsersHTTPHandler(userService UserService) *UsersHTTPHandler {
 		userService: userService,
 	}
 }
+
 func (h *UsersHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
 		{
@@ -36,12 +42,6 @@ func (h *UsersHTTPHandler) Routes() []core_http_server.Route {
 			Path:    "/users/me/password",
 			Handler: h.ChangePassword,
 		},
-
-		// {
-		// 	Method:  http.MethodPost,
-		// 	Path:    "/users",
-		// 	Handler: h.CreateUser,
-		// },
 		{
 			Method:  http.MethodGet,
 			Path:    "/users",
@@ -67,6 +67,17 @@ func (h *UsersHTTPHandler) Routes() []core_http_server.Route {
 			Path:    "/users/me",
 			Handler: h.DeleteMe,
 		},
-	}
 
+		// Telegram binding
+		{
+			Method:  http.MethodPost,
+			Path:    "/users/me/telegram/link",
+			Handler: h.LinkTelegram,
+		},
+		{
+			Method:  http.MethodDelete,
+			Path:    "/users/me/telegram",
+			Handler: h.UnlinkTelegram,
+		},
+	}
 }

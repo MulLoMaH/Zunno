@@ -14,11 +14,17 @@ func (r *GroupsRepository) GetUserInvitations(ctx context.Context, userID uuid.U
 	defer cancel()
 
 	query := `
-		SELECT g.id, g.name, m.role
+		SELECT 
+			g.id, 
+			g.name, 
+			m.role,
+			COALESCE(u.full_name, 'Неизвестный') as inviter_name,
+			m.joined_at
 		FROM zunno.memberships m
 		JOIN zunno.groups g ON g.id = m.group_id
+		LEFT JOIN zunno.users u ON u.id = m.invited_by
 		WHERE m.user_id = $1 AND m.status = 'pending'
-		ORDER BY g.created_at DESC
+		ORDER BY m.joined_at DESC
 	`
 
 	rows, err := r.pool.Query(ctx, query, userID)
@@ -30,7 +36,7 @@ func (r *GroupsRepository) GetUserInvitations(ctx context.Context, userID uuid.U
 	var invites []domain.Invitation
 	for rows.Next() {
 		var i domain.Invitation
-		if err := rows.Scan(&i.GroupID, &i.GroupName, &i.Role); err != nil {
+		if err := rows.Scan(&i.GroupID, &i.GroupName, &i.Role, &i.InviterName, &i.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan invitation: %w", err)
 		}
 		invites = append(invites, i)

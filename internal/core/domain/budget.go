@@ -70,3 +70,17 @@ type MemberSpent struct {
 	FullName string    `json:"full_name"`
 	Spent    float64   `json:"spent"`
 }
+
+type Debt struct {
+	ID            uuid.UUID
+	GroupID       uuid.UUID
+	TransactionID *uuid.UUID
+	CreditorID    uuid.UUID
+	CreditorName  string
+	DebtorID      uuid.UUID
+	DebtorName    string
+	Amount        float64
+	IsPaid        bool
+	CreatedAt     time.Time
+	PaidAt        *time.Time
+}

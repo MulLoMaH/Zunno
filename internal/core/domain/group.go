@@ -42,7 +42,9 @@ type GroupMember struct {
 
 
 type Invitation struct {
-	GroupID   uuid.UUID
-	GroupName string
-	Role      string
+	GroupID     uuid.UUID
+	GroupName   string
+	Role        string
+	InviterName string
+	CreatedAt   time.Time
 }

@@ -2,6 +2,7 @@ package group_transport_http
 
 import (
 	"net/http"
+	"time"
 
 	core_errors "github.com/MulLoMaH/Zunno/internal/core/errors"
 	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
@@ -11,9 +12,11 @@ import (
 )
 
 type InvitationDTOResponse struct {
-	GroupID   uuid.UUID `json:"group_id"`
-	GroupName string    `json:"group_name"`
-	Role      string    `json:"role"`
+	GroupID     uuid.UUID `json:"group_id"`
+	GroupName   string    `json:"group_name"`
+	Role        string    `json:"role"`
+	InviterName string    `json:"inviter_name"`
+	CreatedAt   string    `json:"created_at"`
 }
 
 func (h *GroupsHTTPHandler) GetInvitations(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +39,7 @@ func (h *GroupsHTTPHandler) GetInvitations(w http.ResponseWriter, r *http.Reques
 
 	res := make([]InvitationDTOResponse, len(invites))
 	for i, inv := range invites {
-		res[i] = InvitationDTOResponse{GroupID: inv.GroupID, GroupName: inv.GroupName, Role: inv.Role}
+		res[i] = InvitationDTOResponse{GroupID: inv.GroupID, GroupName: inv.GroupName, Role: inv.Role, InviterName: inv.InviterName, CreatedAt: inv.CreatedAt.Format(time.RFC3339)}
 	}
 	responseHandler.JSONResponse(res, http.StatusOK)
 }

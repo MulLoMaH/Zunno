@@ -19,6 +19,10 @@ type PlanModel struct {
 	IsDone      bool
 	CreatedAt   time.Time
 	DoneAt      *time.Time
+
+	RecurrenceRule  *string
+	RecurrenceUntil *time.Time
+	ParentPlanID    *uuid.UUID
 }
 
 type ChecklistModel struct {
@@ -32,16 +36,19 @@ type ChecklistModel struct {
 
 func planFromModel(m PlanModel) domain.PlanEvent {
 	return domain.PlanEvent{
-		ID:          m.ID,
-		Version:     m.Version,
-		GroupID:     m.GroupID,
-		CreatorID:   m.CreatorID,
-		Title:       m.Title,
-		Description: m.Description,
-		EventDate:   m.EventDate,
-		IsDone:      m.IsDone,
-		CreatedAt:   m.CreatedAt,
-		DoneAt:      m.DoneAt,
+		ID:              m.ID,
+		Version:         m.Version,
+		GroupID:         m.GroupID,
+		CreatorID:       m.CreatorID,
+		Title:           m.Title,
+		Description:     m.Description,
+		EventDate:       m.EventDate,
+		IsDone:          m.IsDone,
+		CreatedAt:       m.CreatedAt,
+		DoneAt:          m.DoneAt,
+		RecurrenceRule:  m.RecurrenceRule,
+		RecurrenceUntil: m.RecurrenceUntil,
+		ParentPlanID:    m.ParentPlanID,
 	}
 }
 

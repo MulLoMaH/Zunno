@@ -14,7 +14,6 @@ func (s *GroupService) InviteMember(
 	requesterID, groupID uuid.UUID,
 	phone string,
 ) error {
-	// 1. Проверяем, что приглашающий — админ группы
 	m, err := s.groups.GetMembership(ctx, requesterID, groupID)
 	if err != nil {
 		return fmt.Errorf("check requester membership: %w", err)
@@ -23,16 +22,17 @@ func (s *GroupService) InviteMember(
 		return core_errors.ErrNotGroupAdmin
 	}
 
-	// 2. Ищем пользователя по телефону
 	user, err := s.users.FindByPhone(ctx, phone)
 	if err != nil {
 		return fmt.Errorf("find user by phone: %w", err)
 	}
 
-	// 3. Создаём pending membership
-	if err := s.groups.InviteMember(ctx, user.ID, groupID); err != nil {
+	if err := s.groups.InviteMember(ctx, user.ID, groupID, requesterID); err != nil {
 		return fmt.Errorf("invite member: %w", err)
 	}
+
+	// Асинхронный push в Telegram. Без блокировки основного запроса.
+	go s.notifyInvitation(context.WithoutCancel(ctx), user.ID, requesterID, groupID)
 
 	return nil
 }

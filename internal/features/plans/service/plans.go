@@ -16,12 +16,16 @@ func (s *PlanService) CreatePlan(
 	groupID, creatorID uuid.UUID,
 	title, description string,
 	eventDate time.Time,
+	recurrence *RecurrenceInput,
 ) (domain.PlanEvent, error) {
 	if len([]rune(title)) < 1 || len([]rune(title)) > 200 {
 		return domain.PlanEvent{}, fmt.Errorf("title length: %w", core_errors.ErrInvalidArgument)
 	}
 	if eventDate.IsZero() {
 		return domain.PlanEvent{}, fmt.Errorf("event_date required: %w", core_errors.ErrInvalidArgument)
+	}
+	if err := recurrence.validate(); err != nil {
+		return domain.PlanEvent{}, fmt.Errorf("%w: %v", core_errors.ErrInvalidArgument, err)
 	}
 
 	p := domain.PlanEvent{
@@ -31,10 +35,22 @@ func (s *PlanService) CreatePlan(
 		Description: description,
 		EventDate:   eventDate,
 	}
+	if recurrence != nil {
+		rule := recurrence.Rule
+		p.RecurrenceRule = &rule
+		p.RecurrenceUntil = recurrence.Until
+	}
+
 	created, err := s.plans.CreatePlan(ctx, p)
 	if err != nil {
 		return domain.PlanEvent{}, fmt.Errorf("create plan: %w", err)
 	}
+
+	// Асинхронная материализация дочерних событий. Не блокирует ответ.
+	if recurrence != nil {
+		go s.materializeRecurrences(context.WithoutCancel(ctx), created, recurrence.Rule, recurrence.Until)
+	}
+
 	return created, nil
 }
 

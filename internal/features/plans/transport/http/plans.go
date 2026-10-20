@@ -11,12 +11,15 @@ import (
 	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
 	core_http_middleware "github.com/MulLoMaH/Zunno/internal/core/transport/http/middleware"
 	core_http_response "github.com/MulLoMaH/Zunno/internal/core/transport/http/response"
+	plan_service "github.com/MulLoMaH/Zunno/internal/features/plans/service"
 )
 
 type CreatePlanRequest struct {
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	EventDate   time.Time `json:"event_date"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	EventDate       time.Time  `json:"event_date"`
+	RecurrenceRule  *string    `json:"recurrence_rule,omitempty"`
+	RecurrenceUntil *time.Time `json:"recurrence_until,omitempty"`
 }
 
 type UpdatePlanRequest struct {
@@ -44,7 +47,15 @@ func (h *PlansHTTPHandler) CreatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plan, err := h.planService.CreatePlan(ctx, info.GroupID, info.UserID, req.Title, req.Description, req.EventDate)
+	var recurrence *plan_service.RecurrenceInput
+	if req.RecurrenceRule != nil {
+		recurrence = &plan_service.RecurrenceInput{
+			Rule:  *req.RecurrenceRule,
+			Until: req.RecurrenceUntil,
+		}
+	}
+
+	plan, err := h.planService.CreatePlan(ctx, info.GroupID, info.UserID, req.Title, req.Description, req.EventDate, recurrence)
 	if err != nil {
 		responseHandler.ErrorResponse(err, "create plan")
 		return

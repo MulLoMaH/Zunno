@@ -2545,6 +2545,64 @@ function makeSwipeable(node, onSwipeLeft) {
   );
 }
 
+
+async function setRSVP(g, plan, status) {
+  try {
+    await apiCall('POST', `/groups/${g.id}/plans/${plan.id}/rsvp`, { status });
+    toast('Статус участия обновлен', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function openCommentsModal(g, p) {
+  const res = await apiCall('GET', `/groups/${g.id}/plans/${p.id}/comments`);
+  const comments = res.data || [];
+
+  const list = el('div', { class: 'list mb-12' },
+    comments.map(c => el('div', { class: 'item' }, [
+      el('div', { class: 'avatar-sm', style: `background:${colorFromId(c.user_id)}` }, [initials(c.full_name)]),
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title', style: 'font-size: 13px; font-weight: 600;' }, [c.full_name]),
+        el('div', { class: 'item-sub', style: 'white-space: normal;' }, [c.text]),
+        el('div', { class: 'text-xs text-3 mt-4' }, [fmtDateTime(c.created_at)])
+      ])
+    ]))
+  );
+
+  const input = el('input', {
+    type: 'text',
+    class: 'input',
+    placeholder: 'Написать комментарий...',
+    style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;'
+  });
+
+  const btn = el('button', {
+    type: 'button',
+    class: 'btn btn-primary btn-block',
+    onclick: async () => {
+      if (!input.value.trim()) return;
+      try {
+        await apiCall('POST', `/groups/${g.id}/plans/${p.id}/comments`, { text: input.value.trim() });
+        toast('Комментарий добавлен', 'success');
+        closeModal();
+        openCommentsModal(g, p); // Перезагружаем модалку с новыми данными
+      } catch (err) { toast(err.message, 'error'); }
+    }
+  }, ['Отправить']);
+
+  openModal({
+    title: 'Комментарии',
+    body: el('div', {}, [
+      comments.length ? list : el('div', { class: 'text-sm text-3', style: 'text-align:center; padding: 20px;' }, ['Пока нет комментариев']),
+      input,
+      btn
+    ]),
+    saveLabel: 'Закрыть',
+    onSave: async () => {}
+  });
+}
+
 function noGroupBanner() {
   return el('div', { class: 'card' }, [
     el('div', { class: 'empty' }, [
@@ -4099,17 +4157,34 @@ async function renderPlanCard(g, p) {
     card.appendChild(list);
   }
 
-  card.appendChild(
-    el(
-      'button',
-      {
-        type: 'button',
-        class: 'btn btn-ghost btn-sm btn-block mt-12',
-        onclick: () => openCreateChecklistModal(g, p),
-      },
-      [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Пункт'])]
-    )
-  );
+        // Блок RSVP
+      card.appendChild(
+        el('div', { class: 'row mt-12', style: 'gap: 8px;' }, [
+          el('button', { class: 'btn btn-ghost btn-sm flex-1', onclick: () => setRSVP(g, p, 'going') }, ['Я иду']),
+          el('button', { class: 'btn btn-ghost btn-sm flex-1', onclick: () => setRSVP(g, p, 'maybe') }, ['Может быть']),
+          el('button', { class: 'btn btn-ghost btn-sm flex-1', onclick: () => setRSVP(g, p, 'not_going') }, ['Не иду']),
+        ])
+      );
+
+      // Блок действий
+      card.appendChild(
+        el('div', { class: 'row mt-8', style: 'gap: 8px;' }, [
+          el(
+            'button',
+            {
+              type: 'button',
+              class: 'btn btn-ghost btn-sm flex-1',
+              onclick: () => openCreateChecklistModal(g, p),
+            },
+            [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Пункт'])]
+          ),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm flex-1',
+            onclick: () => openCommentsModal(g, p),
+          }, ['💬 Комментарии']),
+        ])
+      );
 
   return card;
 }
@@ -4775,59 +4850,59 @@ function openJoinGroupModal() {
 }
 
 function openInviteModal(g) {
-  const phone = el('input', {
-    class: 'input',
+  const phoneInput = el('input', {
     type: 'tel',
+    class: 'input',
     placeholder: '+79991234567',
-    inputmode: 'tel',
+    style: 'width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 12px;'
   });
+
+  const inviteBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-primary btn-block',
+    onclick: async () => {
+      const phone = phoneInput.value.trim();
+      if (!phone) return toast('Введите номер телефона', 'error');
+      
+      inviteBtn.disabled = true;
+      inviteBtn.textContent = 'Отправка...';
+      
+      try {
+        await apiCall('POST', `/groups/${g.id}/invite`, { phone_number: phone });
+        toast('Приглашение отправлено!', 'success');
+        closeModal();
+      } catch (err) {
+        toast(err.message, 'error');
+        inviteBtn.disabled = false;
+        inviteBtn.textContent = 'Пригласить';
+      }
+    }
+  }, ['Отправить приглашение']);
+
+  const content = el('div', {}, [
+    el('div', { class: 'text-sm text-2', style: 'margin-bottom: 12px;' }, ['Введите номер телефона участника:']),
+    phoneInput,
+    inviteBtn,
+    el('div', { style: 'text-align: center; margin: 20px 0; color: var(--text-3); font-size: 12px;' }, ['ИЛИ']),
+    el('div', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, ['Отправьте другу ID группы для вступления:']),
+    el('div', { class: 'row', style: 'gap: 8px;' }, [
+      el('input', {
+        type: 'text', value: g.id, readonly: true,
+        style: 'flex: 1; padding: 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); font-family: JetBrains Mono, monospace; font-size: 12px; color: var(--text);',
+        onclick: e => e.target.select()
+      }),
+      el('button', {
+        type: 'button', class: 'btn btn-ghost',
+        onclick: () => copyText(g.id, 'ID группы скопирован')
+      }, ['Копировать'])
+    ])
+  ]);
 
   openModal({
     title: 'Пригласить в группу',
-    body: el('div', {}, [
-      el('p', { class: 'text-2 text-sm' }, [
-        'Введите телефон пользователя. Если он зарегистрирован, получит приглашение.',
-      ]),
-      field('Телефон', phone),
-      el('div', { class: 'row gap-8 mt-12' }, [
-        el('input', {
-          class: 'copy-input flex-1',
-          type: 'text',
-          value: g.id,
-          readonly: true,
-          onclick: (e) => e.target.select(),
-        }),
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'btn btn-ghost btn-sm',
-            onclick: () => copyText(g.id, 'ID группы скопирован'),
-          },
-          [icon('copy', 18)]
-        ),
-      ]),
-      el('p', { class: 'text-xs text-3 mt-8' }, [
-        'Альтернатива: отправьте другу ID группы, он нажмёт «Присоединиться».',
-      ]),
-    ]),
-    saveLabel: 'Отправить приглашение',
-    onSave: async () => {
-      const value = phone.value.replace(/\s+/g, '').trim();
-      if (!value) throw new Error('Введите телефон');
-
-      try {
-        await apiCall('POST', `/groups/${g.id}/invite`, {
-          phone_number: value,
-        });
-        toast('Приглашение отправлено', 'success');
-      } catch (err) {
-        if (err.status === 404) {
-          throw new Error('Пользователь с таким телефоном не найден');
-        }
-        throw err;
-      }
-    },
+    body: content,
+    saveLabel: 'Закрыть',
+    onSave: async () => {}
   });
 }
 

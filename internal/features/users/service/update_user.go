@@ -13,7 +13,7 @@ import (
 )
 
 type UpdateUserInput struct {
-	Currency string
+	Currency    string
 	FullName    string
 	Age         int
 	PhoneNumber string

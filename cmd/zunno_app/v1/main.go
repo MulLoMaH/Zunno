@@ -14,6 +14,7 @@ import (
 	core_pgx_pool "github.com/MulLoMaH/Zunno/internal/core/repository/postgres/conn"
 	core_redis_conn "github.com/MulLoMaH/Zunno/internal/core/repository/redis"
 
+	"github.com/MulLoMaH/Zunno/internal/core/telegram"
 	tokenpkg "github.com/MulLoMaH/Zunno/internal/core/token"
 	core_http_middleware "github.com/MulLoMaH/Zunno/internal/core/transport/http/middleware"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
@@ -86,6 +87,11 @@ func main() {
 	}
 	tokenManager := tokenpkg.NewManager(jwtSecret, "zunno", accessTTL, refreshTTL)
 
+	// --- Telegram ---
+	logger.Debug("initializing telegram client")
+	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	tgClient := telegram.NewClient(tgToken)
+
 	// --- Users feature ---
 	logger.Debug("initializing feature", zap.String("feature", "users"))
 	usersRepository := users_postgres_repository.NewUsersRepository(pool)
@@ -95,19 +101,19 @@ func main() {
 	// --- Groups ---
 	logger.Debug("initializing feature", zap.String("feature", "groups"))
 	groupsRepository := groups_postgres_repository.NewGroupsRepository(pool)
-	groupsService := group_service.NewGroupService(groupsRepository, usersRepository)
+	groupsService := group_service.NewGroupService(groupsRepository, usersRepository, tgClient, logger)
 	groupsTransportHTTP := group_transport_http.NewGroupsHTTPHandler(groupsService)
 
 	// --- Goals ---
 	logger.Debug("initializing feature", zap.String("feature", "goals"))
 	goalsRepository := goals_postgres_repository.NewGoalsRepository(pool)
-	goalsService := goal_service.NewGoalService(goalsRepository)
+	goalsService := goal_service.NewGoalService(goalsRepository, logger)
 	goalsTransportHTTP := goal_transport_http.NewGoalsHTTPHandler(goalsService)
 
 	// --- Plans ---
 	logger.Debug("initializing feature", zap.String("feature", "plans"))
 	plansRepository := plans_postgres_repository.NewPlansRepository(pool)
-	plansService := plan_service.NewPlanService(plansRepository)
+	plansService := plan_service.NewPlanService(plansRepository, logger)
 	plansTransportHTTP := plan_transport_http.NewPlansHTTPHandler(plansService)
 
 	// --- Auth feature ---
@@ -191,7 +197,13 @@ func main() {
 	kafkaProducer := core_kafka.NewProducer(kafkaCfg)
 
 	budgetRepo := budget_postgres_repository.NewBudgetRepository(pool)
-	budgetSvc := budget_service.NewBudgetService(budgetRepo, kafkaProducer)
+	budgetSvc := budget_service.NewBudgetService(
+		budgetRepo,
+		kafkaProducer,
+		groupsRepository,
+		usersRepository,
+		tgClient,
+	)
 	budgetHTTP := budget_transport_http.NewBudgetHTTPHandler(budgetSvc)
 
 	budgetRoutes := budgetHTTP.Routes()
@@ -205,24 +217,66 @@ func main() {
 	kafkaConsumer := core_kafka.NewConsumer(kafkaCfg, statsHandler.Handle)
 
 	go func() {
-    const retryDelay = 10 * time.Second
-    for {
-        err := kafkaConsumer.Run(ctx)
-        if ctx.Err() != nil {
-            // graceful shutdown
-            return
-        }
-        logger.Error("kafka consumer stopped, retrying",
-            zap.Error(err),
-            zap.Duration("retry_in", retryDelay),
-        )
-        select {
-        case <-ctx.Done():
-            return
-        case <-time.After(retryDelay):
-        }
-    }
-}()
+		const retryDelay = 10 * time.Second
+		for {
+			err := kafkaConsumer.Run(ctx)
+			if ctx.Err() != nil {
+				// graceful shutdown
+				return
+			}
+			logger.Error("kafka consumer stopped, retrying",
+				zap.Error(err),
+				zap.Duration("retry_in", retryDelay),
+			)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(retryDelay):
+			}
+		}
+	}()
+
+	// --- Telegram poller ---
+	// Long-polling getUpdates, привязка chat_id по /start <code>.
+	// Ошибка поллера НЕ должна ронять сервер.
+	if tgToken != "" {
+		tgPoller := telegram.NewPoller(tgClient, func(ctx context.Context, code string, chatID int64) error {
+			userID, err := usersRepository.FindByTelegramLinkCode(ctx, code)
+			if err != nil {
+				return err
+			}
+			return usersRepository.SetTelegramChatID(ctx, userID, chatID)
+		}, logger.Logger)
+
+		go func() {
+			const retryDelay = 10 * time.Second
+			for {
+				err := tgPoller.Run(ctx)
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Error("telegram poller stopped, retrying",
+					zap.Error(err),
+					zap.Duration("retry_in", retryDelay),
+				)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(retryDelay):
+				}
+			}
+		}()
+	}
+
+	// --- Plan notifier ---
+	// Раз в 5 минут рассылает напоминания о событиях за 24 часа.
+	planNotifier := plan_service.NewPlanNotifier(plansRepository, groupsRepository, tgClient, logger)
+	go planNotifier.Run(ctx)
+
+	// --- Goal notifier ---
+	// Раз в 6 часов напоминает о дедлайнах целей за 24 часа.
+	goalNotifier := goal_service.NewGoalNotifier(goalsRepository, groupsRepository, tgClient, logger)
+	go goalNotifier.Run(ctx)
 
 	// Регистрируем роутер и статику
 	httpServer.RegisterApiRouters(apiV1Router)

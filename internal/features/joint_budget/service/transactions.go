@@ -15,7 +15,7 @@ import (
 )
 
 type GetTransactionsFilter struct {
-	Query *string
+	Query      *string
 	From       *time.Time
 	To         *time.Time
 	CategoryID *uuid.UUID
@@ -25,7 +25,8 @@ type GetTransactionsFilter struct {
 }
 
 type CreateTransactionInput struct {
-	Type string
+	Split       bool
+	Type        string
 	CategoryID  uuid.UUID
 	Amount      float64
 	Date        time.Time
@@ -55,7 +56,7 @@ func (s *BudgetService) CreateTransaction(
 	}
 
 	tx := domain.Transaction{
-		Type: in.Type,
+		Type:        in.Type,
 		GroupID:     groupID,
 		UserID:      userID,
 		CategoryID:  in.CategoryID,
@@ -67,6 +68,9 @@ func (s *BudgetService) CreateTransaction(
 	if err != nil {
 		return domain.Transaction{}, fmt.Errorf("create transaction: %w", err)
 	}
+
+	// Запускаем уведомление в фоне
+	go s.notifyAboutTransaction(context.WithoutCancel(ctx), created)
 
 	// Публикуем событие. Ошибка Kafka НЕ должна ронять создание транзакции.
 	evt := core_kafka.TransactionCreatedEvent{
@@ -93,7 +97,7 @@ func (s *BudgetService) GetTransactions(
 	f GetTransactionsFilter,
 ) ([]domain.Transaction, error) {
 	repoFilter := budget_postgres_repository.TransactionsFilter{
-		Query: f.Query,
+		Query:      f.Query,
 		GroupID:    groupID,
 		From:       f.From,
 		To:         f.To,
@@ -107,4 +111,42 @@ func (s *BudgetService) GetTransactions(
 		return nil, fmt.Errorf("get transactions: %w", err)
 	}
 	return txs, nil
+}
+
+func (s *BudgetService) notifyAboutTransaction(ctx context.Context, tx domain.Transaction) {
+	if s.tg == nil {
+		return
+	}
+
+	user, err := s.users.GetUser(ctx, tx.UserID)
+	if err != nil {
+		return
+	}
+
+	cat, err := s.budget.GetCategory(ctx, tx.CategoryID)
+	if err != nil {
+		return
+	}
+
+	chats, err := s.groups.GetGroupTelegramChatIDs(ctx, tx.GroupID)
+	if err != nil {
+		return
+	}
+
+	typeLabel := "Новая трата"
+	if tx.Type == "income" {
+		typeLabel = "Новый доход"
+	}
+
+	msg := fmt.Sprintf(
+		"🔔 <b>%s</b>\n\n👤 %s\n💰 %s\n📁 %s",
+		typeLabel,
+		user.FullName,
+		fmt.Sprintf("%.2f ₽", tx.Amount),
+		cat.Name,
+	)
+
+	for _, chatID := range chats {
+		_ = s.tg.SendMessage(ctx, chatID, msg)
+	}
 }

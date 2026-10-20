@@ -2,14 +2,17 @@ package goal_service
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
+	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
 )
 
 type GoalService struct {
-	goals GoalsRepository
+	goals  GoalsRepository
+	logger *core_logger.Logger
 }
 
 type GoalsRepository interface {
@@ -26,8 +29,11 @@ type GoalsRepository interface {
 	GetGoalItem(ctx context.Context, itemID uuid.UUID) (domain.GoalItem, error)
 	MarkGoalItemDone(ctx context.Context, itemID uuid.UUID, done bool, expectedVersion int64) (domain.GoalItem, error)
 	DeleteGoalItem(ctx context.Context, itemID uuid.UUID) error
+
+	// Deadlines
+	SetGoalCategoryDueDate(ctx context.Context, categoryID uuid.UUID, dueDate *time.Time) (domain.GoalCategory, error)
 }
 
-func NewGoalService(goals GoalsRepository) *GoalService {
-	return &GoalService{goals: goals}
+func NewGoalService(goals GoalsRepository, logger *core_logger.Logger) *GoalService {
+	return &GoalService{goals: goals, logger: logger}
 }
