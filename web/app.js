@@ -1,1742 +1,2957 @@
-// ═══════════════════════════════════════════════════════════════
-// ZUNNO — Vanilla JS SPA
-// ═══════════════════════════════════════════════════════════════
+/* =============================================================
+ZUNNO · Premium SPA
+Glassmorphism / Neumorphism / Rose edition
+============================================================= */
+'use strict';
 
 const API = '/api/v1';
-
-// ═══════════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════════
+const THEMES = ['dark', 'light', 'rose'];
+const THEME_META = {
+  dark: { label: 'Тёмная', icon: 'moon', color: '#070912' },
+  light: { label: 'Светлая', icon: 'sun', color: '#eef2f8' },
+  rose: { label: 'Розовая', icon: 'palette', color: '#fff1f5' },
+};
 
 const state = {
+  token: localStorage.getItem('access_token') || '',
   user: null,
-  theme: localStorage.getItem('zunno-theme') || 'dark',
-  view: 'dashboard',
-  currentGroupId: null,
   groups: [],
-  members: [],
-  categories: [],
-  transactions: [],
-  plans: [],
-  rsvps: [],
-  comments: [],
-  checklist: [],
-  goalCategories: [],
-  goalItems: [],
-  debts: { incoming: [], outgoing: [] },
   invitations: [],
-  selectedPlanId: null,
+  activeGroupId: localStorage.getItem('active_group') || null,
+  view: 'dashboard',
+  txTypes: {},
+  dismissedInvites: new Set(),
+};
+
+try { state.txTypes = JSON.parse(localStorage.getItem('zunno-tx-types') || '{}') || {}; } catch { state.txTypes = {}; }
+try { state.dismissedInvites = new Set(JSON.parse(localStorage.getItem('zunno-dismissed-invites') || '[]')); } catch { state.dismissedInvites = new Set(); }
+
+const ui = {
+  modalPrevFocus: null,
+  popover: null,
+  tooltipEl: null,
   fabOpen: false,
-  sidebarOpen: false,
-  telegramLinked: localStorage.getItem('zunno-telegram-linked') === 'true',
+  command: { open: false, filtered: [], selected: 0 },
+  tour: null,
 };
 
-// Mock data for demo
-const MOCK = {
-  user: { id: 'user-1', version: 1, full_name: 'Алексей Иванов', age: 28, phone_number: '+79991234567', currency: 'RUB' },
-  groups: [
-    { id: 'group-1', version: 1, name: 'Семья', owner_id: 'user-1', created_at: '2024-01-15T10:00:00Z' },
-    { id: 'group-2', version: 1, name: 'Друзья', owner_id: 'user-2', created_at: '2024-02-20T14:00:00Z' },
-  ],
-  members: [
-    { user_id: 'user-1', group_id: 'group-1', role: 'admin', status: 'active', joined_at: '2024-01-15T10:00:00Z', full_name: 'Алексей Иванов', phone_number: '+79991234567' },
-    { user_id: 'user-2', group_id: 'group-1', role: 'member', status: 'active', joined_at: '2024-01-16T10:00:00Z', full_name: 'Мария Иванова', phone_number: '+79997654321' },
-    { user_id: 'user-3', group_id: 'group-1', role: 'member', status: 'active', joined_at: '2024-01-17T10:00:00Z', full_name: 'Дмитрий Петров', phone_number: '+79991112233' },
-    { user_id: 'user-4', group_id: 'group-1', role: 'member', status: 'active', joined_at: '2024-01-18T10:00:00Z', full_name: 'Елена Сидорова', phone_number: '+79994445566' },
-  ],
-  categories: [
-    { id: 'cat-1', version: 1, group_id: 'group-1', name: 'Продукты', type: 'fixed', budget_limit: 15000, created_at: '2024-01-15T10:00:00Z' },
-    { id: 'cat-2', version: 1, group_id: 'group-1', name: 'Развлечения', type: 'spontaneous', budget_limit: 8000, created_at: '2024-01-15T10:00:00Z' },
-    { id: 'cat-3', version: 1, group_id: 'group-1', name: 'Транспорт', type: 'fixed', budget_limit: 5000, created_at: '2024-01-15T10:00:00Z' },
-    { id: 'cat-4', version: 1, group_id: 'group-1', name: 'Коммунальные', type: 'fixed', budget_limit: 12000, created_at: '2024-01-15T10:00:00Z' },
-    { id: 'cat-5', version: 1, group_id: 'group-1', name: 'Рестораны', type: 'spontaneous', budget_limit: 6000, created_at: '2024-01-15T10:00:00Z' },
-  ],
-  transactions: [
-    { id: 'tx-1', version: 1, group_id: 'group-1', user_id: 'user-1', category_id: 'cat-1', amount: 3500, type: 'expense', date: '2026-01-15T10:30:00Z', description: 'Пятёрочка', created_at: '2026-01-15T10:30:00Z' },
-    { id: 'tx-2', version: 1, group_id: 'group-1', user_id: 'user-2', category_id: 'cat-2', amount: 2000, type: 'expense', date: '2026-01-14T18:00:00Z', description: 'Кино', created_at: '2026-01-14T18:00:00Z' },
-    { id: 'tx-3', version: 1, group_id: 'group-1', user_id: 'user-1', category_id: 'cat-3', amount: 1500, type: 'expense', date: '2026-01-13T09:00:00Z', description: 'Такси', created_at: '2026-01-13T09:00:00Z' },
-    { id: 'tx-4', version: 1, group_id: 'group-1', user_id: 'user-1', category_id: 'cat-1', amount: 4200, type: 'expense', date: '2026-01-12T11:00:00Z', description: 'Перекрёсток', created_at: '2026-01-12T11:00:00Z' },
-    { id: 'tx-5', version: 1, group_id: 'group-1', user_id: 'user-3', category_id: 'cat-5', amount: 3000, type: 'expense', date: '2026-01-11T20:00:00Z', description: 'Ужин в ресторане', created_at: '2026-01-11T20:00:00Z' },
-    { id: 'tx-6', version: 1, group_id: 'group-1', user_id: 'user-1', category_id: 'cat-4', amount: 8500, type: 'expense', date: '2026-01-10T14:00:00Z', description: 'ЖКХ январь', created_at: '2026-01-10T14:00:00Z' },
-  ],
-  plans: [
-    { id: 'plan-1', version: 1, group_id: 'group-1', creator_id: 'user-1', title: 'Поход в горы', description: 'Выезжаем в субботу утром', event_date: '2026-01-25T09:00:00Z', is_done: false, created_at: '2026-01-10T10:00:00Z', done_at: null, recurrence_rule: null, recurrence_until: null, parent_plan_id: null },
-    { id: 'plan-2', version: 1, group_id: 'group-1', creator_id: 'user-2', title: 'Семейный ужин', description: 'Готовим вместе', event_date: '2026-01-20T18:00:00Z', is_done: false, created_at: '2026-01-09T10:00:00Z', done_at: null, recurrence_rule: 'weekly', recurrence_until: '2026-03-01T00:00:00Z', parent_plan_id: null },
-    { id: 'plan-3', version: 1, group_id: 'group-1', creator_id: 'user-1', title: 'Покупка подарка маме', description: 'Скидываемся на день рождения', event_date: '2026-02-14T10:00:00Z', is_done: false, created_at: '2026-01-08T10:00:00Z', done_at: null, recurrence_rule: null, recurrence_until: null, parent_plan_id: null },
-  ],
-  rsvps: [
-    { UserID: 'user-1', EventID: 'plan-1', Status: 'going', UpdatedAt: '2026-01-15T10:00:00Z' },
-    { UserID: 'user-2', EventID: 'plan-1', Status: 'maybe', UpdatedAt: '2026-01-15T11:00:00Z' },
-    { UserID: 'user-3', EventID: 'plan-1', Status: 'going', UpdatedAt: '2026-01-14T09:00:00Z' },
-  ],
-  comments: [
-    { ID: 'cmt-1', EventID: 'plan-1', UserID: 'user-2', FullName: 'Мария Иванова', Text: 'Отличная идея! Какая сложность маршрута?', CreatedAt: '2026-01-15T10:30:00Z' },
-    { ID: 'cmt-2', EventID: 'plan-1', UserID: 'user-1', FullName: 'Алексей Иванов', Text: 'Лёгкий, 5 км. Берём перекус и воду.', CreatedAt: '2026-01-15T11:00:00Z' },
-    { ID: 'cmt-3', EventID: 'plan-1', UserID: 'user-3', FullName: 'Дмитрий Петров', Text: 'Я с вами! Во сколько выезжаем?', CreatedAt: '2026-01-15T12:00:00Z' },
-  ],
-  checklist: [
-    { id: 'cl-1', version: 1, event_id: 'plan-1', text: 'Взять воду', is_checked: true, checked_at: '2026-01-15T10:00:00Z' },
-    { id: 'cl-2', version: 1, event_id: 'plan-1', text: 'Купить перекус', is_checked: false, checked_at: null },
-    { id: 'cl-3', version: 1, event_id: 'plan-1', text: 'Проверить погоду', is_checked: false, checked_at: null },
-  ],
-  goalCategories: [
-    { id: 'gc-1', version: 1, group_id: 'group-1', name: 'Отпуск в Турции', due_date: '2026-06-01T00:00:00Z', notified_due_at: null },
-    { id: 'gc-2', version: 1, group_id: 'group-1', name: 'Новая машина', due_date: '2026-12-31T00:00:00Z', notified_due_at: null },
-    { id: 'gc-3', version: 1, group_id: 'group-1', name: 'Ремонт кухни', due_date: null, notified_due_at: null },
-  ],
-  goalItems: [
-    { id: 'gi-1', version: 1, category_id: 'gc-1', title: 'Накопить 50 000₽ на билеты', description: '', done: true, created_at: '2026-01-01T00:00:00Z', done_at: '2026-01-10T00:00:00Z' },
-    { id: 'gi-2', version: 1, category_id: 'gc-1', title: 'Забронировать отель', description: 'All inclusive', done: false, created_at: '2026-01-01T00:00:00Z', done_at: null },
-    { id: 'gi-3', version: 1, category_id: 'gc-1', title: 'Оформить страховку', description: '', done: false, created_at: '2026-01-01T00:00:00Z', done_at: null },
-    { id: 'gi-4', version: 1, category_id: 'gc-2', title: 'Первый взнос 300 000₽', description: '', done: false, created_at: '2026-01-01T00:00:00Z', done_at: null },
-    { id: 'gi-5', version: 1, category_id: 'gc-2', title: 'Выбрать модель', description: '', done: false, created_at: '2026-01-01T00:00:00Z', done_at: null },
-  ],
-  debts: {
-    incoming: [
-      { id: 'debt-3', group_id: 'group-1', transaction_id: null, creditor_id: 'user-1', creditor_name: 'Алексей Иванов', debtor_id: 'user-4', debtor_name: 'Елена Сидорова', amount: 2000, is_paid: false, created_at: '2026-01-10T15:00:00Z', paid_at: null },
-    ],
-    outgoing: [
-      { id: 'debt-1', group_id: 'group-1', transaction_id: 'tx-5', creditor_id: 'user-3', creditor_name: 'Дмитрий Петров', debtor_id: 'user-1', debtor_name: 'Алексей Иванов', amount: 750, is_paid: false, created_at: '2026-01-11T20:00:00Z', paid_at: null },
-    ],
-  },
-  invitations: [
-    { group_id: 'group-3', group_name: 'Коллеги', role: 'member', inviter_name: 'Ольга Козлова', created_at: '2026-01-14T09:00:00Z' },
-  ],
+let viewAnimators = [];
+let ringCounter = 0;
+let calendarState = {
+  view: 'list',
+  month: new Date().getMonth(),
+  year: new Date().getFullYear(),
 };
 
-// ═══════════════════════════════════════════════════════════════
-// API LAYER
-// ═══════════════════════════════════════════════════════════════
+/* =============================================================
+DOM HELPERS
+============================================================= */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-async function apiCall(method, path, body = null) {
-  const token = localStorage.getItem('zunno-token');
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+function appendContent(parent, content) {
+  if (content == null || content === false) return;
+  if (Array.isArray(content)) { content.forEach((child) => appendContent(parent, child)); return; }
+  if (content instanceof Node) { parent.appendChild(content); return; }
+  parent.appendChild(document.createTextNode(String(content)));
+}
 
-  try {
-    const res = await fetch(`${API}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : null,
-      credentials: 'include',
-    });
-
-    if (res.status === 401) {
-      // Try refresh
-      const refreshRes = await fetch(`${API}/auth/refresh`, { method: 'POST', credentials: 'include' });
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        localStorage.setItem('zunno-token', data.access_token);
-        // Retry original request
-        return apiCall(method, path, body);
-      } else {
-        logout();
-        throw new Error('Session expired');
-      }
-    }
-
-    if (res.status === 204) return null;
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || 'API error');
-    }
-    return await res.json();
-  } catch (e) {
-    console.error('API Error:', e);
-    throw e;
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value == null || value === false) continue;
+    if (key === 'class') node.className = value;
+    else if (key === 'html') node.innerHTML = value;
+    else if (key === 'text') node.textContent = value;
+    else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2).toLowerCase(), value);
+    else node.setAttribute(key, value === true ? '' : value);
   }
+  appendContent(node, children);
+  return node;
 }
 
-// Auth API
-const AuthAPI = {
-  register: (data) => apiCall('POST', '/auth/register', data),
-  login: (data) => apiCall('POST', '/auth/login', data),
-  logout: () => apiCall('POST', '/auth/logout'),
-};
-
-// Users API
-const UsersAPI = {
-  getMe: () => apiCall('GET', '/users/me'),
-  updateMe: (data) => apiCall('PATCH', '/users/me', data),
-  deleteMe: (password) => apiCall('DELETE', '/users/me', { password }),
-  changePassword: (old_password, new_password) => apiCall('PATCH', '/users/me/password', { old_password, new_password }),
-};
-
-// Telegram API
-const TelegramAPI = {
-  link: () => apiCall('POST', '/users/me/telegram/link'),
-  unlink: () => apiCall('DELETE', '/users/me/telegram'),
-};
-
-// Groups API
-const GroupsAPI = {
-  list: () => apiCall('GET', '/groups'),
-  create: (name) => apiCall('POST', '/groups', { name }),
-  update: (id, name, version) => apiCall('PATCH', `/groups/${id}`, { name, version }),
-  delete: (id) => apiCall('DELETE', `/groups/${id}`),
-  members: (id) => apiCall('GET', `/groups/${id}/members`),
-  updateMemberRole: (groupId, userId, role) => apiCall('PATCH', `/groups/${groupId}/members/${userId}`, { role }),
-  removeMember: (groupId, userId) => apiCall('DELETE', `/groups/${groupId}/members/${userId}`),
-  leave: (id) => apiCall('POST', `/groups/${id}/leave`),
-};
-
-// Invitations API
-const InvitationsAPI = {
-  list: () => apiCall('GET', '/invitations'),
-  invite: (groupId, phoneNumber) => apiCall('POST', `/groups/${groupId}/invite`, { phone_number: phoneNumber }),
-  join: (groupId) => apiCall('POST', `/groups/${groupId}/join`),
-  decline: (groupId) => apiCall('POST', `/groups/${groupId}/decline`),
-};
-
-// Categories API
-const CategoriesAPI = {
-  list: (groupId) => apiCall('GET', `/groups/${groupId}/categories`),
-  create: (groupId, data) => apiCall('POST', `/groups/${groupId}/categories`, data),
-  update: (groupId, catId, data) => apiCall('PATCH', `/groups/${groupId}/categories/${catId}`, data),
-  delete: (groupId, catId) => apiCall('DELETE', `/groups/${groupId}/categories/${catId}`),
-};
-
-// Transactions API
-const TransactionsAPI = {
-  list: (groupId, params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return apiCall('GET', `/groups/${groupId}/transactions${qs ? '?' + qs : ''}`);
-  },
-  create: (groupId, data) => apiCall('POST', `/groups/${groupId}/transactions`, data),
-  delete: (groupId, txId) => apiCall('DELETE', `/groups/${groupId}/transactions/${txId}`),
-  export: (groupId) => fetch(`${API}/groups/${groupId}/transactions/export`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('zunno-token')}` }, credentials: 'include' }),
-  split: (groupId, data) => apiCall('POST', `/groups/${groupId}/transactions/split`, data),
-};
-
-// Budget API
-const BudgetAPI = {
-  summary: (groupId, month) => apiCall('GET', `/groups/${groupId}/budget/summary?month=${month}`),
-  members: (groupId, month) => apiCall('GET', `/groups/${groupId}/budget/members?month=${month}`),
-  statistics: (groupId, month) => apiCall('GET', `/groups/${groupId}/statistics?month=${month}`),
-};
-
-// Plans API
-const PlansAPI = {
-  list: (groupId, from, to) => apiCall('GET', `/groups/${groupId}/plans?from=${from}&to=${to}`),
-  create: (groupId, data) => apiCall('POST', `/groups/${groupId}/plans`, data),
-  update: (groupId, planId, data) => apiCall('PATCH', `/groups/${groupId}/plans/${planId}`, data),
-  delete: (groupId, planId) => apiCall('DELETE', `/groups/${groupId}/plans/${planId}`),
-  rsvp: (groupId, planId, status) => apiCall('POST', `/groups/${groupId}/plans/${planId}/rsvp`, { status }),
-  getRsvp: (groupId, planId) => apiCall('GET', `/groups/${groupId}/plans/${planId}/rsvp`),
-  addComment: (groupId, planId, text) => apiCall('POST', `/groups/${groupId}/plans/${planId}/comments`, { text }),
-  getComments: (groupId, planId) => apiCall('GET', `/groups/${groupId}/plans/${planId}/comments`),
-  addChecklist: (groupId, planId, text) => apiCall('POST', `/groups/${groupId}/plans/${planId}/checklist`, { text }),
-  getChecklist: (groupId, planId) => apiCall('GET', `/groups/${groupId}/plans/${planId}/checklist`),
-  updateChecklist: (groupId, itemId, data) => apiCall('PATCH', `/groups/${groupId}/checklist/${itemId}`, data),
-  deleteChecklist: (groupId, itemId) => apiCall('DELETE', `/groups/${groupId}/checklist/${itemId}`),
-};
-
-// Goals API
-const GoalsAPI = {
-  listCategories: (groupId) => apiCall('GET', `/groups/${groupId}/goal-categories`),
-  createCategory: (groupId, name) => apiCall('POST', `/groups/${groupId}/goal-categories`, { name }),
-  updateCategory: (groupId, catId, data) => apiCall('PATCH', `/groups/${groupId}/goal-categories/${catId}`, data),
-  deleteCategory: (groupId, catId) => apiCall('DELETE', `/groups/${groupId}/goal-categories/${catId}`),
-  setDueDate: (groupId, catId, due_date) => apiCall('PUT', `/groups/${groupId}/goal-categories/${catId}/due`, { due_date }),
-  reorderCategories: (groupId, ids) => apiCall('POST', `/groups/${groupId}/goal-categories/reorder`, { ids }),
-  listItems: (groupId, catId) => apiCall('GET', `/groups/${groupId}/goal-categories/${catId}/items`),
-  createItem: (groupId, catId, data) => apiCall('POST', `/groups/${groupId}/goal-categories/${catId}/items`, data),
-  updateItem: (groupId, itemId, data) => apiCall('PATCH', `/groups/${groupId}/goal-items/${itemId}`, data),
-  deleteItem: (groupId, itemId) => apiCall('DELETE', `/groups/${groupId}/goal-items/${itemId}`),
-  reorderItems: (groupId, catId, ids) => apiCall('POST', `/groups/${groupId}/goal-categories/${catId}/items/reorder`, { ids }),
-};
-
-// Debts API
-const DebtsAPI = {
-  list: (groupId) => apiCall('GET', `/groups/${groupId}/debts`),
-  pay: (groupId, debtId) => apiCall('POST', `/groups/${groupId}/debts/${debtId}/pay`),
-};
-
-// ═══════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════
-
-function formatCurrency(amount, currency = 'RUB') {
-  const symbols = { RUB: '₽', USD: '$', EUR: '€', KZT: '₸' };
-  return `${amount.toLocaleString('ru-RU')} ${symbols[currency] || '₽'}`;
+function svgEl(tag, attrs = {}, children = []) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value == null || value === false) continue;
+    if (key === 'text') node.textContent = value;
+    else node.setAttribute(key, value === true ? '' : value);
+  }
+  appendContent(node, children);
+  return node;
 }
 
-function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+function stagger(node, index) {
+  if (!node) return node;
+  node.style.animationDelay = `${Math.min(index, 18) * 42}ms`;
+  return node;
 }
 
-function formatDateTime(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function staggerChildren(container) {
+  Array.from(container.children).forEach((node, index) => stagger(node, index));
 }
 
-function getInitials(name) {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+function debounce(fn, delay = 300) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
 }
 
-function generateId() {
-  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+function clamp(value, min, max) {
+  if (max < min) max = min;
+  return Math.min(Math.max(value, min), max);
 }
 
-function getCategoryName(id) {
-  return state.categories.find(c => c.id === id)?.name || 'Без категории';
+function animateLater(fn) { viewAnimators.push(fn); }
+
+function flushAnimators() {
+  const animators = viewAnimators;
+  viewAnimators = [];
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      animators.forEach((fn) => { try { fn(); } catch {} });
+    });
+  });
 }
 
-function getMemberName(id) {
-  return state.members.find(m => m.user_id === id)?.full_name || 'Неизвестный';
-}
-
-function getCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
+/* =============================================================
+ICONS
+============================================================= */
+const ICONS = {
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  wallet: '<path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M16 12h2"/><path d="M3 9h18"/>',
+  calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/>',
+  calendarPlus: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18M12 13v6M9 16h6"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M19 21v-1a5 5 0 0 0-3-4.58"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  palette: '<path d="M12 22a10 10 0 1 1 0-20 8 8 0 0 1 0 16h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  drag: '<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>',
+  more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+  invite: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  sparkles: '<path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>',
+  trendUp: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+  arrowUpCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 16V8M8 12l4-4 4 4"/>',
+  arrowDownCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12l4 4 4-4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
+  alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 6 3 3"/><path d="m19 3 2 2"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  split: '<path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M21 3l-7 7"/><path d="M3 3l7 7"/><path d="M16 21h5v-5"/><path d="M8 21H3v-5"/><path d="M21 21l-7-7"/><path d="M3 21l7-7"/>',
+  coins: '<circle cx="8" cy="8" r="5"/><circle cx="16" cy="16" r="5"/><path d="M12 12h.01"/>',
+};
 
 function icon(name, size = 20) {
-  const icons = {
-    home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
-    wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
-    calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
-    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
-    dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-    user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-    x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
-    check: '<polyline points="20 6 9 17 4 12"/>',
-    trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
-    chevronRight: '<polyline points="9 18 15 12 9 6"/>',
-    arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
-    split: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
-    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
-    userPlus: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>',
-    mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/>',
-    telegram: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
-    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
-  };
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[name] || ''}</svg>`;
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24',
+    width: size,
+    height: size,
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.8',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+  svg.innerHTML = ICONS[name] || ICONS.info;
+  return svg;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TOASTS
-// ═══════════════════════════════════════════════════════════════
-
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toasts');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'toastIn 0.3s ease reverse';
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+function hydrateIcons(root = document) {
+  $$('[data-icon]', root).forEach((node) => {
+    if (node.dataset.hydrated === '1') return;
+    const name = node.dataset.icon;
+    const size = node.dataset.size === 'sm' ? 18 : node.dataset.size === 'lg' ? 24 : 20;
+    node.innerHTML = '';
+    node.appendChild(icon(name, size));
+    node.dataset.hydrated = '1';
+  });
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MODAL
-// ═══════════════════════════════════════════════════════════════
+/* =============================================================
+FORMATTERS
+============================================================= */
+const CURRENCY_SYMBOLS = { RUB: '₽', USD: '$', EUR: '€', KZT: '₸', BYN: 'Br', UAH: '₴' };
 
-function showModal(title, bodyHTML, footerHTML = '') {
-  const root = document.getElementById('modal-root');
-  root.innerHTML = `
-    <div class="modal-overlay" onclick="closeModal()">
-      <div class="modal" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h3 class="modal-title">${title}</h3>
-          <button class="icon-btn" onclick="closeModal()" aria-label="Закрыть">${icon('x')}</button>
-        </div>
-        <div class="modal-body">${bodyHTML}</div>
-        ${footerHTML ? `<div class="modal-footer">${footerHTML}</div>` : ''}
-      </div>
-    </div>
-  `;
-  root.style.pointerEvents = 'auto';
-  document.body.style.overflow = 'hidden';
+function currencySymbol(code = state.user?.currency || 'RUB') {
+  const upper = String(code || 'RUB').toUpperCase();
+  return CURRENCY_SYMBOLS[upper] || upper;
 }
 
-function closeModal() {
-  const root = document.getElementById('modal-root');
-  root.innerHTML = '';
-  root.style.pointerEvents = 'none';
-  document.body.style.overflow = '';
+function fmtMoney(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '—';
+  const code = String(state.user?.currency || 'RUB').toUpperCase();
+  const symbol = currencySymbol(code);
+  try {
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: code, maximumFractionDigits: 2 }).format(num);
+  } catch {
+    const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(num);
+    return `${symbol}${formatted}`;
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// THEME
-// ═══════════════════════════════════════════════════════════════
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtRelative(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  try {
+    const rtf = new Intl.RelativeTimeFormat('ru', { numeric: 'auto' });
+    const diffSec = (d - Date.now()) / 1000;
+    const abs = Math.abs(diffSec);
+    if (abs < 60) return 'сейчас';
+    if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
+    if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour');
+    if (abs < 604800) return rtf.format(Math.round(diffSec / 86400), 'day');
+    if (abs < 2592000) return rtf.format(Math.round(diffSec / 604800), 'week');
+    if (abs < 31536000) return rtf.format(Math.round(diffSec / 2592000), 'month');
+    return rtf.format(Math.round(diffSec / 31536000), 'year');
+  } catch {
+    return fmtDate(iso);
+  }
+}
+
+function initials(name) {
+  if (!name) return '?';
+  return String(name).trim().split(/\s+/).slice(0, 2).map((w) => (w[0] || '').toUpperCase()).join('') || '?';
+}
+
+function firstName(fullName) {
+  return String(fullName || '').trim().split(/\s+/)[0] || 'друг';
+}
+
+function shortId(id) {
+  return id ? String(id).slice(0, 8) : '—';
+}
+
+function colorFromId(id) {
+  if (!id) return 'hsl(250, 60%, 60%)';
+  let hash = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 58%, 58%)`;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function fromLocalInput(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function toDateInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function dateToEndISO(value) {
+  if (!value) return null;
+  const d = new Date(`${value}T23:59:59`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function plural(n, one, few, many) {
+  const num = Number(n) || 0;
+  const m10 = num % 10;
+  const m100 = num % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+function formatMonthLabel(value) {
+  const raw = String(value || '');
+  const match = raw.match(/^(\d{4})-(\d{2})/);
+  if (match) {
+    const d = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+    return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+  }
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) return d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' });
+  return raw;
+}
+
+function monthSortValue(value) {
+  const raw = String(value || '');
+  const match = raw.match(/^(\d{4})-(\d{2})/);
+  if (match) return Number(match[1]) * 100 + Number(match[2]);
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) return d.getFullYear() * 100 + d.getMonth();
+  return 0;
+}
+
+function setBusy(busy) {
+  const preloader = $('#preloader');
+  if (preloader) preloader.classList.toggle('hide', !busy);
+}
+
+/* =============================================================
+THEME
+============================================================= */
+function getPreferredTheme() {
+  if (window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
+  return 'dark';
+}
 
 function applyTheme(theme) {
-  state.theme = theme;
-  localStorage.setItem('zunno-theme', theme);
-  document.documentElement.setAttribute('data-theme', theme);
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) {
-    const colors = { dark: '#070912', light: '#eef2f8', pink: '#fdf6f8' };
-    metaTheme.setAttribute('content', colors[theme]);
+  const safeTheme = THEMES.includes(theme) ? theme : 'dark';
+  const root = document.documentElement;
+  root.dataset.theme = safeTheme;
+  localStorage.setItem('zunno-theme', safeTheme);
+  const meta = $('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_META[safeTheme].color);
+  $$('[data-theme-toggle]').forEach((btn) => {
+    btn.setAttribute('aria-label', `Текущая тема: ${THEME_META[safeTheme].label}. Нажми, чтобы сменить.`);
+    btn.setAttribute('data-tip', `Тема: ${THEME_META[safeTheme].label}`);
+  });
+  $$('[data-theme-icon]').forEach((slot) => {
+    slot.innerHTML = '';
+    slot.appendChild(icon(THEME_META[safeTheme].icon));
+  });
+}
+
+function cycleTheme() {
+  const current = document.documentElement.dataset.theme || 'dark';
+  const idx = THEMES.indexOf(current);
+  applyTheme(THEMES[(idx + 1) % THEMES.length]);
+  toast(`Тема: ${THEME_META[document.documentElement.dataset.theme].label}`, 'info', 1500);
+}
+
+/* =============================================================
+TOASTS
+============================================================= */
+function toast(message, type = 'info', timeout = 3600) {
+  const root = $('#toasts');
+  if (!root) return;
+  const icons = { success: 'check', error: 'x', warning: 'alert', info: 'info' };
+  const node = el('div', { class: `toast toast-${type}`, role: type === 'error' ? 'alert' : 'status' }, [
+    el('div', { class: 'toast-ico' }, [icon(icons[type] || icons.info, 16)]),
+    el('div', { class: 'toast-msg' }, [String(message)]),
+  ]);
+  root.appendChild(node);
+  while (root.children.length > 4) root.firstElementChild?.remove();
+  setTimeout(() => {
+    node.classList.add('hide');
+    setTimeout(() => node.remove(), 240);
+  }, timeout);
+}
+
+/* =============================================================
+TOOLTIP
+============================================================= */
+function initTooltip() {
+  let hideTimer;
+  function ensureTooltip() {
+    if (ui.tooltipEl) return ui.tooltipEl;
+    ui.tooltipEl = el('div', { class: 'app-tooltip', role: 'tooltip' });
+    $('#tooltip-root').appendChild(ui.tooltipEl);
+    return ui.tooltipEl;
   }
-  renderThemeSwitchers();
+  function position(target) {
+    const tip = ensureTooltip();
+    const r = target.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 10;
+    let top = r.bottom + gap;
+    if (top + tr.height > vh - 12) top = r.top - tr.height - gap;
+    const maxTop = Math.max(12, vh - tr.height - 12);
+    top = clamp(top, 12, maxTop);
+    let left = r.left + r.width / 2 - tr.width / 2;
+    const maxLeft = Math.max(12, vw - tr.width - 12);
+    left = clamp(left, 12, maxLeft);
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }
+  function show(target) {
+    const text = target.getAttribute('data-tip');
+    if (!text) return;
+    clearTimeout(hideTimer);
+    const tip = ensureTooltip();
+    tip.textContent = text;
+    tip.classList.add('visible');
+    requestAnimationFrame(() => position(target));
+  }
+  function hide() {
+    if (!ui.tooltipEl) return;
+    ui.tooltipEl.classList.remove('visible');
+  }
+  document.addEventListener('mouseover', (e) => { const t = e.target.closest('[data-tip]'); if (t) show(t); });
+  document.addEventListener('mouseout', (e) => { const t = e.target.closest('[data-tip]'); if (t) hide(); });
+  document.addEventListener('focusin', (e) => { const t = e.target.closest('[data-tip]'); if (t) show(t); });
+  document.addEventListener('focusout', () => hide());
+  let touchTimer;
+  document.addEventListener('touchstart', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (!t) return;
+    touchTimer = setTimeout(() => show(t), 400);
+  }, { passive: true });
+  document.addEventListener('touchend', () => { clearTimeout(touchTimer); hide(); });
+  document.addEventListener('touchmove', () => { clearTimeout(touchTimer); hide(); });
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
 }
 
-function renderThemeSwitchers() {
-  const themes = ['dark', 'light', 'pink'];
-  const html = themes.map(t => `
-    <button class="theme-btn ${state.theme === t ? 'active' : ''}" data-theme="${t}" onclick="applyTheme('${t}')" title="${t === 'dark' ? 'Тёмная' : t === 'light' ? 'Светлая' : 'Розовая'}"></button>
-  `).join('');
-  document.getElementById('sidebar-themes').innerHTML = html;
-  document.getElementById('topbar-themes').innerHTML = html;
+/* =============================================================
+POPOVER
+============================================================= */
+function openPopover(anchor, content, opts = {}) {
+  closePopover();
+  const panel = el('div', { class: 'popover', role: 'dialog', 'aria-modal': 'false' });
+  panel.appendChild(el('div', { class: 'popover-arrow' }));
+  appendContent(panel, content);
+  $('#popover-root').appendChild(panel);
+  hydrateIcons(panel);
+  ui.popover = { anchor, panel, opts };
+  requestAnimationFrame(() => {
+    positionPopover(anchor, panel, opts);
+    panel.classList.add('open');
+  });
+  setTimeout(() => {
+    document.addEventListener('pointerdown', onPopoverPointer, true);
+    window.addEventListener('resize', onPopoverReposition);
+    window.addEventListener('scroll', onPopoverScroll, true);
+  }, 0);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════
+function positionPopover(anchor, panel, opts = {}) {
+  const a = anchor.getBoundingClientRect();
+  const p = panel.getBoundingClientRect();
+  const gap = 10;
+  let top = a.bottom + gap;
+  if (top + p.height > window.innerHeight - 12) top = a.top - p.height - gap;
+  const maxTop = Math.max(12, window.innerHeight - p.height - 12);
+  top = clamp(top, 12, maxTop);
+  let left = a.left + a.width / 2 - p.width / 2;
+  const maxLeft = Math.max(12, window.innerWidth - p.width - 12);
+  left = clamp(left, 12, maxLeft);
+  panel.style.top = `${top}px`;
+  panel.style.left = `${left}px`;
+  const arrow = panel.querySelector('.popover-arrow');
+  if (arrow) {
+    const arrowLeft = clamp(a.left + a.width / 2 - left, 18, p.width - 18);
+    arrow.style.left = `${arrowLeft}px`;
+    arrow.classList.toggle('above', top < a.top);
+  }
+}
 
-let isLogin = true;
+function closePopover() {
+  if (!ui.popover) return;
+  const { panel } = ui.popover;
+  ui.popover = null;
+  panel.classList.remove('open');
+  setTimeout(() => panel.remove(), 170);
+  document.removeEventListener('pointerdown', onPopoverPointer, true);
+  window.removeEventListener('resize', onPopoverReposition);
+  window.removeEventListener('scroll', onPopoverScroll, true);
+}
 
-function initAuth() {
-  const form = document.getElementById('auth-form');
-  const switchBtn = document.getElementById('auth-switch-btn');
+function onPopoverPointer(e) {
+  if (!ui.popover) return;
+  if (ui.popover.panel.contains(e.target) || ui.popover.anchor.contains(e.target)) return;
+  closePopover();
+}
+function onPopoverReposition() {
+  if (!ui.popover) return;
+  positionPopover(ui.popover.anchor, ui.popover.panel, ui.popover.opts);
+}
+function onPopoverScroll(e) {
+  if (!ui.popover) return;
+  if (ui.popover.panel.contains(e.target)) return;
+  closePopover();
+}
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const phone = document.getElementById('auth-phone').value;
-    const password = document.getElementById('auth-password').value;
+function popoverHeader(title, subtitle = '') {
+  return el('div', { class: 'popover-header' }, [
+    el('div', {}, [
+      el('div', { class: 'popover-title' }, [title]),
+      subtitle ? el('div', { class: 'popover-subtitle' }, [subtitle]) : null,
+    ].filter(Boolean)),
+  ]);
+}
 
-    if (!phone || phone.length < 11) { showToast('Введите корректный номер телефона', 'error'); return; }
-    if (!password || password.length < 8) { showToast('Пароль должен быть минимум 8 символов', 'error'); return; }
+function popoverAction(iconName, label, onClick, danger = false) {
+  return el('button', {
+    type: 'button',
+    class: `popover-action ${danger ? 'danger' : ''}`.trim(),
+    onclick: () => { closePopover(); onClick?.(); },
+  }, [el('span', { 'data-icon': iconName, 'data-size': 'sm' }), el('span', {}, [label])]);
+}
 
-    try {
-      let data;
-      if (isLogin) {
-        data = await AuthAPI.login({ phone_number: phone, password });
-      } else {
-        const name = document.getElementById('auth-name').value;
-        const age = parseInt(document.getElementById('auth-age').value);
-        if (!name || name.length < 3) { showToast('Введите имя (минимум 3 символа)', 'error'); return; }
-        if (!age || age < 18 || age > 100) { showToast('Возраст должен быть от 18 до 100', 'error'); return; }
-        data = await AuthAPI.register({ phone_number: phone, password, full_name: name, age });
-      }
-      localStorage.setItem('zunno-token', data.access_token);
-      state.user = data.user;
-      showToast(isLogin ? 'Добро пожаловать!' : 'Регистрация успешна!', 'success');
-      showApp();
-    } catch (err) {
-      // Demo mode — use mock data
-      state.user = MOCK.user;
-      showToast(isLogin ? 'Демо-режим: вход выполнен' : 'Демо-режим: регистрация выполнена', 'info');
-      showApp();
+function popoverEmpty(text) { return el('div', { class: 'popover-empty' }, [text]); }
+
+/* =============================================================
+CLIPBOARD
+============================================================= */
+function copyText(text, successMsg = 'Скопировано') {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => toast(successMsg, 'success')).catch(() => fallbackCopy(text, successMsg));
+    return;
+  }
+  fallbackCopy(text, successMsg);
+}
+
+function fallbackCopy(text, successMsg) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  document.body.removeChild(textarea);
+  if (ok) toast(successMsg, 'success');
+  else showCopyFallback(text);
+}
+
+function showCopyFallback(text) {
+  openModal({
+    title: 'Скопируйте вручную',
+    body: el('div', {}, [
+      el('p', { class: 'text-2 text-sm' }, ['Автокопирование недоступно. Выделите и скопируйте значение ниже:']),
+      el('input', { class: 'copy-input', type: 'text', value: text, readonly: true, onclick: (e) => e.target.select() }),
+    ]),
+    saveLabel: 'Готово',
+    onSave: async () => {},
+  });
+}
+
+/* =============================================================
+API CLIENT
+============================================================= */
+async function apiCall(method, path, body, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  let res;
+  try {
+    res = await fetch(API + path, {
+      method,
+      headers,
+      credentials: 'include',
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw Object.assign(new Error('Сеть недоступна'), { status: 0 });
+  }
+  if (res.status === 204) return { ok: true, status: 204, data: null };
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = text; }
+  }
+  if (res.status === 401 && !opts.noRetry && !path.startsWith('/auth/')) {
+    const refreshed = await tryRefresh();
+    if (refreshed) return apiCall(method, path, body, { ...opts, noRetry: true });
+    logout();
+    throw new Error('Сессия истекла');
+  }
+  if (!res.ok) {
+    const message = (data && (data.error || data.message)) || (typeof data === 'string' && data) || `Ошибка ${res.status}`;
+    throw Object.assign(new Error(message), { status: res.status, data });
+  }
+  return { ok: true, status: res.status, data };
+}
+
+async function tryRefresh() {
+  try {
+    const res = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data && data.access_token) {
+      state.token = data.access_token;
+      localStorage.setItem('access_token', data.access_token);
+      return true;
     }
-  });
-
-  switchBtn.addEventListener('click', () => {
-    isLogin = !isLogin;
-    document.getElementById('auth-title').textContent = isLogin ? 'Вход в Zunno' : 'Регистрация';
-    document.getElementById('auth-subtitle').textContent = isLogin ? 'Управляйте совместным бюджетом' : 'Создайте аккаунт для начала';
-    document.getElementById('auth-submit').textContent = isLogin ? 'Войти' : 'Зарегистрироваться';
-    document.getElementById('auth-switch-text').textContent = isLogin ? 'Нет аккаунта? ' : 'Уже есть аккаунт? ';
-    switchBtn.textContent = isLogin ? 'Зарегистрироваться' : 'Войти';
-    document.getElementById('auth-name-group').style.display = isLogin ? 'none' : 'block';
-    document.getElementById('auth-age-group').style.display = isLogin ? 'none' : 'block';
-  });
+    return false;
+  } catch {
+    return false;
+  }
 }
 
-function logout() {
-  localStorage.removeItem('zunno-token');
+async function safeApi(promise, fallback) {
+  try {
+    const res = await promise;
+    return res?.data ?? fallback;
+  } catch (err) {
+    if (err?.status === 401) logout();
+    return fallback;
+  }
+}
+
+/* =============================================================
+AUTH
+============================================================= */
+async function login(phone, password) {
+  const res = await apiCall('POST', '/auth/login', { phone_number: phone, password }, { noRetry: true });
+  state.token = res.data.access_token;
+  localStorage.setItem('access_token', state.token);
+  await bootstrapApp();
+}
+
+async function register(fullName, age, phone, password) {
+  const res = await apiCall('POST', '/auth/register', {
+    phone_number: phone,
+    password,
+    full_name: fullName,
+    age: Number(age),
+  }, { noRetry: true });
+  state.token = res.data.access_token;
+  localStorage.setItem('access_token', state.token);
+  await bootstrapApp();
+}
+
+async function logout() {
+  try { await apiCall('POST', '/auth/logout', null, { noRetry: true }); } catch {}
+  state.token = '';
   state.user = null;
-  document.getElementById('screen-auth').style.display = 'flex';
-  document.getElementById('screen-app').style.display = 'none';
+  state.groups = [];
+  state.invitations = [];
+  state.activeGroupId = null;
+  state.txTypes = {};
+  state.dismissedInvites = new Set();
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('active_group');
+  localStorage.removeItem('zunno-tx-types');
+  localStorage.removeItem('zunno-dismissed-invites');
+  closeAllOverlays();
+  showScreen('auth');
 }
 
-// ═══════════════════════════════════════════════════════════════
-// APP INIT
-// ═══════════════════════════════════════════════════════════════
+/* =============================================================
+SCREENS
+============================================================= */
+function showScreen(name) {
+  $('#screen-auth')?.classList.toggle('hidden', name !== 'auth');
+  $('#screen-app')?.classList.toggle('hidden', name !== 'app');
+  document.body.classList.toggle('app-active', name === 'app');
+  if (name !== 'app') closeFab();
+}
 
-function showApp() {
-  document.getElementById('screen-auth').style.display = 'none';
-  document.getElementById('screen-app').style.display = 'flex';
+function closeAllOverlays() {
+  closeModal();
+  closePopover();
+  closeCommandPalette();
+  closeFab();
+}
 
-  // Load mock data
-  state.groups = MOCK.groups;
-  state.members = MOCK.members;
-  state.categories = MOCK.categories;
-  state.transactions = MOCK.transactions;
-  state.plans = MOCK.plans;
-  state.rsvps = MOCK.rsvps;
-  state.comments = MOCK.comments;
-  state.checklist = MOCK.checklist;
-  state.goalCategories = MOCK.goalCategories;
-  state.goalItems = MOCK.goalItems;
-  state.debts = MOCK.debts;
-  state.invitations = MOCK.invitations;
-  state.currentGroupId = state.groups[0]?.id || null;
+/* =============================================================
+AUTH SCREEN
+============================================================= */
+function initAuthScreen() {
+  const tabs = $$('.segmented-btn');
+  const thumb = $('.segmented-thumb');
+  function switchTab(tab) {
+    tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.tab === tab));
+    thumb?.classList.toggle('right', tab === 'register');
+    $('#form-login')?.classList.toggle('hidden', tab !== 'login');
+    $('#form-register')?.classList.toggle('hidden', tab !== 'register');
+  }
+  tabs.forEach((tab) => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
 
-  renderSidebar();
-  renderBottomNav();
-  renderFAB();
-  renderView();
-  updateTopbar();
+  $('#form-login')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const phone = String(fd.get('phone_number') || '').replace(/\s+/g, '').trim();
+    const password = String(fd.get('password') || '');
+    try { setBusy(true); await login(phone, password); }
+    catch (err) { toast(err.message || 'Ошибка входа', 'error'); }
+    finally { setBusy(false); }
+  });
+
+  $('#form-register')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const fullName = String(fd.get('full_name') || '').trim();
+    const age = fd.get('age');
+    const phone = String(fd.get('phone_number') || '').replace(/\s+/g, '').trim();
+    const password = String(fd.get('password') || '');
+    try { setBusy(true); await register(fullName, age, phone, password); }
+    catch (err) { toast(err.message || 'Ошибка регистрации', 'error'); }
+    finally { setBusy(false); }
+  });
+}
+
+/* =============================================================
+BOOTSTRAP
+============================================================= */
+async function bootstrapApp() {
+  try {
+    setBusy(true);
+    const me = await apiCall('GET', '/users/me');
+    state.user = me.data;
+    const groups = await apiCall('GET', '/groups');
+    state.groups = groups.data || [];
+    if (!state.activeGroupId || !state.groups.some((g) => g.id === state.activeGroupId)) {
+      state.activeGroupId = state.groups[0]?.id || null;
+      if (state.activeGroupId) localStorage.setItem('active_group', state.activeGroupId);
+      else localStorage.removeItem('active_group');
+    }
+    const inv = await safeApi(apiCall('GET', '/invitations'), []);
+    state.invitations = (inv || []).filter((x) => !isDismissedInvitation(x));
+    showScreen('app');
+    renderShell();
+    await renderActiveView();
+    if (!localStorage.getItem('zunno-onboarded')) setTimeout(() => startOnboardingTour(false), 750);
+  } catch (err) {
+    toast(err.message || 'Не удалось загрузить данные', 'error');
+    if (err.status === 401) logout();
+    else showScreen('auth');
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderShell() {
+  renderSidebarUser();
+  renderSidebarGroups();
+  renderTopbarGroup();
+  renderTopbarUser();
   updateInvitationBadge();
+  hydrateIcons();
 }
 
-function updateTopbar() {
-  const group = state.groups.find(g => g.id === state.currentGroupId);
-  if (group) {
-    document.getElementById('group-name').textContent = group.name;
-    document.getElementById('group-avatar').textContent = getInitials(group.name);
+/* =============================================================
+SIDEBAR
+============================================================= */
+function isPersonalGroup(g) {
+  if (!g) return false;
+  if (g.is_personal === true || g.type === 'personal') return true;
+  const name = String(g.name || '').trim().toLowerCase();
+  return ['моё', 'мое', 'личное', 'личная', 'my', 'personal'].includes(name);
+}
+
+function renderSidebarUser() {
+  const box = $('#sidebar-user');
+  if (!box) return;
+  box.innerHTML = '';
+  const u = state.user;
+  if (!u) return;
+  box.appendChild(el('button', { type: 'button', class: 'user-chip', onclick: () => switchView('profile') }, [
+    el('div', { class: 'avatar' }, [initials(u.full_name)]),
+    el('div', { class: 'user-chip-info' }, [
+      el('div', { class: 'user-chip-name' }, [u.full_name || 'Без имени']),
+      el('div', { class: 'user-chip-phone' }, [u.phone_number || '']),
+    ]),
+  ]));
+}
+
+function renderSidebarGroups() {
+  const box = $('#sidebar-group-list');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!state.groups.length) {
+    box.appendChild(el('div', { class: 'text-xs text-3', style: 'padding: 8px 10px;' }, ['Нет групп']));
+    return;
   }
-  if (state.user) {
-    document.getElementById('user-avatar').textContent = getInitials(state.user.full_name);
+  const personalGroup = state.groups.find(isPersonalGroup);
+  const otherGroups = state.groups.filter((g) => g !== personalGroup);
+  if (personalGroup) {
+    box.appendChild(el('div', { class: 'text-xs text-3 nav-label', style: 'padding: 8px 10px 4px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;' }, ['Личное']));
+    box.appendChild(renderSidebarGroupItem(personalGroup, true));
+    if (otherGroups.length) box.appendChild(el('div', { style: 'height: 1px; background: var(--border); margin: 8px 10px;' }));
   }
+  if (otherGroups.length) {
+    box.appendChild(el('div', { class: 'text-xs text-3 nav-label', style: 'padding: 8px 10px 4px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;' }, ['Мои группы']));
+    otherGroups.forEach((g) => box.appendChild(renderSidebarGroupItem(g, false)));
+  }
+}
+
+function renderSidebarGroupItem(g, personal) {
+  return el('button', {
+    type: 'button',
+    class: 'sidebar-group-item' + (g.id === state.activeGroupId ? ' is-active' : ''),
+    'data-tip': g.name,
+    onclick: () => switchGroup(g.id),
+  }, [
+    el('span', {
+      class: 'group-dot',
+      style: personal ? 'background: linear-gradient(135deg, var(--primary), var(--accent));' : `background:${colorFromId(g.id)}`,
+    }),
+    el('span', { class: 'sidebar-group-item-name nav-label' }, [g.name]),
+  ]);
+}
+
+function initSidebar() {
+  const app = $('#screen-app');
+  const saved = localStorage.getItem('zunno-sidebar') === 'collapsed';
+  if (app) app.dataset.sidebar = saved ? 'collapsed' : 'expanded';
+  $('#sidebar-collapse')?.addEventListener('click', () => {
+    const collapsed = app.dataset.sidebar === 'collapsed';
+    app.dataset.sidebar = collapsed ? 'expanded' : 'collapsed';
+    localStorage.setItem('zunno-sidebar', collapsed ? 'expanded' : 'collapsed');
+  });
+
+  const block = $('#sidebar-group-block');
+  const savedOpen = localStorage.getItem('zunno-groups-open') !== 'false';
+  if (block) block.dataset.open = savedOpen ? 'true' : 'false';
+  $('#sidebar-groups-toggle')?.addEventListener('click', () => {
+    const open = block?.dataset.open === 'true';
+    if (block) block.dataset.open = open ? 'false' : 'true';
+    localStorage.setItem('zunno-groups-open', open ? 'false' : 'true');
+  });
+}
+
+/* =============================================================
+TOPBAR
+============================================================= */
+function renderTopbarGroup() {
+  const g = activeGroup();
+  const nameEl = $('#topbar-group-name');
+  const metaEl = $('#topbar-group-meta');
+  const avatarEl = $('#topbar-group-avatar');
+  if (!g) {
+    if (nameEl) nameEl.textContent = 'Нет группы';
+    if (metaEl) metaEl.textContent = 'Создайте или присоединитесь';
+    if (avatarEl) { avatarEl.textContent = '?'; avatarEl.style.background = ''; }
+    return;
+  }
+  if (nameEl) nameEl.textContent = g.name;
+  if (metaEl) metaEl.textContent = isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`;
+  if (avatarEl) {
+    avatarEl.textContent = initials(g.name);
+    avatarEl.style.background = `linear-gradient(135deg, ${colorFromId(g.id)}, var(--accent))`;
+  }
+}
+
+function renderTopbarUser() {
+  const btn = $('#topbar-user-btn');
+  if (!btn) return;
+  btn.textContent = initials(state.user?.full_name);
 }
 
 function updateInvitationBadge() {
-  const badge = document.getElementById('inv-badge');
-  const count = state.invitations.length;
-  if (count > 0) {
-    badge.textContent = count;
-    badge.style.display = 'flex';
-  } else {
-    badge.style.display = 'none';
+  const badge = $('#invitation-badge');
+  if (!badge) return;
+  const count = state.invitations?.length || 0;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
+}
+
+function activeGroup() {
+  return state.groups.find((g) => g.id === state.activeGroupId) || null;
+}
+
+function switchGroup(id) {
+  if (!id) return;
+  state.activeGroupId = id;
+  localStorage.setItem('active_group', id);
+  renderSidebarGroups();
+  renderTopbarGroup();
+  renderActiveView();
+  closePopover();
+  closeCommandPalette();
+}
+
+function initTopbar() {
+  $('#group-switcher-btn')?.addEventListener('click', (e) => openGroupPopover(e.currentTarget));
+  $('#invitations-btn')?.addEventListener('click', (e) => openInvitationsPopover(e.currentTarget));
+  $('#user-menu-btn')?.addEventListener('click', (e) => openUserPopover(e.currentTarget));
+  $('#btn-new-group')?.addEventListener('click', openCreateGroupModal);
+  $('#btn-join-group')?.addEventListener('click', openJoinGroupModal);
+}
+
+function openGroupPopover(anchor) {
+  const g = activeGroup();
+  const listWrap = el('div', { class: 'popover-list' });
+  const search = el('input', {
+    class: 'input popover-search',
+    type: 'text',
+    placeholder: 'Поиск группы...',
+    oninput: (e) => renderGroupList(e.target.value, listWrap),
+  });
+
+  const actions = el('div', { class: 'popover-actions' }, [
+    popoverAction('plus', 'Создать группу', openCreateGroupModal),
+    popoverAction('login', 'Присоединиться по ID', openJoinGroupModal),
+    g ? popoverAction('copy', 'Скопировать ID группы', () => copyText(g.id, 'ID группы скопирован')) : null,
+    g ? popoverAction('settings', 'Настройки группы', openGroupSettingsModal) : null,
+  ].filter(Boolean));
+
+  renderGroupList('', listWrap);
+
+  openPopover(anchor, el('div', {}, [
+    popoverHeader('Группы', state.groups.length ? `${state.groups.length} доступно` : ''),
+    search,
+    listWrap,
+    el('div', { class: 'popover-divider' }),
+    actions,
+  ]));
+}
+
+function renderGroupList(query, listWrap) {
+  const q = String(query || '').trim().toLowerCase();
+  const groups = state.groups.filter((g) => !q || `${g.name} ${g.id}`.toLowerCase().includes(q));
+  listWrap.innerHTML = '';
+  if (!groups.length) { listWrap.appendChild(popoverEmpty('Ничего не найдено')); return; }
+  groups.forEach((group) => {
+    listWrap.appendChild(el('button', {
+      type: 'button',
+      class: 'popover-item' + (group.id === state.activeGroupId ? ' is-active' : ''),
+      onclick: () => { closePopover(); switchGroup(group.id); },
+    }, [
+      el('span', {
+        class: 'group-avatar',
+        style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
+      }, [initials(group.name)]),
+      el('span', { class: 'popover-item-main' }, [
+        el('span', { class: 'popover-item-title' }, [group.name]),
+        el('span', { class: 'popover-item-sub' }, [isPersonalGroup(group) ? 'Личное пространство' : `ID: ${shortId(group.id)}`]),
+      ]),
+      group.id === state.activeGroupId ? el('span', { 'data-icon': 'check', 'data-size': 'sm', style: 'color: var(--success);' }) : null,
+    ].filter(Boolean)));
+  });
+  hydrateIcons(listWrap);
+}
+
+function openUserPopover(anchor) {
+  const u = state.user;
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
+  openPopover(anchor, el('div', {}, [
+    el('div', { class: 'popover-header' }, [
+      el('div', { class: 'row', style: 'gap:10px;' }, [
+        el('div', { class: 'avatar' }, [initials(u?.full_name)]),
+        el('div', {}, [
+          el('div', { class: 'popover-title' }, [u?.full_name || 'Профиль']),
+          el('div', { class: 'popover-subtitle' }, [u?.phone_number || '']),
+        ]),
+      ]),
+    ]),
+    el('div', { class: 'popover-divider' }),
+    el('div', { class: 'theme-row' }, THEMES.map((t) => el('button', {
+      type: 'button',
+      class: 'theme-option' + (currentTheme === t ? ' is-active' : ''),
+      onclick: () => { applyTheme(t); closePopover(); toast(`Тема: ${THEME_META[t].label}`, 'info', 1500); },
+    }, [icon(THEME_META[t].icon, 18), el('span', {}, [THEME_META[t].label])]))),
+    el('div', { class: 'popover-divider' }),
+    el('div', { class: 'popover-actions' }, [
+      popoverAction('user', 'Мой профиль', () => switchView('profile')),
+      popoverAction('bell', 'Приглашения', () => openInvitationsPopover(anchor)),
+      popoverAction('logout', 'Выйти', logout, true),
+    ]),
+  ]));
+}
+
+function openInvitationsPopover(anchor) {
+  const items = state.invitations?.length
+    ? state.invitations.map((inv) => renderInvitationItem(inv, true))
+    : [popoverEmpty('Новых приглашений нет')];
+  openPopover(anchor, el('div', {}, [
+    popoverHeader('Приглашения', state.invitations?.length ? `${state.invitations.length} новых` : ''),
+    el('div', { class: 'popover-list' }, items),
+  ]));
+}
+
+/* =============================================================
+VIEW ROUTER
+============================================================= */
+const VIEWS = {
+  dashboard: { title: 'Обзор', icon: 'dashboard', render: renderDashboard },
+  goals: { title: 'Цели', icon: 'target', render: renderGoals },
+  budget: { title: 'Бюджет', icon: 'wallet', render: renderBudget },
+  plans: { title: 'Планы', icon: 'calendar', render: renderPlans },
+  profile: { title: 'Профиль', icon: 'user', render: renderProfile },
+};
+
+async function renderActiveView() {
+  const view = VIEWS[state.view];
+  if (!view) return;
+  viewAnimators = [];
+  $$('.nav-item').forEach((n) => n.classList.toggle('is-active', n.dataset.view === state.view));
+  $$('.mobile-nav-item').forEach((n) => n.classList.toggle('is-active', n.dataset.view === state.view));
+  const container = $('#view');
+  if (!container) return;
+  container.scrollTop = 0;
+  container.innerHTML = '';
+  renderSkeleton(container);
+  try {
+    await view.render(container);
+    staggerChildren(container);
+    hydrateIcons(container);
+    flushAnimators();
+  } catch (err) {
+    renderError(container, err);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SIDEBAR
-// ═══════════════════════════════════════════════════════════════
-
-function renderSidebar() {
-  const navItems = [
-    { id: 'dashboard', icon: 'home', label: 'Обзор' },
-    { id: 'budget', icon: 'wallet', label: 'Бюджет' },
-    { id: 'plans', icon: 'calendar', label: 'Планы' },
-    { id: 'goals', icon: 'target', label: 'Цели' },
-    { id: 'debts', icon: 'dollar', label: 'Долги' },
-    { id: 'profile', icon: 'user', label: 'Профиль' },
-  ];
-
-  const navHTML = navItems.map(item => `
-    <button class="sidebar-item ${state.view === item.id ? 'active' : ''}" data-view="${item.id}">
-      ${icon(item.icon, 18)}
-      <span>${item.label}</span>
-    </button>
-  `).join('');
-  document.getElementById('sidebar-nav').innerHTML = navHTML;
-
-  const groupsHTML = state.groups.map(g => `
-    <button class="sidebar-item ${state.currentGroupId === g.id ? 'active' : ''}" data-group="${g.id}">
-      <div class="avatar sm">${getInitials(g.name)}</div>
-      <span class="truncate">${g.name}</span>
-    </button>
-  `).join('');
-  document.getElementById('sidebar-groups').innerHTML = groupsHTML;
-
-  // Event listeners
-  document.querySelectorAll('[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.view = btn.dataset.view;
-      state.selectedPlanId = null;
-      renderSidebar();
-      renderView();
-      closeSidebar();
-    });
-  });
-
-  document.querySelectorAll('[data-group]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.currentGroupId = btn.dataset.group;
-      state.view = 'dashboard';
-      renderSidebar();
-      renderView();
-      updateTopbar();
-      closeSidebar();
-    });
-  });
+function switchView(name) {
+  state.view = name;
+  renderActiveView();
+  closePopover();
+  closeCommandPalette();
+  closeFab();
 }
 
-function closeSidebar() {
-  state.sidebarOpen = false;
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('visible');
+function renderSkeleton(container) {
+  container.innerHTML = `
+    <div class="skeleton skeleton-hero"></div>
+    <div class="skeleton-grid">
+      <div class="skeleton skeleton-stat"></div>
+      <div class="skeleton skeleton-stat"></div>
+      <div class="skeleton skeleton-stat"></div>
+      <div class="skeleton skeleton-stat"></div>
+    </div>
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-line" style="width: 38%"></div>
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-line" style="width: 52%"></div>
+    <div class="skeleton skeleton-line" style="width: 28%"></div>
+  `;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BOTTOM NAV
-// ═══════════════════════════════════════════════════════════════
-
-function renderBottomNav() {
-  const items = [
-    { id: 'dashboard', icon: 'home', label: 'Обзор' },
-    { id: 'budget', icon: 'wallet', label: 'Бюджет' },
-    { id: 'plans', icon: 'calendar', label: 'Планы' },
-    { id: 'goals', icon: 'target', label: 'Цели' },
-    { id: 'debts', icon: 'dollar', label: 'Долги' },
-  ];
-
-  const html = `<div class="bottom-nav-items">${items.map(item => `
-    <button class="bottom-nav-item ${state.view === item.id ? 'active' : ''}" data-view="${item.id}">
-      ${icon(item.icon, 22)}
-      <span>${item.label}</span>
-    </button>
-  `).join('')}</div>`;
-  document.getElementById('bottom-nav').innerHTML = html;
-
-  document.querySelectorAll('#bottom-nav [data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.view = btn.dataset.view;
-      state.selectedPlanId = null;
-      renderBottomNav();
-      renderSidebar();
-      renderView();
-    });
-  });
+function renderError(container, err) {
+  container.innerHTML = '';
+  container.appendChild(emptyState('alert', 'Не удалось загрузить раздел', err?.message || 'Неизвестная ошибка'));
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FAB
-// ═══════════════════════════════════════════════════════════════
-
-function renderFAB() {
-  const items = [
-    { icon: 'dollar', label: 'Добавить трату', action: 'showTransactionModal' },
-    { icon: 'split', label: 'Разделить счёт', action: 'showSplitModal' },
-    { icon: 'calendar', label: 'Новый план', action: 'showPlanModal' },
-    { icon: 'target', label: 'Новая цель', action: 'showGoalModal' },
-  ];
-
-  const menuHTML = items.map(item => `
-    <button class="fab-menu-item" data-action="${item.action}">
-      ${icon(item.icon, 18)}
-      <span>${item.label}</span>
-    </button>
-  `).join('');
-  document.getElementById('fab-menu').innerHTML = menuHTML;
-
-  document.getElementById('fab-btn').addEventListener('click', () => {
-    state.fabOpen = !state.fabOpen;
-    document.getElementById('fab').classList.toggle('open', state.fabOpen);
-  });
-
-  document.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      window[btn.dataset.action]();
-      state.fabOpen = false;
-      document.getElementById('fab').classList.remove('open');
-    });
-  });
+/* =============================================================
+UI HELPERS
+============================================================= */
+function field(label, control, hint) {
+  const children = [el('span', { class: 'field-label' }, [label]), control];
+  if (hint) children.push(el('span', { class: 'field-hint' }, [hint]));
+  return el('label', { class: 'field' }, children);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// VIEWS
-// ═══════════════════════════════════════════════════════════════
+function sectionHead(title, desc, action = null) {
+  return el('div', { class: 'section-head' }, [
+    el('div', {}, [
+      el('div', { class: 'section-title' }, [title]),
+      el('div', { class: 'section-desc' }, [desc]),
+    ]),
+    action,
+  ].filter(Boolean));
+}
 
-function renderView() {
-  const container = document.getElementById('view-container');
-  renderBottomNav();
-  renderSidebar();
+function sectionBlock(title, desc, action, content, attrs = {}) {
+  return el('section', { class: 'section', ...attrs }, [sectionHead(title, desc, action), content]);
+}
 
-  switch (state.view) {
-    case 'dashboard': renderDashboard(container); break;
-    case 'budget': renderBudget(container); break;
-    case 'plans': renderPlans(container); break;
-    case 'plan-detail': renderPlanDetail(container); break;
-    case 'goals': renderGoals(container); break;
-    case 'debts': renderDebts(container); break;
-    case 'profile': renderProfile(container); break;
-    default: renderDashboard(container);
+function emptyState(iconName, title, text, actions = []) {
+  return el('div', { class: 'card' }, [
+    el('div', { class: 'empty' }, [
+      el('div', { class: 'empty-ico' }, [icon(iconName, 30)]),
+      el('div', { class: 'empty-title' }, [title]),
+      el('div', { class: 'empty-text' }, [text]),
+      actions.length ? el('div', { class: 'empty-actions' }, actions) : null,
+    ].filter(Boolean)),
+  ]);
+}
+
+function miniEmpty(text) { return el('div', { class: 'mini-empty' }, [text]); }
+
+function chartCard(title, subtitle, content) {
+  return el('div', { class: 'card chart-card' }, [
+    el('div', { class: 'card-head' }, [
+      el('div', {}, [
+        el('div', { class: 'card-title' }, [title]),
+        el('div', { class: 'card-subtitle' }, [subtitle]),
+      ]),
+    ]),
+    content,
+  ]);
+}
+
+function statTile(label, value, variant = '', formatter = fmtMoney) {
+  const valueNode = el('div', { class: `stat-value ${variant}`.trim() }, ['—']);
+  const node = el('div', { class: 'stat-card' }, [
+    el('div', { class: 'stat-label' }, [label]),
+    valueNode,
+  ]);
+  animateNumber(valueNode, Number(value) || 0, formatter);
+  return node;
+}
+
+function animateNumber(node, value, formatter) {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    node.textContent = formatter(value);
+    return;
   }
-}
-
-function renderDashboard(container) {
-  const totalSpent = state.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const totalIncome = state.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const unpaidDebts = state.debts.incoming.length + state.debts.outgoing.length;
-  const upcomingPlans = state.plans.filter(p => !p.is_done && new Date(p.event_date) > new Date()).length;
-  const recentTx = state.transactions.slice(0, 5);
-  const groupName = state.groups.find(g => g.id === state.currentGroupId)?.name || '';
-
-  container.innerHTML = `
-    <h1 class="view-title">Обзор</h1>
-    <p class="view-subtitle">Общая картина по группе «${groupName}»</p>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">Расходы</span>
-        <span class="stat-value text-danger">${formatCurrency(totalSpent)}</span>
-        <span class="stat-change negative">↓ 12% к прошлому месяцу</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Доходы</span>
-        <span class="stat-value text-success">${formatCurrency(totalIncome)}</span>
-        <span class="stat-change positive">↑ 5% к прошлому месяцу</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Долги</span>
-        <span class="stat-value">${unpaidDebts}</span>
-        <span class="stat-change text-muted">непогашенных</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Планы</span>
-        <span class="stat-value">${upcomingPlans}</span>
-        <span class="stat-change text-muted">предстоящих</span>
-      </div>
-    </div>
-    <div class="card mb-6">
-      <div class="card-header"><h3 class="card-title">Бюджет по категориям</h3></div>
-      <div class="list">
-        ${state.categories.slice(0, 4).map(cat => {
-          const spent = state.transactions.filter(t => t.category_id === cat.id && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-          const pct = cat.budget_limit > 0 ? Math.min(100, Math.round((spent / cat.budget_limit) * 100)) : 0;
-          return `
-            <div class="list-item" style="cursor:default">
-              <div class="list-item-content">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="list-item-title">${cat.name}</span>
-                  <span class="text-sm text-muted">${formatCurrency(spent)} / ${formatCurrency(cat.budget_limit)}</span>
-                </div>
-                <div class="progress-bar"><div class="progress-fill ${pct > 90 ? 'danger' : ''}" style="width:${pct}%"></div></div>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Последние операции</h3></div>
-      <div class="list">
-        ${recentTx.map(tx => `
-          <div class="list-item" style="cursor:default">
-            <div class="list-item-avatar" style="background:${tx.type === 'income' ? 'var(--success)' : 'var(--danger)'}">${tx.type === 'income' ? '+' : '−'}</div>
-            <div class="list-item-content">
-              <div class="list-item-title">${tx.description || getCategoryName(tx.category_id)}</div>
-              <div class="list-item-subtitle">${getCategoryName(tx.category_id)} · ${formatDate(tx.date)}</div>
-            </div>
-            <span class="font-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}">${tx.type === 'income' ? '+' : '−'}${formatCurrency(tx.amount)}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function renderBudget(container) {
-  const totalBudget = state.categories.reduce((s, c) => s + c.budget_limit, 0);
-  const totalSpent = state.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-
-  container.innerHTML = `
-    <h1 class="view-title">Бюджет</h1>
-    <p class="view-subtitle">Управление категориями и расходами</p>
-    <div class="stats-grid">
-      <div class="stat-card"><span class="stat-label">Общий бюджет</span><span class="stat-value">${formatCurrency(totalBudget)}</span></div>
-      <div class="stat-card"><span class="stat-label">Потрачено</span><span class="stat-value text-danger">${formatCurrency(totalSpent)}</span></div>
-      <div class="stat-card"><span class="stat-label">Остаток</span><span class="stat-value text-success">${formatCurrency(totalBudget - totalSpent)}</span></div>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">Категории</h3>
-        <div class="flex gap-2">
-          <button class="btn btn-sm btn-secondary" id="btn-export-csv">${icon('download', 14)} CSV</button>
-          <button class="btn btn-sm btn-primary" id="btn-add-category">${icon('plus', 14)} Добавить</button>
-        </div>
-      </div>
-      <div class="list">
-        ${state.categories.map(cat => {
-          const spent = state.transactions.filter(t => t.category_id === cat.id && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-          const pct = cat.budget_limit > 0 ? Math.min(100, Math.round((spent / cat.budget_limit) * 100)) : 0;
-          return `
-            <div class="list-item" style="cursor:default">
-              <div class="list-item-content">
-                <div class="flex items-center justify-between mb-2">
-                  <div class="flex items-center gap-2">
-                    <span class="list-item-title">${cat.name}</span>
-                    <span class="chip ${cat.type === 'fixed' ? 'chip-primary' : 'chip-warning'}" style="font-size:10px;padding:2px 6px">${cat.type === 'fixed' ? 'Фикс' : 'Спонтан'}</span>
-                  </div>
-                  <span class="text-sm text-muted">${formatCurrency(spent)} / ${formatCurrency(cat.budget_limit)}</span>
-                </div>
-                <div class="progress-bar"><div class="progress-fill ${pct > 90 ? 'danger' : ''}" style="width:${pct}%"></div></div>
-              </div>
-              <button class="icon-btn sm btn-delete-cat" data-id="${cat.id}" aria-label="Удалить">${icon('trash', 16)}</button>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    </div>
-    <div class="card mt-6">
-      <div class="card-header"><h3 class="card-title">Все операции</h3></div>
-      <div class="list">
-        ${state.transactions.map(tx => `
-          <div class="list-item" style="cursor:default">
-            <div class="list-item-avatar" style="background:${tx.type === 'income' ? 'var(--success)' : 'var(--danger)'}">${tx.type === 'income' ? '+' : '−'}</div>
-            <div class="list-item-content">
-              <div class="list-item-title">${tx.description || getCategoryName(tx.category_id)}</div>
-              <div class="list-item-subtitle">${getMemberName(tx.user_id)} · ${getCategoryName(tx.category_id)} · ${formatDate(tx.date)}</div>
-            </div>
-            <span class="font-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}">${tx.type === 'income' ? '+' : '−'}${formatCurrency(tx.amount)}</span>
-            <button class="icon-btn sm btn-delete-tx" data-id="${tx.id}" aria-label="Удалить">${icon('trash', 16)}</button>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  document.getElementById('btn-add-category').addEventListener('click', showCategoryModal);
-  document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
-  document.querySelectorAll('.btn-delete-cat').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.categories = state.categories.filter(c => c.id !== btn.dataset.id);
-      renderView();
-      showToast('Категория удалена', 'info');
-    });
-  });
-  document.querySelectorAll('.btn-delete-tx').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.transactions = state.transactions.filter(t => t.id !== btn.dataset.id);
-      renderView();
-      showToast('Операция удалена', 'info');
-    });
-  });
-}
-
-function exportCSV() {
-  const csv = 'Дата,Тип,Категория,Описание,Сумма,Участник\n' +
-    state.transactions.map(tx =>
-      `${formatDateTime(tx.date)},${tx.type === 'income' ? 'Доход' : 'Расход'},${getCategoryName(tx.category_id)},${tx.description},${tx.amount},${getMemberName(tx.user_id)}`
-    ).join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `zunno-transactions-${new Date().toISOString().split('T')[0]}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('CSV экспортирован', 'success');
-}
-
-function renderPlans(container) {
-  const recurrenceLabels = { daily: 'Каждый день', weekly: 'Каждую неделю', monthly: 'Каждый месяц' };
-
-  container.innerHTML = `
-    <h1 class="view-title">Планы</h1>
-    <p class="view-subtitle">События и встречи группы</p>
-    ${state.invitations.length > 0 ? `
-      <div class="card mb-6" style="border-color:var(--primary);background:var(--primary-soft)">
-        <div class="flex items-center gap-3">
-          ${icon('mail', 20)}
-          <div class="flex-1">
-            <strong>${state.invitations.length} приглашений</strong>
-            <p class="text-sm text-muted">От: ${state.invitations.map(i => i.inviter_name).join(', ')}</p>
-          </div>
-          <button class="btn btn-sm btn-primary" id="btn-view-invitations">Посмотреть</button>
-        </div>
-      </div>
-    ` : ''}
-    <div class="list">
-      ${state.plans.map(plan => {
-        const planRsvps = state.rsvps.filter(r => r.EventID === plan.id);
-        const goingCount = planRsvps.filter(r => r.Status === 'going').length;
-        return `
-          <div class="list-item" data-plan-id="${plan.id}">
-            <div class="list-item-avatar" style="background:${plan.is_done ? 'var(--success)' : 'var(--primary)'}">${icon('calendar', 18)}</div>
-            <div class="list-item-content">
-              <div class="flex items-center gap-2">
-                <span class="list-item-title" style="text-decoration:${plan.is_done ? 'line-through' : 'none'}">${plan.title}</span>
-                ${plan.recurrence_rule ? `<span class="chip chip-primary" style="font-size:10px;padding:2px 6px">🔁 ${recurrenceLabels[plan.recurrence_rule]}</span>` : ''}
-              </div>
-              <div class="list-item-subtitle">${formatDate(plan.event_date)} · ${goingCount} идут</div>
-            </div>
-            <div class="list-item-actions">
-              <button class="icon-btn sm btn-toggle-plan" data-id="${plan.id}" aria-label="Выполнено">${icon('check', 16)}</button>
-              ${icon('chevronRight', 16)}
-            </div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-    ${state.plans.length === 0 ? `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon('calendar')}</div>
-        <h3 class="empty-state-title">Нет планов</h3>
-        <p class="empty-state-text">Создайте первый план для вашей группы</p>
-        <button class="btn btn-primary" id="btn-create-plan">Создать план</button>
-      </div>
-    ` : ''}
-  `;
-
-  document.querySelectorAll('[data-plan-id]').forEach(item => {
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-toggle-plan')) return;
-      state.selectedPlanId = item.dataset.planId;
-      state.view = 'plan-detail';
-      renderView();
-    });
-  });
-
-  document.querySelectorAll('.btn-toggle-plan').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const plan = state.plans.find(p => p.id === btn.dataset.id);
-      if (plan) { plan.is_done = !plan.is_done; renderView(); }
-    });
-  });
-
-  const viewInvBtn = document.getElementById('btn-view-invitations');
-  if (viewInvBtn) viewInvBtn.addEventListener('click', () => { state.view = 'profile'; renderView(); });
-
-  const createBtn = document.getElementById('btn-create-plan');
-  if (createBtn) createBtn.addEventListener('click', showPlanModal);
-}
-
-function renderPlanDetail(container) {
-  const plan = state.plans.find(p => p.id === state.selectedPlanId);
-  if (!plan) { container.innerHTML = '<div class="view"><p>План не найден</p></div>'; return; }
-
-  const planRsvps = state.rsvps.filter(r => r.EventID === plan.id);
-  const planComments = state.comments.filter(c => c.EventID === plan.id);
-  const planChecklist = state.checklist.filter(c => c.event_id === plan.id);
-  const myRsvp = planRsvps.find(r => r.UserID === state.user?.id);
-
-  container.innerHTML = `
-    <button class="btn btn-ghost mb-4" id="btn-back-plans">${icon('arrowLeft', 16)} Назад к планам</button>
-    <div class="card mb-6">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="avatar lg">${getInitials(plan.title)}</div>
-        <div class="flex-1">
-          <h2 style="font-size:20px;font-weight:700">${plan.title}</h2>
-          <p class="text-sm text-muted">${formatDateTime(plan.event_date)} · ${getMemberName(plan.creator_id)}</p>
-        </div>
-        <button class="icon-btn btn-delete-plan" aria-label="Удалить">${icon('trash', 18)}</button>
-      </div>
-      ${plan.description ? `<p class="text-sm mb-4" style="color:var(--text-2)">${plan.description}</p>` : ''}
-      ${plan.recurrence_rule ? `<span class="chip chip-primary">🔁 Повторение: ${plan.recurrence_rule === 'daily' ? 'Каждый день' : plan.recurrence_rule === 'weekly' ? 'Каждую неделю' : 'Каждый месяц'}</span>` : ''}
-    </div>
-    <div class="tabs" id="plan-tabs">
-      <button class="tab active" data-tab="info">Инфо</button>
-      <button class="tab" data-tab="rsvp">RSVP (${planRsvps.length})</button>
-      <button class="tab" data-tab="comments">Чат (${planComments.length})</button>
-      <button class="tab" data-tab="checklist">Чеклист (${planChecklist.filter(c => c.is_checked).length}/${planChecklist.length})</button>
-    </div>
-    <div id="plan-tab-content"></div>
-  `;
-
-  document.getElementById('btn-back-plans').addEventListener('click', () => { state.view = 'plans'; state.selectedPlanId = null; renderView(); });
-  document.querySelector('.btn-delete-plan').addEventListener('click', () => {
-    state.plans = state.plans.filter(p => p.id !== plan.id);
-    state.view = 'plans'; state.selectedPlanId = null;
-    renderView();
-    showToast('План удалён', 'info');
-  });
-
-  function renderTabContent(tab) {
-    const content = document.getElementById('plan-tab-content');
-    if (tab === 'info') {
-      content.innerHTML = `
-        <div class="card">
-          <h3 class="card-title mb-4">Детали</h3>
-          <div class="flex flex-col gap-3">
-            <div class="flex justify-between"><span class="text-muted text-sm">Дата</span><span class="text-sm font-bold">${formatDateTime(plan.event_date)}</span></div>
-            <div class="flex justify-between"><span class="text-muted text-sm">Создатель</span><span class="text-sm font-bold">${getMemberName(plan.creator_id)}</span></div>
-            <div class="flex justify-between"><span class="text-muted text-sm">Статус</span><span class="chip ${plan.is_done ? 'chip-success' : 'chip-warning'}">${plan.is_done ? 'Завершён' : 'Активен'}</span></div>
-          </div>
-        </div>
-      `;
-    } else if (tab === 'rsvp') {
-      content.innerHTML = `
-        <div class="card">
-          <h3 class="card-title mb-4">Кто идёт?</h3>
-          <div class="rsvp-buttons mb-6">
-            <button class="rsvp-btn ${myRsvp?.Status === 'going' ? 'active-going' : ''}" data-rsvp="going">✅ Иду</button>
-            <button class="rsvp-btn ${myRsvp?.Status === 'not_going' ? 'active-not-going' : ''}" data-rsvp="not_going">❌ Не иду</button>
-            <button class="rsvp-btn ${myRsvp?.Status === 'maybe' ? 'active-maybe' : ''}" data-rsvp="maybe">🤔 Может быть</button>
-          </div>
-          <div class="divider"></div>
-          <div class="list mt-4">
-            ${state.members.filter(m => m.status === 'active').map(member => {
-              const rsvp = planRsvps.find(r => r.UserID === member.user_id);
-              return `
-                <div class="list-item" style="cursor:default">
-                  <div class="avatar sm">${getInitials(member.full_name)}</div>
-                  <span class="flex-1 text-sm font-bold">${member.full_name}</span>
-                  ${rsvp ? `<span class="chip ${rsvp.Status === 'going' ? 'chip-success' : rsvp.Status === 'not_going' ? 'chip-danger' : 'chip-warning'}">${rsvp.Status === 'going' ? '✅ Иду' : rsvp.Status === 'not_going' ? '❌ Не иду' : '🤔 Может быть'}</span>` : '<span class="chip" style="font-size:10px">Нет ответа</span>'}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `;
-      content.querySelectorAll('[data-rsvp]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const status = btn.dataset.rsvp;
-          state.rsvps = state.rsvps.filter(r => !(r.UserID === state.user.id && r.EventID === plan.id));
-          state.rsvps.push({ UserID: state.user.id, EventID: plan.id, Status: status, UpdatedAt: new Date().toISOString() });
-          renderTabContent('rsvp');
-          showToast(`Статус: ${status === 'going' ? 'Иду' : status === 'not_going' ? 'Не иду' : 'Может быть'}`, 'success');
-        });
-      });
-    } else if (tab === 'comments') {
-      content.innerHTML = `
-        <div class="card">
-          <h3 class="card-title mb-4">Обсуждение</h3>
-          <div class="comments-list" id="comments-list">
-            ${planComments.map(c => `
-              <div class="comment-item">
-                <div class="avatar sm">${getInitials(c.FullName)}</div>
-                <div class="comment-body">
-                  <div class="comment-header">
-                    <span class="comment-author">${c.FullName}</span>
-                    <span class="comment-time">${formatDateTime(c.CreatedAt)}</span>
-                  </div>
-                  <p class="comment-text">${c.Text}</p>
-                </div>
-              </div>
-            `).join('')}
-            ${planComments.length === 0 ? '<p class="text-muted text-sm text-center p-4">Пока нет сообщений</p>' : ''}
-          </div>
-          <div class="comment-input-row">
-            <input class="form-input" id="comment-input" placeholder="Написать сообщение..." />
-            <button class="btn btn-primary" id="btn-send-comment" aria-label="Отправить">${icon('send', 16)}</button>
-          </div>
-        </div>
-      `;
-      const input = document.getElementById('comment-input');
-      const sendBtn = document.getElementById('btn-send-comment');
-      const sendComment = () => {
-        if (!input.value.trim()) return;
-        state.comments.push({ ID: generateId(), EventID: plan.id, UserID: state.user.id, FullName: state.user.full_name, Text: input.value, CreatedAt: new Date().toISOString() });
-        input.value = '';
-        renderTabContent('comments');
-      };
-      sendBtn.addEventListener('click', sendComment);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } });
-    } else if (tab === 'checklist') {
-      content.innerHTML = `
-        <div class="card">
-          <h3 class="card-title mb-4">Чеклист</h3>
-          <div class="list">
-            ${planChecklist.map(item => `
-              <div class="list-item" data-checklist-id="${item.id}">
-                <div class="checkbox ${item.is_checked ? 'checked' : ''}">${item.is_checked ? icon('check', 12) : ''}</div>
-                <span class="text-sm" style="text-decoration:${item.is_checked ? 'line-through' : 'none'};color:${item.is_checked ? 'var(--text-3)' : 'var(--text)'}">${item.text}</span>
-              </div>
-            `).join('')}
-          </div>
-          <div class="flex gap-2 mt-4">
-            <input class="form-input flex-1" id="checklist-input" placeholder="Новый пункт..." />
-            <button class="btn btn-primary" id="btn-add-checklist">${icon('plus', 16)}</button>
-          </div>
-        </div>
-      `;
-      content.querySelectorAll('[data-checklist-id]').forEach(item => {
-        item.addEventListener('click', () => {
-          const cl = state.checklist.find(c => c.id === item.dataset.checklistId);
-          if (cl) { cl.is_checked = !cl.is_checked; renderTabContent('checklist'); }
-        });
-      });
-      const addBtn = document.getElementById('btn-add-checklist');
-      const input = document.getElementById('checklist-input');
-      const addItem = () => {
-        if (!input.value.trim()) return;
-        state.checklist.push({ id: generateId(), version: 1, event_id: plan.id, text: input.value, is_checked: false, checked_at: null });
-        input.value = '';
-        renderTabContent('checklist');
-      };
-      addBtn.addEventListener('click', addItem);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
-    }
+  const duration = 900;
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    node.textContent = formatter(value * eased);
+    if (p < 1) requestAnimationFrame(tick);
   }
+  requestAnimationFrame(tick);
+}
 
-  document.querySelectorAll('#plan-tabs .tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('#plan-tabs .tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      renderTabContent(tab.dataset.tab);
+function chip(iconName, label, onClick) {
+  return el('button', { type: 'button', class: 'chip', onclick: onClick }, [
+    el('span', { 'data-icon': iconName, 'data-size': 'sm' }),
+    el('span', {}, [label]),
+  ]);
+}
+
+function progressRing(percent, size = 48, stroke = 5) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (clamp(percent, 0, 100) / 100) * c;
+  const gid = `ringGradient-${++ringCounter}`;
+  const defs = svgEl('defs', {}, [
+    svgEl('linearGradient', { id: gid, x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
+      svgEl('stop', { offset: '0%', 'stop-color': 'var(--primary)' }),
+      svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)' }),
+    ]),
+  ]);
+  const bg = svgEl('circle', { class: 'ring-bg', cx: size / 2, cy: size / 2, r, fill: 'none', 'stroke-width': stroke });
+  const fg = svgEl('circle', {
+    class: 'ring-fg',
+    cx: size / 2,
+    cy: size / 2,
+    r,
+    fill: 'none',
+    'stroke-width': stroke,
+    stroke: `url(#${gid})`,
+    transform: `rotate(-90 ${size / 2} ${size / 2})`,
+    style: `stroke-dasharray:${c}; stroke-dashoffset:${c};`,
+  });
+  animateLater(() => { fg.style.strokeDashoffset = String(offset); });
+  return svgEl('svg', { class: 'progress-ring', viewBox: `0 0 ${size} ${size}` }, [defs, bg, fg]);
+}
+
+/* =============================================================
+CHARTS
+============================================================= */
+function donutChart(items, options = {}) {
+  const valid = items.map((item) => ({ ...item, value: Number(item.value || 0) })).filter((item) => item.value > 0).slice(0, 8);
+  if (!valid.length) return miniEmpty(options.empty || 'Нет данных для диаграммы');
+  const total = valid.reduce((sum, item) => sum + item.value, 0);
+  const size = 170;
+  const stroke = 20;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const circles = valid.map((item, idx) => {
+    const dash = (item.value / total) * circumference;
+    const color = item.color || colorFromId(`${item.label}-${idx}`);
+    const circle = svgEl('circle', {
+      cx: size / 2,
+      cy: size / 2,
+      r: radius,
+      fill: 'none',
+      stroke: color,
+      'stroke-width': stroke,
+      'stroke-linecap': 'round',
+      'stroke-dasharray': `0 ${circumference}`,
+      'stroke-dashoffset': -offset,
+      transform: `rotate(-90 ${size / 2} ${size / 2})`,
     });
+    circle.appendChild(svgEl('title', {}, [`${item.label}: ${fmtMoney(item.value)}`]));
+    animateLater(() => { circle.style.strokeDasharray = `${dash} ${circumference - dash}`; });
+    offset += dash;
+    return circle;
   });
-
-  renderTabContent('info');
+  const centerValue = options.centerValue === false ? String(valid.length) : fmtMoney(total);
+  const svgNode = svgEl('svg', { viewBox: `0 0 ${size} ${size}`, class: 'donut-svg', role: 'img', 'aria-label': options.aria || 'Круговая диаграмма' }, [
+    ...circles,
+    svgEl('text', { x: '50%', y: '48%', 'text-anchor': 'middle', class: 'donut-center-value' }, [centerValue]),
+    svgEl('text', { x: '50%', y: '62%', 'text-anchor': 'middle', class: 'donut-center-label' }, [options.centerLabel || 'всего']),
+  ]);
+  const legend = el('div', { class: 'chart-legend' }, valid.map((item, idx) => el('div', { class: 'legend-item' }, [
+    el('span', { class: 'legend-dot', style: `background:${item.color || colorFromId(`${item.label}-${idx}`)}` }),
+    el('span', { class: 'legend-label' }, [item.label]),
+    el('span', { class: 'legend-value mono' }, [fmtMoney(item.value)]),
+  ])));
+  return el('div', { class: 'donut-chart' }, [svgNode, legend]);
 }
 
-function renderGoals(container) {
-  container.innerHTML = `
-    <h1 class="view-title">Цели</h1>
-    <p class="view-subtitle">Достижения и задачи группы</p>
-    <div class="list" id="goals-list">
-      ${state.goalCategories.map(cat => {
-        const items = state.goalItems.filter(g => g.category_id === cat.id);
-        const done = items.filter(g => g.done).length;
-        const pct = items.length > 0 ? Math.round((done / items.length) * 100) : 0;
-        const isUrgent = cat.due_date && new Date(cat.due_date).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000 && done < items.length;
-        return `
-          <div class="list-item" data-cat-id="${cat.id}" style="${isUrgent ? 'border-color:var(--danger)' : ''}">
-            <div class="list-item-avatar" style="background:${isUrgent ? 'var(--danger)' : 'var(--primary)'}">${icon('target', 18)}</div>
-            <div class="list-item-content">
-              <div class="flex items-center gap-2">
-                <span class="list-item-title">${cat.name}</span>
-                ${isUrgent ? '<span class="chip chip-danger" style="font-size:10px;padding:2px 6px">Срочно!</span>' : ''}
-              </div>
-              <div class="list-item-subtitle">${done}/${items.length} выполнено${cat.due_date ? ` · Дедлайн: ${formatDate(cat.due_date)}` : ''}</div>
-              <div class="progress-bar mt-2"><div class="progress-fill ${isUrgent ? 'danger' : ''}" style="width:${pct}%"></div></div>
-            </div>
-            ${icon('chevronRight', 16)}
-          </div>
-        `;
-      }).join('')}
-    </div>
-    ${state.goalCategories.length === 0 ? `
-      <div class="empty-state">
-        <div class="empty-state-icon">${icon('target')}</div>
-        <h3 class="empty-state-title">Нет целей</h3>
-        <p class="empty-state-text">Создайте первую категорию целей</p>
-        <button class="btn btn-primary" id="btn-create-goal">Создать</button>
-      </div>
-    ` : ''}
-  `;
-
-  document.querySelectorAll('[data-cat-id]').forEach(item => {
-    item.addEventListener('click', () => renderGoalDetail(item.dataset.catId));
-  });
-
-  const createBtn = document.getElementById('btn-create-goal');
-  if (createBtn) createBtn.addEventListener('click', showGoalModal);
+function barChart(items) {
+  const valid = items.map((item) => ({ label: item.label || '—', value: Number(item.value || 0) })).filter((item) => Number.isFinite(item.value)).slice(0, 10);
+  if (!valid.length) return miniEmpty('Нет данных для диаграммы');
+  const max = Math.max(...valid.map((item) => item.value), 1);
+  return el('div', { class: 'chart-bars' }, valid.map((item) => {
+    const pct = Math.max(2, (item.value / max) * 100);
+    const fill = el('div', { class: 'bar-fill', style: 'width:0%' });
+    animateLater(() => { fill.style.width = `${pct}%`; });
+    return el('div', { class: 'bar-row' }, [
+      el('div', { class: 'bar-label' }, [item.label]),
+      el('div', { class: 'bar-track' }, [fill]),
+      el('div', { class: 'bar-value mono' }, [fmtMoney(item.value)]),
+    ]);
+  }));
 }
 
-function renderGoalDetail(catId) {
-  const cat = state.goalCategories.find(c => c.id === catId);
-  if (!cat) return;
-  const items = state.goalItems.filter(g => g.category_id === catId);
-  const doneCount = items.filter(g => g.done).length;
-  const container = document.getElementById('view-container');
-
-  container.innerHTML = `
-    <button class="btn btn-ghost mb-4" id="btn-back-goals">${icon('arrowLeft', 16)} Назад</button>
-    <div class="card mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="card-title">${cat.name}</h3>
-        ${cat.due_date ? `<span class="chip chip-primary">📅 ${formatDate(cat.due_date)}</span>` : ''}
-      </div>
-      <div class="flex items-center gap-3 mb-2">
-        <span class="text-sm text-muted">Прогресс: ${doneCount}/${items.length}</span>
-        <div class="progress-bar flex-1"><div class="progress-fill" style="width:${items.length > 0 ? (doneCount / items.length) * 100 : 0}%"></div></div>
-      </div>
-      <div class="flex gap-2 mt-4">
-        <button class="btn btn-sm btn-secondary" id="btn-set-due">📅 Дедлайн</button>
-      </div>
-    </div>
-    <div class="list">
-      ${items.map(item => `
-        <div class="list-item" data-item-id="${item.id}">
-          <div class="checkbox ${item.done ? 'checked' : ''}">${item.done ? icon('check', 12) : ''}</div>
-          <div class="list-item-content">
-            <span class="list-item-title" style="text-decoration:${item.done ? 'line-through' : 'none'};color:${item.done ? 'var(--text-3)' : 'var(--text)'}">${item.title}</span>
-            ${item.description ? `<div class="list-item-subtitle">${item.description}</div>` : ''}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-    <button class="btn btn-secondary mt-4" id="btn-add-goal-item">${icon('plus', 16)} Добавить пункт</button>
-  `;
-
-  document.getElementById('btn-back-goals').addEventListener('click', () => renderView());
-  document.getElementById('btn-set-due').addEventListener('click', () => {
-    const dateStr = prompt('Дедлайн (ГГГГ-ММ-ДД) или пусто для отмены:', cat.due_date ? cat.due_date.split('T')[0] : '');
-    if (dateStr !== null) {
-      cat.due_date = dateStr ? new Date(dateStr).toISOString() : null;
-      renderGoalDetail(catId);
-      showToast(dateStr ? 'Дедлайн установлен' : 'Дедлайн убран', 'success');
-    }
-  });
-  document.querySelectorAll('[data-item-id]').forEach(item => {
-    item.addEventListener('click', () => {
-      const gi = state.goalItems.find(g => g.id === item.dataset.itemId);
-      if (gi) { gi.done = !gi.done; renderGoalDetail(catId); }
-    });
-  });
-  document.getElementById('btn-add-goal-item').addEventListener('click', () => {
-    const title = prompt('Название пункта:');
-    if (title) {
-      state.goalItems.push({ id: generateId(), version: 1, category_id: catId, title, description: '', done: false, created_at: new Date().toISOString(), done_at: null });
-      renderGoalDetail(catId);
-      showToast('Пункт добавлен', 'success');
-    }
-  });
+function normalizeAnalytics(raw) {
+  const arr = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : Array.isArray(raw?.data) ? raw.data : [];
+  return arr.map((item) => ({
+    raw: item.month || item.date || item.period || '',
+    label: formatMonthLabel(item.month || item.date || item.period || ''),
+    income: Number(item.income ?? 0),
+    expense: Number(item.expense ?? 0),
+  })).filter((item) => item.label).sort((a, b) => monthSortValue(a.raw) - monthSortValue(b.raw)).slice(-12);
 }
 
-function renderDebts(container) {
-  const incoming = state.debts.incoming.filter(d => !d.is_paid);
-  const outgoing = state.debts.outgoing.filter(d => !d.is_paid);
-  const totalIncoming = incoming.reduce((s, d) => s + d.amount, 0);
-  const totalOutgoing = outgoing.reduce((s, d) => s + d.amount, 0);
+function buildAnalyticsFromTransactions(txs) {
+  const map = new Map();
+  (txs || []).forEach((t) => {
+    const iso = t.date || t.created_at;
+    if (!iso) return;
+    const month = String(iso).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    const cur = map.get(month) || { raw: month, label: formatMonthLabel(month), income: 0, expense: 0 };
+    const type = txType(t);
+    const amount = Math.abs(Number(t.amount || 0));
+    if (type === 'income') cur.income += amount;
+    else cur.expense += amount;
+    map.set(month, cur);
+  });
+  return Array.from(map.values()).sort((a, b) => monthSortValue(a.raw) - monthSortValue(b.raw)).slice(-12);
+}
 
-  container.innerHTML = `
-    <h1 class="view-title">Долги</h1>
-    <p class="view-subtitle">Учёт долгов между участниками</p>
-    <div class="stats-grid" style="grid-template-columns:repeat(2,1fr)">
-      <div class="stat-card"><span class="stat-label">Мне должны</span><span class="stat-value text-success">${formatCurrency(totalIncoming)}</span><span class="stat-change text-muted">${incoming.length} долгов</span></div>
-      <div class="stat-card"><span class="stat-label">Я должен</span><span class="stat-value text-danger">${formatCurrency(totalOutgoing)}</span><span class="stat-change text-muted">${outgoing.length} долгов</span></div>
-    </div>
-    <div class="tabs" id="debt-tabs">
-      <button class="tab active" data-tab="incoming">Мне должны (${incoming.length})</button>
-      <button class="tab" data-tab="outgoing">Я должен (${outgoing.length})</button>
-    </div>
-    <div id="debt-content"></div>
-  `;
-
-  function renderDebtContent(tab) {
-    const debts = tab === 'incoming' ? incoming : outgoing;
-    const content = document.getElementById('debt-content');
-    content.innerHTML = `
-      <div class="list">
-        ${debts.map(debt => `
-          <div class="list-item" style="cursor:default">
-            <div class="list-item-avatar" style="background:${tab === 'incoming' ? 'var(--success)' : 'var(--danger)'}">${getInitials(tab === 'incoming' ? debt.debtor_name : debt.creditor_name)}</div>
-            <div class="list-item-content">
-              <div class="list-item-title">${tab === 'incoming' ? debt.debtor_name : debt.creditor_name}</div>
-              <div class="list-item-subtitle">${formatDate(debt.created_at)}</div>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="font-bold" style="color:${tab === 'incoming' ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(debt.amount)}</span>
-              ${tab === 'incoming' ? `<button class="btn btn-sm btn-primary btn-pay-debt" data-id="${debt.id}">Погашено</button>` : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      ${debts.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-state-icon">${icon('dollar')}</div>
-          <h3 class="empty-state-title">${tab === 'incoming' ? 'Вам никто не должен' : 'Вы никому не должны'}</h3>
-          <p class="empty-state-text">Отлично! Все долги погашены</p>
-        </div>
-      ` : ''}
-    `;
-    content.querySelectorAll('.btn-pay-debt').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const debt = state.debts.incoming.find(d => d.id === btn.dataset.id);
-        if (debt) { debt.is_paid = true; renderDebtContent('incoming'); showToast('Долг погашен', 'success'); }
+function trendChart(items) {
+  const data = normalizeAnalytics(items);
+  if (data.length < 2) return miniEmpty('Недостаточно данных для графика');
+  const w = 620;
+  const h = 190;
+  const pad = { t: 20, r: 20, b: 30, l: 42 };
+  const values = data.flatMap((d) => [d.income, d.expense]);
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 1);
+  const x = (i) => pad.l + i * ((w - pad.l - pad.r) / (data.length - 1));
+  const y = (v) => h - pad.b - ((v - min) / (max - min || 1)) * (h - pad.t - pad.b);
+  const expensePoints = data.map((d, i) => ({ x: x(i), y: y(d.expense), d }));
+  const incomePoints = data.map((d, i) => ({ x: x(i), y: y(d.income), d }));
+  const toPath = (points) => points.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const expensePath = toPath(expensePoints);
+  const incomePath = toPath(incomePoints);
+  const areaPath = `${expensePath} L${expensePoints.at(-1).x.toFixed(1)} ${h - pad.b} L${expensePoints[0].x.toFixed(1)} ${h - pad.b} Z`;
+  const step = Math.max(1, Math.ceil(data.length / 6));
+  const labels = data.map((d, i) => ({ d, i })).filter(({ i }) => i % step === 0 || i === data.length - 1).map(({ d, i }) => svgEl('text', { x: x(i), y: h - 8, 'text-anchor': 'middle', class: 'chart-axis-label' }, [d.label]));
+  const expenseDots = expensePoints.map((p) => svgEl('circle', { cx: p.x, cy: p.y, r: 3, class: 'chart-dot expense' }, [svgEl('title', {}, [`Расход: ${fmtMoney(p.d.expense)}`])]));
+  const incomeDots = incomePoints.map((p) => svgEl('circle', { cx: p.x, cy: p.y, r: 3, class: 'chart-dot income' }, [svgEl('title', {}, [`Доход: ${fmtMoney(p.d.income)}`])]));
+  const expenseLine = svgEl('path', { d: expensePath, class: 'chart-line expense' });
+  const incomeLine = svgEl('path', { d: incomePath, class: 'chart-line income' });
+  animateLater(() => {
+    [expenseLine, incomeLine].forEach((path) => {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = String(len);
+      path.style.strokeDashoffset = String(len);
+      requestAnimationFrame(() => {
+        path.style.transition = 'stroke-dashoffset 1.1s var(--ease)';
+        path.style.strokeDashoffset = '0';
       });
     });
-  }
-
-  document.querySelectorAll('#debt-tabs .tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('#debt-tabs .tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      renderDebtContent(tab.dataset.tab);
-    });
   });
-
-  renderDebtContent('incoming');
+  const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, class: 'line-svg', preserveAspectRatio: 'none' }, [
+    svgEl('path', { d: areaPath, class: 'chart-area' }),
+    expenseLine,
+    incomeLine,
+    ...expenseDots,
+    ...incomeDots,
+    ...labels,
+  ]);
+  const legend = el('div', { class: 'chart-legend', style: 'margin-top:10px;' }, [
+    el('div', { class: 'legend-item' }, [el('span', { class: 'legend-dot', style: 'background: var(--danger);' }), el('span', { class: 'legend-label' }, ['Расходы'])]),
+    el('div', { class: 'legend-item' }, [el('span', { class: 'legend-dot', style: 'background: var(--success);' }), el('span', { class: 'legend-label' }, ['Доходы'])]),
+  ]);
+  return el('div', {}, [el('div', { class: 'line-chart-wrap' }, [svg]), legend]);
 }
 
-function renderProfile(container) {
-  container.innerHTML = `
-    <h1 class="view-title">Профиль</h1>
-    <p class="view-subtitle">Настройки аккаунта и группы</p>
-    <div class="card mb-6">
-      <div class="flex items-center gap-4 mb-4">
-        <div class="avatar xl">${state.user ? getInitials(state.user.full_name) : '?'}</div>
-        <div>
-          <h3 style="font-size:18px;font-weight:700">${state.user?.full_name}</h3>
-          <p class="text-sm text-muted">${state.user?.phone_number}</p>
-          <p class="text-sm text-muted">${state.user?.age} лет · ${state.user?.currency}</p>
-        </div>
-      </div>
-    </div>
-    ${state.invitations.length > 0 ? `
-      <div class="card mb-6">
-        <div class="card-header">
-          <h3 class="card-title">Приглашения</h3>
-          <span class="chip chip-primary">${state.invitations.length}</span>
-        </div>
-        <div class="list">
-          ${state.invitations.map(inv => `
-            <div class="list-item" style="cursor:default">
-              <div class="list-item-content">
-                <div class="list-item-title">${inv.group_name}</div>
-                <div class="list-item-subtitle">От: ${inv.inviter_name} · ${formatDate(inv.created_at)}</div>
-              </div>
-              <div class="flex gap-2">
-                <button class="btn btn-sm btn-primary btn-accept-inv" data-id="${inv.group_id}">Принять</button>
-                <button class="btn btn-sm btn-secondary btn-decline-inv" data-id="${inv.group_id}">Отклонить</button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
-    <div class="card mb-6">
-      <div class="card-header"><h3 class="card-title">Telegram уведомления</h3></div>
-      ${state.telegramLinked ? `
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            ${icon('telegram', 24)}
-            <div><span class="font-bold text-sm">Привязан</span><p class="text-xs text-muted">Push-уведомления активны</p></div>
-          </div>
-          <button class="btn btn-sm btn-danger" id="btn-unlink-telegram">Отвязать</button>
-        </div>
-      ` : `
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            ${icon('telegram', 24)}
-            <div><span class="font-bold text-sm">Не привязан</span><p class="text-xs text-muted">Получайте уведомления о транзакциях</p></div>
-          </div>
-          <button class="btn btn-sm btn-primary" id="btn-link-telegram">Привязать</button>
-        </div>
-      `}
-    </div>
-    <div class="card mb-6">
-      <div class="card-header"><h3 class="card-title">Тема оформления</h3></div>
-      <div class="theme-switcher" id="profile-themes"></div>
-      <p class="text-xs text-muted mt-2">${state.theme === 'dark' ? '🌙 Тёмная тема' : state.theme === 'light' ? '☀️ Светлая тема' : '🌸 Розовая тема'}</p>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Участники группы</h3></div>
-      <div class="list">
-        ${state.members.filter(m => m.status === 'active').map(member => `
-          <div class="list-item" style="cursor:default">
-            <div class="avatar sm">${getInitials(member.full_name)}</div>
-            <div class="list-item-content">
-              <div class="list-item-title">${member.full_name}${member.user_id === state.user?.id ? ' (вы)' : ''}</div>
-              <div class="list-item-subtitle">${member.phone_number}</div>
-            </div>
-            <span class="chip ${member.role === 'admin' ? 'chip-primary' : ''}" style="font-size:10px">${member.role === 'admin' ? 'Админ' : 'Участник'}</span>
-            ${member.user_id !== state.user?.id ? `<button class="icon-btn sm" aria-label="Действия">${icon('more', 16)}</button>` : ''}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-    <div class="mt-6" style="text-align:center">
-      <button class="btn btn-ghost" id="btn-logout">${icon('logout', 16)} Выйти</button>
-    </div>
-  `;
-
-  // Theme switcher
-  const themes = ['dark', 'light', 'pink'];
-  document.getElementById('profile-themes').innerHTML = themes.map(t => `
-    <button class="theme-btn ${state.theme === t ? 'active' : ''}" data-theme="${t}" onclick="applyTheme('${t}')" title="${t === 'dark' ? 'Тёмная' : t === 'light' ? 'Светлая' : 'Розовая'}"></button>
-  `).join('');
-
-  // Telegram
-  document.getElementById('btn-link-telegram')?.addEventListener('click', showTelegramModal);
-  document.getElementById('btn-unlink-telegram')?.addEventListener('click', () => {
-    state.telegramLinked = false;
-    localStorage.removeItem('zunno-telegram-linked');
-    renderView();
-    showToast('Telegram отвязан', 'info');
-  });
-
-  // Invitations
-  document.querySelectorAll('.btn-accept-inv').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const inv = state.invitations.find(i => i.group_id === btn.dataset.id);
-      state.invitations = state.invitations.filter(i => i.group_id !== btn.dataset.id);
-      if (inv) state.groups.push({ id: inv.group_id, version: 1, name: inv.group_name, owner_id: '', created_at: new Date().toISOString() });
-      updateInvitationBadge();
-      renderView();
-      showToast(`Вы присоединились к «${inv?.group_name}»`, 'success');
-    });
-  });
-  document.querySelectorAll('.btn-decline-inv').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.invitations = state.invitations.filter(i => i.group_id !== btn.dataset.id);
-      updateInvitationBadge();
-      renderView();
-      showToast('Приглашение отклонено', 'info');
-    });
-  });
-
-  document.getElementById('btn-logout').addEventListener('click', logout);
+/* =============================================================
+INVITATIONS
+============================================================= */
+function invitationKey(inv) {
+  return `${inv?.group_id || ''}|${inv?.created_at || ''}`;
+}
+function isDismissedInvitation(inv) {
+  return state.dismissedInvites.has(invitationKey(inv));
+}
+function dismissInvitation(inv) {
+  state.dismissedInvites.add(invitationKey(inv));
+  const arr = Array.from(state.dismissedInvites).slice(-200);
+  state.dismissedInvites = new Set(arr);
+  localStorage.setItem('zunno-dismissed-invites', JSON.stringify(arr));
+}
+function saveTxTypes() {
+  const entries = Object.entries(state.txTypes).slice(-300);
+  state.txTypes = Object.fromEntries(entries);
+  localStorage.setItem('zunno-tx-types', JSON.stringify(state.txTypes));
+}
+function rememberTxType(id, type) {
+  if (!id || !type) return;
+  state.txTypes[id] = type;
+  saveTxTypes();
+}
+function txType(t) {
+  return t?.type || state.txTypes?.[t?.id] || 'expense';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MODALS
-// ═══════════════════════════════════════════════════════════════
-
-function showTransactionModal() {
-  showModal('Новая операция', `
-    <div class="tabs" id="tx-type-tabs" style="margin-bottom:16px">
-      <button class="tab active" data-type="expense">Расход</button>
-      <button class="tab" data-type="income">Доход</button>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Сумма</label>
-      <input type="number" class="form-input" id="tx-amount" placeholder="0" inputmode="decimal" style="font-size:20px;font-weight:700" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Категория</label>
-      <select class="form-select" id="tx-category">
-        ${state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Описание</label>
-      <input type="text" class="form-input" id="tx-description" placeholder="Необязательно" />
-    </div>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-save-tx">Добавить</button>
-  `);
-
-  let txType = 'expense';
-  document.querySelectorAll('#tx-type-tabs .tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('#tx-type-tabs .tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      txType = tab.dataset.type;
-    });
-  });
-
-  document.getElementById('btn-save-tx').addEventListener('click', () => {
-    const amount = parseFloat(document.getElementById('tx-amount').value);
-    if (!amount || amount <= 0) { showToast('Введите сумму', 'error'); return; }
-    state.transactions.unshift({
-      id: generateId(), version: 1, group_id: state.currentGroupId, user_id: state.user.id,
-      category_id: document.getElementById('tx-category').value, amount, type: txType,
-      date: new Date().toISOString(), description: document.getElementById('tx-description').value,
-      created_at: new Date().toISOString(),
-    });
-    closeModal();
-    renderView();
-    showToast(`${txType === 'income' ? 'Доход' : 'Расход'} ${formatCurrency(amount)} добавлен`, 'success');
-  });
+function getInvitationTitle(inv) {
+  return inv.group_name || inv.group?.name || (inv.group_id ? `Группа ${shortId(inv.group_id)}` : 'Группа');
+}
+function getInviterName(inv) {
+  return inv.inviter_name || inv.invited_by_name || inv.from_name || inv.sender_name || inv.inviter?.full_name || inv.from_user?.full_name || '';
+}
+function getInvitationTask(inv) {
+  const title = inv.plan_title || inv.task_title || inv.event_title || inv.title || '';
+  return title && title !== getInvitationTitle(inv) ? title : '';
 }
 
-function showSplitModal() {
-  const activeMembers = state.members.filter(m => m.status === 'active' && m.user_id !== state.user?.id);
-  showModal('Разделить счёт', `
-    <div class="form-group">
-      <label class="form-label">Сумма</label>
-      <input type="number" class="form-input" id="split-amount" placeholder="0" inputmode="decimal" style="font-size:24px;font-weight:700;text-align:center" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Категория</label>
-      <select class="form-select" id="split-category">
-        ${state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Описание</label>
-      <input type="text" class="form-input" id="split-description" placeholder="Необязательно" />
-    </div>
-    <div id="split-calc" class="split-calc" style="display:none"></div>
-    <div class="form-group">
-      <label class="form-label">Участники</label>
-      <div class="split-participants">
-        ${activeMembers.map(m => `
-          <label class="checkbox-wrapper" style="padding:8px 12px;background:var(--surface-2);border-radius:var(--radius-md);cursor:pointer">
-            <input type="checkbox" class="split-member" value="${m.user_id}" style="display:none" />
-            <div class="checkbox"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
-            <div class="avatar sm">${getInitials(m.full_name)}</div>
-            <span style="font-size:14px;font-weight:500">${m.full_name}</span>
-          </label>
-        `).join('')}
-      </div>
-    </div>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-split">Разделить</button>
-  `);
+function renderInvitationItem(inv, compact = false) {
+  const title = getInvitationTitle(inv);
+  const inviter = getInviterName(inv);
+  const task = getInvitationTask(inv);
+  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+  const meta = [roleLabel, inviter ? `от ${inviter}` : '', inv.created_at ? fmtRelative(inv.created_at) : ''].filter(Boolean).join(' · ');
+  return el('div', { class: 'invite-item' + (compact ? ' compact' : '') }, [
+    el('div', { class: 'invite-avatar' }, [initials(title)]),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [title]),
+      el('div', { class: 'item-sub' }, [meta]),
+      task ? el('div', { class: 'invite-task' }, [task]) : null,
+    ].filter(Boolean)),
+    el('div', { class: 'row gap-8' }, [
+      el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')) }, ['Принять']),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')) }, ['Отклонить']),
+    ]),
+  ]);
+}
 
-  const amountInput = document.getElementById('split-amount');
-  const calcDiv = document.getElementById('split-calc');
-  amountInput.addEventListener('input', () => {
-    const amount = parseFloat(amountInput.value);
-    const checked = document.querySelectorAll('.split-member:checked');
-    const numPeople = checked.length + 1;
-    if (amount > 0) {
-      calcDiv.style.display = 'block';
-      calcDiv.innerHTML = `${formatCurrency(amount)} / ${numPeople} = <strong>${formatCurrency(Math.round(amount / numPeople))}</strong> с каждого`;
+async function respondInvitation(inv, accept, row = null) {
+  if (!inv?.group_id) { toast('Некорректное приглашение', 'error'); return; }
+  const buttons = row ? $$('button', row) : [];
+  buttons.forEach((b) => (b.disabled = true));
+  try {
+    if (accept) {
+      await apiCall('POST', `/groups/${inv.group_id}/join`);
+      toast('Вы присоединились к группе', 'success');
+      await bootstrapApp();
     } else {
-      calcDiv.style.display = 'none';
+      try {
+        await apiCall('POST', `/groups/${inv.group_id}/decline`);
+        toast('Приглашение отклонено', 'success');
+        await bootstrapApp();
+      } catch (err) {
+        if (err?.status === 403 || err?.status === 404) {
+          dismissInvitation(inv);
+          state.invitations = state.invitations.filter((x) => invitationKey(x) !== invitationKey(inv));
+          row?.remove();
+          updateInvitationBadge();
+          toast('Приглашение скрыто локально (бэкенд отклонения требует правки)', 'warning');
+        } else {
+          throw err;
+        }
+      }
     }
+  } catch (err) {
+    toast(err.message || 'Не удалось обработать приглашение', 'error');
+    buttons.forEach((b) => (b.disabled = false));
+  }
+}
+
+/* =============================================================
+ONBOARDING TOUR
+============================================================= */
+function startOnboardingTour(force = false) {
+  const driverFactory = window.driver?.js?.driver || window.driver;
+  if (typeof driverFactory !== 'function') { toast('Модуль тура не загружен', 'warning'); return; }
+  if (!force && localStorage.getItem('zunno-onboarded') === '1') return;
+  if (ui.tour) { try { ui.tour.destroy(); } catch {} }
+  const steps = [
+    { popover: { title: 'Добро пожаловать в Zunno 👋', description: 'Короткий тур по обновлённому интерфейсу. Можно пропустить в любой момент.', nextBtnText: 'Поехали', prevBtnText: 'Назад', doneBtnText: 'Начать' } },
+  ];
+  if (isVisible('.sidebar-nav')) steps.push({ element: '.sidebar-nav', popover: { title: 'Навигация', description: 'Разделы: Обзор, Цели, Бюджет, Планы, Профиль. На мобильных — нижнее меню.', side: 'right', align: 'start' } });
+  if (isVisible('#group-switcher-btn')) steps.push({ element: '#group-switcher-btn', popover: { title: 'Активная группа', description: 'Переключение групп, создание, вход по ID и настройки.', side: 'bottom', align: 'start' } });
+  if (isVisible('#invitations-btn')) steps.push({ element: '#invitations-btn', popover: { title: 'Приглашения', description: 'Принимай или отклоняй приглашения в группы.', side: 'bottom', align: 'end' } });
+  if (isVisible('#fab-main')) steps.push({ element: '#fab-main', popover: { title: 'Быстрые действия', description: 'Расход, доход, событие или цель в один тап.', side: 'left', align: 'end' } });
+  if (isVisible('#user-menu-btn')) steps.push({ element: '#user-menu-btn', popover: { title: 'Профиль и темы', description: 'Три темы: тёмная, светлая и розовая. Плюс выход и настройки.', side: 'bottom', align: 'end' } });
+  steps.push({ popover: { title: 'Готово 🎉', description: 'Тур завершён. Повторить можно в профиле.', nextBtnText: 'Понятно' } });
+
+  ui.tour = driverFactory({
+    showProgress: true,
+    progressText: '{{current}} из {{total}}',
+    nextBtnText: 'Далее',
+    prevBtnText: 'Назад',
+    doneBtnText: 'Завершить',
+    allowClose: true,
+    overlayColor: 'rgba(0, 0, 0, 0.75)',
+    stagePadding: 8,
+    stageRadius: 12,
+    popoverClass: 'zunno-tour-popover',
+    onDestroyed: () => { localStorage.setItem('zunno-onboarded', '1'); ui.tour = null; },
+    steps,
   });
+  ui.tour.drive();
+}
 
-  document.querySelectorAll('.split-member').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const checkbox = cb.nextElementSibling;
-      checkbox.classList.toggle('checked', cb.checked);
-      amountInput.dispatchEvent(new Event('input'));
-    });
-  });
+function isVisible(selector) {
+  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
+  return !!node && node.offsetParent !== null;
+}
 
-  document.getElementById('btn-split').addEventListener('click', () => {
-    const amount = parseFloat(amountInput.value);
-    const checked = Array.from(document.querySelectorAll('.split-member:checked')).map(cb => cb.value);
-    if (!amount || amount <= 0) { showToast('Введите сумму', 'error'); return; }
-    if (checked.length === 0) { showToast('Выберите участников', 'error'); return; }
-    const numPeople = checked.length + 1;
-    const perPerson = Math.round(amount / numPeople);
+/* =============================================================
+DRAG & DROP
+============================================================= */
+function createSortable(container, options) {
+  if (!window.Sortable || !container) return null;
+  const existing = window.Sortable.get(container);
+  if (existing) { try { existing.destroy(); } catch {} }
+  return new window.Sortable(container, options);
+}
 
-    // Create transaction
-    state.transactions.unshift({
-      id: generateId(), version: 1, group_id: state.currentGroupId, user_id: state.user.id,
-      category_id: document.getElementById('split-category').value, amount, type: 'expense',
-      date: new Date().toISOString(), description: document.getElementById('split-description').value || 'Разделённый счёт',
-      created_at: new Date().toISOString(),
-    });
-
-    // Create debts
-    checked.forEach(memberId => {
-      state.debts.outgoing.push({
-        id: generateId(), group_id: state.currentGroupId, transaction_id: null,
-        creditor_id: memberId, creditor_name: getMemberName(memberId),
-        debtor_id: state.user.id, debtor_name: state.user.full_name,
-        amount: perPerson, is_paid: false, created_at: new Date().toISOString(), paid_at: null,
-      });
-    });
-
-    closeModal();
-    renderView();
-    showToast(`Счёт ${formatCurrency(amount)} разделён на ${numPeople}`, 'success');
+function initSortableItems(categoryID, containerEl) {
+  createSortable(containerEl, {
+    animation: 200,
+    delay: 200,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 4,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: async () => {
+      const g = activeGroup();
+      if (!g) return;
+      const ids = Array.from(containerEl.children).filter((n) => n.dataset.itemId).map((n) => n.dataset.itemId);
+      try {
+        await apiCall('POST', `/groups/${g.id}/goal-categories/${categoryID}/items/reorder`, { ids });
+        toast('Порядок сохранён', 'success', 1500);
+      } catch (err) {
+        toast(err.message, 'error');
+        renderActiveView();
+      }
+    },
   });
 }
 
-function showPlanModal() {
-  showModal('Новый план', `
-    <div class="form-group">
-      <label class="form-label">Название</label>
-      <input type="text" class="form-input" id="plan-title" placeholder="Например: Поход в кино" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Описание</label>
-      <textarea class="form-input" id="plan-description" placeholder="Детали события..."></textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Дата и время</label>
-      <input type="datetime-local" class="form-input" id="plan-date" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Повторение</label>
-      <select class="form-select" id="plan-recurrence">
-        <option value="none">Разово</option>
-        <option value="daily">Каждый день</option>
-        <option value="weekly">Каждую неделю</option>
-        <option value="monthly">Каждый месяц</option>
-      </select>
-    </div>
-    <div class="form-group" id="plan-recurrence-until-group" style="display:none">
-      <label class="form-label">Повторять до</label>
-      <input type="date" class="form-input" id="plan-recurrence-until" />
-    </div>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-save-plan">Создать</button>
-  `);
-
-  document.getElementById('plan-recurrence').addEventListener('change', (e) => {
-    document.getElementById('plan-recurrence-until-group').style.display = e.target.value === 'none' ? 'none' : 'block';
+function initSortableCategories(groupID, containerEl) {
+  createSortable(containerEl, {
+    animation: 200,
+    delay: 200,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 4,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: async () => {
+      const ids = Array.from(containerEl.children).filter((n) => n.dataset.catId).map((n) => n.dataset.catId);
+      try {
+        await apiCall('POST', `/groups/${groupID}/goal-categories/reorder`, { ids });
+        toast('Порядок сохранён', 'success', 1500);
+      } catch (err) {
+        toast(err.message, 'error');
+        renderActiveView();
+      }
+    },
   });
+}
 
-  document.getElementById('btn-save-plan').addEventListener('click', () => {
-    const title = document.getElementById('plan-title').value;
-    const date = document.getElementById('plan-date').value;
-    if (!title) { showToast('Введите название', 'error'); return; }
-    if (!date) { showToast('Укажите дату', 'error'); return; }
-    const recurrence = document.getElementById('plan-recurrence').value;
-    state.plans.unshift({
-      id: generateId(), version: 1, group_id: state.currentGroupId, creator_id: state.user.id,
-      title, description: document.getElementById('plan-description').value,
-      event_date: new Date(date).toISOString(), is_done: false, created_at: new Date().toISOString(), done_at: null,
-      recurrence_rule: recurrence === 'none' ? null : recurrence,
-      recurrence_until: recurrence !== 'none' && document.getElementById('plan-recurrence-until').value ? new Date(document.getElementById('plan-recurrence-until').value).toISOString() : null,
-      parent_plan_id: null,
+/* =============================================================
+FAB
+============================================================= */
+function initFab() {
+  const wrap = $('#fab');
+  const main = $('#fab-main');
+  if (!wrap || !main) return;
+  main.addEventListener('click', () => { ui.fabOpen ? closeFab() : openFab(); });
+  $$('#fab-menu .fab-item').forEach((btn) => {
+    btn.addEventListener('click', () => { const action = btn.dataset.action; closeFab(); handleFabAction(action); });
+  });
+  document.addEventListener('pointerdown', (e) => { if (ui.fabOpen && !wrap.contains(e.target)) closeFab(); });
+}
+function openFab() { ui.fabOpen = true; $('#fab')?.classList.add('open'); $('#fab-main')?.setAttribute('aria-expanded', 'true'); }
+function closeFab() { ui.fabOpen = false; $('#fab')?.classList.remove('open'); $('#fab-main')?.setAttribute('aria-expanded', 'false'); }
+function handleFabAction(action) {
+  const g = activeGroup();
+  if (!g) { toast('Сначала создайте или выберите группу', 'warning'); openCreateGroupModal(); return; }
+  if (action === 'expense') openTransactionModal(g, 'expense');
+  if (action === 'income') openTransactionModal(g, 'income');
+  if (action === 'plan') openCreatePlanModal(g);
+  if (action === 'goal') openCreateGoalCategoryModal(g);
+}
+
+/* =============================================================
+CALENDAR
+============================================================= */
+function shiftCalendarMonth(delta) {
+  calendarState.month += delta;
+  if (calendarState.month < 0) { calendarState.month = 11; calendarState.year -= 1; }
+  else if (calendarState.month > 11) { calendarState.month = 0; calendarState.year += 1; }
+  renderActiveView();
+}
+function resetCalendarMonth() {
+  const now = new Date();
+  calendarState.month = now.getMonth();
+  calendarState.year = now.getFullYear();
+  renderActiveView();
+}
+function renderCalendar(g, plans) {
+  const year = calendarState.year;
+  const month = calendarState.month;
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = lastDay.getDate();
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+  const monthName = firstDay.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  const head = el('div', { class: 'calendar-head' }, [
+    el('div', { class: 'calendar-title' }, [monthName]),
+    el('div', { class: 'calendar-nav' }, [
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Предыдущий месяц', onclick: () => shiftCalendarMonth(-1) }, [icon('chevronLeft', 18)]),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Сегодня', onclick: resetCalendarMonth }, [icon('clock', 18)]),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Следующий месяц', onclick: () => shiftCalendarMonth(1) }, [icon('chevronRight', 18)]),
+    ]),
+  ]);
+  const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const weekdayRow = el('div', { class: 'calendar-grid' }, weekdays.map((d) => el('div', { class: 'calendar-weekday' }, [d])));
+  const grid = el('div', { class: 'calendar-grid' });
+  for (let i = 0; i < startWeekday; i++) grid.appendChild(el('div', { style: 'opacity: 0;' }));
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const dayPlans = plans.filter((p) => {
+      const pd = new Date(p.event_date);
+      return pd.getFullYear() === year && pd.getMonth() === month && pd.getDate() === d;
     });
-    closeModal();
-    renderView();
-    showToast(recurrence !== 'none' ? '⏳ Серия создаётся...' : 'План создан', 'success');
+    const isToday = isCurrentMonth && today.getDate() === d;
+    const dayCell = el('div', { class: 'calendar-day' + (isToday ? ' today' : ''), onclick: () => openCreatePlanModalWithDate(g, date) }, [
+      el('div', { class: 'calendar-day-num' }, [String(d)]),
+      ...dayPlans.slice(0, 3).map((p) => el('div', {
+        class: 'calendar-event' + (p.is_done ? ' done' : ''),
+        title: p.title,
+        onclick: (e) => { e.stopPropagation(); openEditPlanModal(g, p); },
+      }, [p.title])),
+      dayPlans.length > 3 ? el('div', { class: 'calendar-more' }, [`+${dayPlans.length - 3}`]) : null,
+    ].filter(Boolean));
+    grid.appendChild(dayCell);
+  }
+  return el('div', { class: 'calendar' }, [head, weekdayRow, grid]);
+}
+function openCreatePlanModalWithDate(g, date) {
+  const titleInput = el('input', { class: 'input', name: 'title', required: true, maxlength: 200, placeholder: 'Пикник в парке' });
+  const descInput = el('textarea', { class: 'input', name: 'description', placeholder: 'Необязательно' });
+  const dateInput = el('input', { class: 'input', name: 'event_date', type: 'datetime-local', value: toLocalInput(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0).toISOString()), required: true });
+  openModal({
+    title: 'Новое событие',
+    body: el('div', {}, [field('Название', titleInput), field('Описание', descInput), field('Дата и время', dateInput)]),
+    onSave: async () => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/plans`, {
+          title: titleInput.value.trim(),
+          description: descInput.value.trim(),
+          event_date: fromLocalInput(dateInput.value),
+        });
+        toast('Событие создано', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
   });
 }
 
-function showCategoryModal() {
-  showModal('Новая категория', `
-    <div class="form-group">
-      <label class="form-label">Название</label>
-      <input type="text" class="form-input" id="cat-name" placeholder="Например: Продукты" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Тип</label>
-      <select class="form-select" id="cat-type">
-        <option value="fixed">Фиксированная</option>
-        <option value="spontaneous">Спонтанная</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Лимит (₽/мес)</label>
-      <input type="number" class="form-input" id="cat-limit" placeholder="0" inputmode="decimal" />
-    </div>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-save-cat">Создать</button>
-  `);
+/* =============================================================
+SWIPE GESTURES (fixed)
+============================================================= */
+function makeSwipeable(node, onSwipeLeft) {
+  const content = node.querySelector('.swipeable-content') || node;
+  let startX = 0, startY = 0, lastX = 0, dx = 0;
+  let started = false, decided = null, active = false;
 
-  document.getElementById('btn-save-cat').addEventListener('click', () => {
-    const name = document.getElementById('cat-name').value;
-    if (!name) { showToast('Введите название', 'error'); return; }
-    state.categories.push({
-      id: generateId(), version: 1, group_id: state.currentGroupId, name,
-      type: document.getElementById('cat-type').value,
-      budget_limit: parseFloat(document.getElementById('cat-limit').value) || 0,
-      created_at: new Date().toISOString(),
-    });
-    closeModal();
-    renderView();
-    showToast('Категория добавлена', 'success');
-  });
-}
+  const isInteractive = (target) => !!target?.closest?.('button, a, input, select, textarea, [data-no-swipe]');
 
-function showGoalModal() {
-  showModal('Новая категория целей', `
-    <div class="form-group">
-      <label class="form-label">Название</label>
-      <input type="text" class="form-input" id="goal-name" placeholder="Например: Отпуск" />
-    </div>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-save-goal">Создать</button>
-  `);
+  node.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    if (isInteractive(e.target)) return;
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    lastX = t.clientX;
+    dx = 0;
+    started = true;
+    decided = null;
+    active = false;
+  }, { passive: true });
 
-  document.getElementById('btn-save-goal').addEventListener('click', () => {
-    const name = document.getElementById('goal-name').value;
-    if (!name) { showToast('Введите название', 'error'); return; }
-    state.goalCategories.push({
-      id: generateId(), version: 1, group_id: state.currentGroupId, name,
-      due_date: null, notified_due_at: null,
-    });
-    closeModal();
-    renderView();
-    showToast('Категория целей создана', 'success');
-  });
-}
+  node.addEventListener('touchmove', (e) => {
+    if (!started || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const currentX = t.clientX;
+    const currentY = t.clientY;
+    dx = currentX - startX;
+    const dy = currentY - startY;
 
-function showTelegramModal() {
-  const code = 'A3K7P2';
-  showModal('Привязка Telegram', `
-    <div class="flex flex-col items-center gap-4 p-4">
-      <div class="avatar xl" style="background:linear-gradient(135deg,#0088cc,#00aaff);width:64px;height:64px;font-size:22px">${icon('telegram', 28)}</div>
-      <p class="text-sm text-center" style="color:var(--text-2)">Отправьте боту команду:</p>
-      <div class="flex items-center gap-2 p-3 rounded" style="background:var(--surface-2);border:1px solid var(--border)">
-        <code style="font-size:20px;font-weight:700;color:var(--primary)">/start ${code}</code>
-        <button class="icon-btn sm" id="btn-copy-code" aria-label="Копировать">${icon('copy', 16)}</button>
-      </div>
-      <p class="text-xs text-center text-muted">Откройте @zunno_bot в Telegram и отправьте эту команду</p>
-    </div>
-  `, `<button class="btn btn-primary" id="btn-telegram-done">Готово</button>`);
-
-  document.getElementById('btn-copy-code').addEventListener('click', () => {
-    navigator.clipboard.writeText(code).then(() => showToast('Код скопирован', 'success'));
-  });
-  document.getElementById('btn-telegram-done').addEventListener('click', () => {
-    state.telegramLinked = true;
-    localStorage.setItem('zunno-telegram-linked', 'true');
-    closeModal();
-    renderView();
-    showToast('Telegram привязан!', 'success');
-  });
-}
-
-function showInviteModal() {
-  const groupName = state.groups.find(g => g.id === state.currentGroupId)?.name || '';
-  showModal('Пригласить участника', `
-    <div class="form-group">
-      <label class="form-label">Номер телефона</label>
-      <input type="tel" class="form-input" id="invite-phone" placeholder="+7 999 123 45 67" pattern="^\\+[0-9]{10,14}$" />
-    </div>
-    <p class="text-sm text-muted">Пользователь получит приглашение и сможет присоединиться к группе «${groupName}»</p>
-  `, `
-    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-    <button class="btn btn-primary" id="btn-send-invite">Пригласить</button>
-  `);
-
-  document.getElementById('btn-send-invite').addEventListener('click', () => {
-    const phone = document.getElementById('invite-phone').value;
-    if (!phone || phone.length < 11) { showToast('Введите корректный номер телефона', 'error'); return; }
-    closeModal();
-    showToast(`Приглашение отправлено на ${phone}`, 'success');
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════
-
-function init() {
-  applyTheme(state.theme);
-  initAuth();
-
-  // Sidebar toggle
-  document.getElementById('btn-menu').addEventListener('click', () => {
-    state.sidebarOpen = !state.sidebarOpen;
-    document.getElementById('sidebar').classList.toggle('open', state.sidebarOpen);
-    document.getElementById('sidebar-overlay').classList.toggle('visible', state.sidebarOpen);
-  });
-  document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
-
-  // Topbar buttons
-  document.getElementById('btn-invitations').addEventListener('click', () => { state.view = 'profile'; renderView(); });
-  document.getElementById('btn-invite').addEventListener('click', showInviteModal);
-  document.getElementById('user-avatar').addEventListener('click', () => { state.view = 'profile'; renderView(); });
-  document.getElementById('btn-create-group').addEventListener('click', () => {
-    const name = prompt('Название новой группы:');
-    if (name) {
-      const group = { id: generateId(), version: 1, name, owner_id: state.user?.id || 'user-1', created_at: new Date().toISOString() };
-      state.groups.push(group);
-      state.currentGroupId = group.id;
-      renderSidebar();
-      updateTopbar();
-      renderView();
-      showToast('Группа создана', 'success');
+    if (!decided) {
+      if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx) * 1.1) {
+        decided = 'vertical';
+        started = false;
+        return;
+      }
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+        decided = 'horizontal';
+        active = true;
+        node.classList.add('dragging');
+      }
     }
-  });
 
-  // Command palette (Ctrl+K)
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    if (decided === 'horizontal') {
       e.preventDefault();
-      const palette = document.getElementById('command-palette');
-      palette.style.display = palette.style.display === 'none' ? 'flex' : 'none';
-      palette.style.pointerEvents = palette.style.display === 'flex' ? 'auto' : 'none';
-      if (palette.style.display === 'flex') document.getElementById('cmd-input').focus();
+      const offset = clamp(dx, -120, 0);
+      content.style.transform = `translateX(${offset}px)`;
+    }
+    lastX = currentX;
+  }, { passive: false });
+
+  function endSwipe() {
+    if (!active) {
+      started = false;
+      decided = null;
+      return;
+    }
+    node.classList.remove('dragging');
+    if (dx < -80) {
+      content.style.transform = 'translateX(-100%)';
+      setTimeout(() => { try { onSwipeLeft?.(); } catch {} }, 180);
+    } else {
+      content.style.transform = 'translateX(0)';
+    }
+    started = false;
+    decided = null;
+    active = false;
+  }
+
+  node.addEventListener('touchend', endSwipe, { passive: true });
+  node.addEventListener('touchcancel', () => {
+    if (active) content.style.transform = 'translateX(0)';
+    node.classList.remove('dragging');
+    started = false; decided = null; active = false;
+  }, { passive: true });
+}
+
+function resetSwipeRow(txId) {
+  const content = $(`[data-tx-id="${txId}"]`);
+  const wrapper = content?.closest('.swipeable');
+  if (wrapper) {
+    wrapper.style.display = '';
+    wrapper.classList.remove('dragging');
+    content.style.transform = 'translateX(0)';
+  }
+}
+
+function noGroupBanner() {
+  return el('div', { class: 'card' }, [
+    el('div', { class: 'empty' }, [
+      el('div', { class: 'empty-ico' }, [icon('wallet', 30)]),
+      el('div', { class: 'empty-title' }, ['Нет активной группы']),
+      el('div', { class: 'empty-text' }, ['Создайте свою или присоединитесь по ID']),
+      el('div', { class: 'empty-actions' }, [
+        el('button', { type: 'button', class: 'btn btn-primary', onclick: openCreateGroupModal }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Создать группу'])]),
+        el('button', { type: 'button', class: 'btn btn-ghost', onclick: openJoinGroupModal }, [el('span', { 'data-icon': 'login', 'data-size': 'sm' }), el('span', {}, ['Присоединиться'])]),
+      ]),
+    ]),
+  ]);
+}
+
+/* =============================================================
+VIEW: DASHBOARD
+============================================================= */
+async function renderDashboard(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+  if (!g) { container.appendChild(noGroupBanner()); return; }
+  const now = new Date();
+  const month = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const [summary, membersSpent, plans, members, analyticsRaw, recentTx, debts] = await Promise.all([
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
+  ]);
+  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+  container.appendChild(renderHero(g, members.length, plans.length));
+  if (state.invitations?.length) {
+    container.appendChild(sectionBlock('Приглашения', `${state.invitations.length} ${plural(state.invitations.length, 'приглашение', 'приглашения', 'приглашений')}`, null, el('div', { class: 'invite-list' }, state.invitations.map((inv) => renderInvitationItem(inv, false)))));
+  }
+  const spent = Number(summary?.total_spent || 0);
+  const limit = Number(summary?.total_limit || 0);
+  const remaining = limit > 0 ? limit - spent : 0;
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  container.appendChild(el('div', { class: 'stat-grid' }, [
+    statTile('Потрачено', spent, 'primary'),
+    statTile('Лимит', limit, limit > 0 && spent > limit ? 'danger' : ''),
+    statTile('Остаток', remaining, remaining < 0 ? 'danger' : 'success'),
+    statTile('Участников', members.length, '', (n) => String(Math.round(n))),
+  ]));
+  if (limit > 0) {
+    container.appendChild(el('div', { class: 'card mt-16' }, [
+      el('div', { class: 'row-between' }, [
+        el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
+        el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
+      ]),
+      el('div', { class: 'progress mt-12' }, [el('div', { class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`, style: 'width:0%' })]),
+    ]));
+    const fill = container.querySelector('.progress-fill');
+    animateLater(() => { fill.style.width = `${pct}%`; });
+  }
+  const categoryItems = (summary?.categories || []).map((c) => ({ label: c.name || 'Без названия', value: Number(c.spent || 0), color: colorFromId(c.category_id || c.name) }));
+  const memberItems = (membersSpent || []).map((m) => ({ label: m.full_name || 'Участник', value: Number(m.spent ?? 0) }));
+  const analyticsData = normalizeAnalytics(analyticsRaw);
+  const finalAnalytics = analyticsData.length >= 2 ? analyticsData : buildAnalyticsFromTransactions(recentTx);
+  container.appendChild(el('div', { class: 'charts-grid' }, [
+    chartCard('Расходы по категориям', month, donutChart(categoryItems, { centerLabel: 'категорий', centerValue: false })),
+    chartCard('Участники', 'Кто сколько потратил', barChart(memberItems)),
+    chartCard('Динамика', 'Доходы и расходы', trendChart(finalAnalytics)),
+  ]));
+  const me = members.find((m) => m.user_id === state.user?.id);
+  const isAdmin = me?.role === 'admin';
+  const personal = isPersonalGroup(g);
+  if (!personal) {
+    container.appendChild(sectionBlock('Участники', `${members.length} ${plural(members.length, 'человек', 'человека', 'человек')} в группе`, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => openInviteModal(g) }, [el('span', { 'data-icon': 'invite', 'data-size': 'sm' }), el('span', {}, ['Пригласить'])]), el('div', { class: 'list' }, members.map((m, i) => stagger(renderMemberRow(m, isAdmin && m.user_id !== state.user?.id), i)))));
+  }
+  const upcoming = plans.filter((p) => !p.is_done).sort((a, b) => new Date(a.event_date) - new Date(b.event_date)).slice(0, 5);
+  if (upcoming.length) {
+    container.appendChild(sectionBlock('Ближайшие планы', `${upcoming.length} ${plural(upcoming.length, 'событие', 'события', 'событий')}`, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => switchView('plans') }, ['Все']), el('div', { class: 'list' }, upcoming.map((p, i) => stagger(el('button', { type: 'button', class: 'item', onclick: () => openEditPlanModal(g, p) }, [
+      el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title' }, [p.title]),
+        el('div', { class: 'item-sub' }, [`${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`]),
+      ]),
+    ]), i)))));
+  }
+  if (recentTx.length) {
+    container.appendChild(sectionBlock('Последние операции', 'Свежие транзакции группы', el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => switchView('budget') }, ['Все']), el('div', { class: 'list' }, recentTx.map((t, i) => stagger(renderTransactionRow(t, categories, true), i)))));
+  }
+  if ((debts?.incoming?.length || debts?.outgoing?.length)) {
+    container.appendChild(renderDebtsSection(debts, members, true));
+  }
+}
+
+function renderHero(g, membersCount, plansCount) {
+  const u = state.user;
+  const hour = new Date().getHours();
+  const greet = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  const dateStr = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  const personal = isPersonalGroup(g);
+  return el('section', { class: 'card hero-card' }, [
+    el('div', { class: 'hero-bg' }),
+    el('div', { class: 'hero-content' }, [
+      el('div', { class: 'hero-top' }, [
+        el('div', {}, [
+          el('h2', { class: 'hero-title' }, [`${greet}, ${firstName(u?.full_name)}`]),
+          el('p', { class: 'hero-sub' }, [dateStr]),
+        ]),
+        el('div', { class: 'hero-group' }, [
+          el('div', { class: 'hero-avatar' }, [initials(g.name)]),
+          el('div', {}, [
+            el('strong', {}, [g.name]),
+            el('small', {}, [personal ? 'Личное пространство' : `${membersCount} ${plural(membersCount, 'участник', 'участника', 'участников')} · ${plansCount} ${plural(plansCount, 'план', 'плана', 'планов')}`]),
+          ]),
+        ]),
+      ]),
+      el('div', { class: 'hero-actions' }, [
+        chip('arrowDownCircle', 'Расход', () => openTransactionModal(g, 'expense')),
+        chip('arrowUpCircle', 'Доход', () => openTransactionModal(g, 'income')),
+        chip('calendarPlus', 'Событие', () => openCreatePlanModal(g)),
+        personal ? null : chip('invite', 'Пригласить', () => openInviteModal(g)),
+      ].filter(Boolean)),
+    ]),
+  ]);
+}
+
+function renderMemberRow(m, canManage = false) {
+  const isMe = state.user && m.user_id === state.user.id;
+  const roleTag = m.role === 'admin' ? el('span', { class: 'tag tag-primary' }, ['Админ']) : el('span', { class: 'tag tag-mute' }, ['Участник']);
+  const displayName = isMe ? 'Вы' : m.full_name || 'Без имени';
+  const subLine = isMe ? (m.phone_number ? `${m.phone_number} · это вы` : 'это вы') : m.phone_number || `ID: ${shortId(m.user_id)}`;
+  return el('div', { class: 'item' }, [
+    el('div', { class: 'avatar-sm', style: `background:${colorFromId(m.user_id)}` }, [initials(m.full_name || shortId(m.user_id).slice(0, 2))]),
+    el('div', { class: 'item-main' }, [
+      el('div', { class: 'item-title' }, [displayName]),
+      el('div', { class: 'item-sub' }, [`${subLine} · ${fmtDate(m.joined_at)}`]),
+    ]),
+    roleTag,
+    canManage ? el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Действия с участником', onclick: () => openMemberActionsModal(m) }, [icon('more', 18)]) : null,
+  ].filter(Boolean));
+}
+
+function openMemberActionsModal(m) {
+  const g = activeGroup();
+  if (!g) return;
+  const isTargetAdmin = m.role === 'admin';
+  const actions = [
+    el('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-block mb-8',
+      onclick: async () => {
+        closeModal();
+        try {
+          await apiCall('PATCH', `/groups/${g.id}/members/${m.user_id}`, { role: isTargetAdmin ? 'member' : 'admin' });
+          toast('Роль изменена', 'success');
+          await renderActiveView();
+        } catch (err) { toast(err.message, 'error'); }
+      },
+    }, [isTargetAdmin ? 'Разжаловать до участника' : 'Сделать админом']),
+    el('button', {
+      type: 'button',
+      class: 'btn btn-danger btn-block',
+      onclick: () => {
+        closeModal();
+        confirmDelete(`Вы уверены, что хотите исключить ${m.full_name || 'участника'}?`, async () => {
+          try {
+            await apiCall('DELETE', `/groups/${g.id}/members/${m.user_id}`);
+            toast('Участник исключён', 'success');
+            await renderActiveView();
+          } catch (err) { toast(err.message, 'error'); }
+        });
+      },
+    }, ['Исключить из группы']),
+  ];
+  openModal({ title: m.full_name || 'Участник', body: el('div', { style: 'display:flex;flex-direction:column;' }, actions), saveLabel: 'Закрыть', onSave: async () => {} });
+}
+
+async function openGroupSettingsModal() {
+  const g = activeGroup();
+  if (!g) return;
+  const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []);
+  const me = members.find((m) => m.user_id === state.user?.id);
+  const isAdmin = me?.role === 'admin';
+  const isOwner = g.owner_id === state.user?.id;
+  const personal = isPersonalGroup(g);
+  const actions = [];
+  if (!personal && isAdmin) actions.push(el('button', { type: 'button', class: 'btn btn-ghost btn-block mb-8', onclick: () => { closeModal(); openRenameGroupModal(g); } }, ['Переименовать группу']));
+  if (!personal && !isOwner) actions.push(el('button', { type: 'button', class: 'btn btn-danger-ghost btn-block mb-8', onclick: () => { closeModal(); confirmDelete('Вы уверены, что хотите покинуть группу?', async () => { try { await apiCall('POST', `/groups/${g.id}/leave`); toast('Вы покинули группу', 'success'); await bootstrapApp(); } catch (err) { toast(err.message, 'error'); } }); } }, ['Покинуть группу']));
+  if (!personal && isOwner) actions.push(el('button', { type: 'button', class: 'btn btn-danger btn-block', onclick: () => { closeModal(); confirmDelete('УДАЛИТЬ ГРУППУ? Это действие необратимо. Все данные будут потеряны.', async () => { try { await apiCall('DELETE', `/groups/${g.id}`); toast('Группа удалена', 'success'); await bootstrapApp(); } catch (err) { toast(err.message, 'error'); } }); } }, ['Удалить группу']));
+  openModal({ title: 'Настройки группы', body: actions.length ? el('div', { style: 'display:flex;flex-direction:column;' }, actions) : el('div', { class: 'text-2' }, ['Для этой группы доступны только базовые действия.']), saveLabel: 'Закрыть', onSave: async () => {} });
+}
+
+function openRenameGroupModal(g) {
+  const input = el('input', { class: 'input', type: 'text', value: g.name, required: true, maxlength: 100 });
+  openModal({
+    title: 'Переименовать группу',
+    body: el('div', {}, [el('p', { class: 'text-sm text-2', style: 'margin-bottom: 8px;' }, ['Новое название:']), input]),
+    saveLabel: 'Сохранить',
+    onSave: async () => {
+      const newName = input.value.trim();
+      if (!newName) throw new Error('Введите название');
+      try {
+        await apiCall('PATCH', `/groups/${g.id}`, { name: newName, version: Number(g.version ?? 0) });
+        toast('Группа переименована', 'success');
+        await bootstrapApp();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+/* =============================================================
+VIEW: GOALS
+============================================================= */
+async function renderGoals(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+  if (!g) { container.appendChild(noGroupBanner()); return; }
+  const cats = await safeApi(apiCall('GET', `/groups/${g.id}/goal-categories`), []);
+  container.appendChild(sectionHead('Категории целей', `${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}`, el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openCreateGoalCategoryModal(g) }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Категория'])])));
+  if (!cats.length) { container.appendChild(emptyState('target', 'Пока нет категорий', 'Создайте первую — «Фильмы», «Книги», «Места»')); return; }
+  const grid = el('div', { class: 'grid-auto' });
+  const cards = await Promise.all(cats.map((c) => renderGoalCategoryCard(g, c)));
+  cards.forEach((card, i) => grid.appendChild(stagger(card, i)));
+  container.appendChild(grid);
+  setTimeout(() => initSortableCategories(g.id, grid), 80);
+}
+
+async function renderGoalCategoryCard(g, c) {
+  const items = await safeApi(apiCall('GET', `/groups/${g.id}/goal-categories/${c.id}/items`), []);
+  const done = items.filter((i) => i.done ?? i.is_done).length;
+  const pct = items.length ? (done / items.length) * 100 : 0;
+  const card = el('div', { class: 'card', 'data-cat-id': c.id });
+  card.appendChild(el('div', { class: 'card-head' }, [
+    el('div', { class: 'row', style: 'gap:10px;' }, [
+      el('div', { class: 'drag-handle', title: 'Перетащить категорию' }, [icon('drag', 18)]),
+      progressRing(pct),
+      el('div', {}, [
+        el('div', { class: 'card-title' }, [c.name, c.due_date ? el('span', { class: 'tag tag-warning due-tag' }, [fmtDate(c.due_date)]) : null]),
+        el('div', { class: 'card-subtitle' }, [items.length ? `${done} / ${items.length}` : 'Пусто']),
+      ]),
+    ]),
+    el('div', { class: 'item-actions' }, [
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Переименовать / срок', onclick: () => openRenameGoalCategoryModal(g, c) }, [icon('edit', 18)]),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить', onclick: () => confirmDelete(`Удалить категорию «${c.name}»?`, async () => { try { await apiCall('DELETE', `/groups/${g.id}/goal-categories/${c.id}`); toast('Удалено', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } }) }, [icon('trash', 18)]),
+    ]),
+  ]));
+  const list = el('div', { class: 'list mt-12' });
+  items.forEach((it, i) => {
+    const isDone = !!(it.done ?? it.is_done);
+    const check = el('button', { type: 'button', class: 'check' + (isDone ? ' on' : ''), 'aria-label': isDone ? 'Отменить выполнение' : 'Отметить выполненным', onclick: () => toggleGoalItem(g, it, check) });
+    list.appendChild(stagger(el('div', { class: 'item' + (isDone ? ' is-done' : ''), 'data-item-id': it.id }, [
+      el('div', { class: 'drag-handle' }, [icon('drag', 18)]),
+      check,
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title' }, [it.title]),
+        it.description ? el('div', { class: 'item-sub' }, [it.description]) : null,
+      ].filter(Boolean)),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить', onclick: () => confirmDelete('Удалить элемент?', async () => { try { await apiCall('DELETE', `/groups/${g.id}/goal-items/${it.id}`); toast('Удалено', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } }) }, [icon('trash', 18)]),
+    ]), i));
+  });
+  if (!items.length) list.appendChild(el('div', { class: 'text-sm text-3', style: 'padding:8px 0;text-align:center;' }, ['Нет элементов']));
+  card.appendChild(list);
+  setTimeout(() => initSortableItems(c.id, list), 80);
+  card.appendChild(el('button', { type: 'button', class: 'btn btn-ghost btn-sm btn-block mt-12', onclick: () => openCreateGoalItemModal(g, c) }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Добавить элемент'])]));
+  return card;
+}
+
+async function toggleGoalItem(g, item, checkNode) {
+  const current = !!(item.done ?? item.is_done);
+  const next = !current;
+  item.done = next;
+  item.is_done = next;
+  checkNode.classList.toggle('on', next);
+  try {
+    await apiCall('PATCH', `/groups/${g.id}/goal-items/${item.id}`, { done: next, version: Number(item.version ?? 0) });
+    await renderActiveView();
+  } catch (err) {
+    item.done = current;
+    item.is_done = current;
+    checkNode.classList.toggle('on', current);
+    toast(err.message, 'error');
+  }
+}
+
+function openCreateGoalCategoryModal(g) {
+  const input = el('input', { class: 'input', name: 'name', required: true, maxlength: 100, placeholder: 'Фильмы' });
+  const due = el('input', { class: 'input', name: 'due_date', type: 'date' });
+  openModal({
+    title: 'Новая категория целей',
+    body: el('div', {}, [field('Название', input), field('Срок (необязательно)', due)]),
+    onSave: async () => {
+      try {
+        const res = await apiCall('POST', `/groups/${g.id}/goal-categories`, { name: input.value.trim() });
+        const dueISO = dateToEndISO(due.value);
+        if (dueISO) await apiCall('PUT', `/groups/${g.id}/goal-categories/${res.data.id}/due`, { due_date: dueISO });
+        toast('Создано', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openRenameGoalCategoryModal(g, c) {
+  const input = el('input', { class: 'input', name: 'name', required: true, maxlength: 100, value: c.name });
+  const due = el('input', { class: 'input', name: 'due_date', type: 'date', value: toDateInput(c.due_date) });
+  openModal({
+    title: 'Категория целей',
+    body: el('div', {}, [field('Название', input), field('Срок (необязательно)', due)]),
+    onSave: async () => {
+      try {
+        await apiCall('PATCH', `/groups/${g.id}/goal-categories/${c.id}`, { name: input.value.trim(), version: Number(c.version ?? 0) });
+        const dueISO = dateToEndISO(due.value);
+        await apiCall('PUT', `/groups/${g.id}/goal-categories/${c.id}/due`, { due_date: dueISO });
+        toast('Обновлено', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openCreateGoalItemModal(g, c) {
+  const title = el('input', { class: 'input', name: 'title', required: true, maxlength: 200, placeholder: 'Посмотреть Дюну' });
+  const description = el('textarea', { class: 'input', name: 'description', placeholder: 'Необязательно' });
+  openModal({
+    title: 'Новый элемент',
+    body: el('div', {}, [field('Название', title), field('Описание', description)]),
+    onSave: async () => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/goal-categories/${c.id}/items`, { title: title.value.trim(), description: description.value.trim() });
+        toast('Добавлено', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+/* =============================================================
+VIEW: BUDGET
+============================================================= */
+async function renderBudget(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+  if (!g) { container.appendChild(noGroupBanner()); return; }
+  const now = new Date();
+  const month = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+  const [cats, txs, summary, membersSpent, analyticsRaw, members, debts] = await Promise.all([
+    safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=100`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
+    safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
+  ]);
+  if (summary) {
+    const spent = Number(summary.total_spent || 0);
+    const limit = Number(summary.total_limit || 0);
+    const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+    container.appendChild(el('div', { class: 'card' }, [
+      el('div', { class: 'row-between' }, [
+        el('div', {}, [el('div', { class: 'stat-label' }, ['Потрачено за месяц']), el('div', { class: 'stat-value primary' }, [fmtMoney(spent)])]),
+        el('div', { style: 'text-align:right;' }, [el('div', { class: 'stat-label' }, ['Лимит']), el('div', { class: 'stat-value' }, [fmtMoney(limit)])]),
+      ]),
+      limit > 0 ? el('div', { class: 'progress mt-16' }, [el('div', { class: `progress-fill${spent > limit ? ' danger' : ''}`, style: 'width:0%' })]) : null,
+    ].filter(Boolean)));
+    const fill = container.querySelector('.progress-fill');
+    animateLater(() => { fill.style.width = `${pct}%`; });
+  }
+  const categoryItems = (summary?.categories || []).map((c) => ({ label: c.name || 'Без названия', value: Number(c.spent || 0), color: colorFromId(c.category_id || c.name) }));
+  const memberItems = (membersSpent || []).map((m) => ({ label: m.full_name || 'Участник', value: Number(m.spent ?? 0) }));
+  const analyticsData = normalizeAnalytics(analyticsRaw);
+  const finalAnalytics = analyticsData.length >= 2 ? analyticsData : buildAnalyticsFromTransactions(txs);
+  container.appendChild(el('div', { class: 'charts-grid' }, [
+    chartCard('Структура расходов', month, donutChart(categoryItems)),
+    chartCard('По участникам', month, barChart(memberItems)),
+    chartCard('Динамика', 'Доходы и расходы', trendChart(finalAnalytics)),
+  ]));
+  container.appendChild(sectionBlock('Категории', `${cats.length} ${plural(cats.length, 'категория', 'категории', 'категорий')}`, el('div', { class: 'row', style: 'gap:8px;' }, [
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => exportTransactionsCsv(g) }, [el('span', { 'data-icon': 'download', 'data-size': 'sm' }), el('span', {}, ['CSV'])]),
+    el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openCreateCategoryModal(g) }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Категория'])]),
+  ]), cats.length ? el('div', { class: 'grid-auto' }, cats.map((c, i) => stagger(renderCategoryCard(g, c, summary), i))) : emptyState('wallet', 'Нет категорий', 'Добавьте «Еду», «Транспорт», «Развлечения»')));
+
+  const searchInput = el('input', { type: 'text', class: 'input', placeholder: 'Поиск по описанию...', style: 'flex:1;min-width:150px;' });
+  const catSelect = el('select', { class: 'input' }, [el('option', { value: '' }, ['Все категории']), ...cats.map((c) => el('option', { value: c.id }, [c.name]))]);
+  const userSelect = el('select', { class: 'input' }, [el('option', { value: '' }, ['Все участники']), ...members.map((m) => el('option', { value: m.user_id }, [m.full_name || 'Участник']))]);
+  const typeSelect = el('select', { class: 'input' }, [el('option', { value: '' }, ['Все типы']), el('option', { value: 'expense' }, ['Расходы']), el('option', { value: 'income' }, ['Доходы'])]);
+  const list = el('div', { class: 'list' });
+  const applyFilters = debounce(async () => {
+    list.innerHTML = '';
+    list.appendChild(miniEmpty('Загрузка...'));
+    const params = new URLSearchParams();
+    if (searchInput.value.trim()) params.append('q', searchInput.value.trim());
+    if (catSelect.value) params.append('category_id', catSelect.value);
+    if (userSelect.value) params.append('user_id', userSelect.value);
+    params.append('limit', '100');
+    try {
+      const res = await apiCall('GET', `/groups/${g.id}/transactions?${params.toString()}`);
+      let data = res.data || [];
+      if (typeSelect.value) data = data.filter((t) => txType(t) === typeSelect.value);
+      renderTransactionRows(list, data, cats);
+    } catch (err) {
+      list.innerHTML = '';
+      list.appendChild(el('div', { class: 'mini-empty text-danger' }, [err.message || 'Ошибка']));
+    }
+  }, 300);
+  searchInput.addEventListener('input', applyFilters);
+  catSelect.addEventListener('change', applyFilters);
+  userSelect.addEventListener('change', applyFilters);
+  typeSelect.addEventListener('change', applyFilters);
+  container.appendChild(sectionBlock('Транзакции', `Последние ${txs.length}`, el('div', { class: 'row', style: 'gap:8px;' }, [
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => openSplitTransactionModal(g, cats, members) }, [el('span', { 'data-icon': 'split', 'data-size': 'sm' }), el('span', {}, ['Разделить'])]),
+    el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openTransactionModal(g, 'expense') }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Транзакция'])]),
+  ]), el('div', {}, [
+    el('div', { class: 'card mt-12 mb-12', style: 'display:flex;gap:8px;flex-wrap:wrap;padding:12px;' }, [searchInput, catSelect, userSelect, typeSelect]),
+    list,
+  ])));
+  renderTransactionRows(list, txs, cats);
+  container.appendChild(renderDebtsSection(debts, members, false));
+}
+
+function renderTransactionRows(list, txs, cats) {
+  list.innerHTML = '';
+  if (!txs.length) { list.appendChild(emptyState('wallet', 'Ничего не найдено', 'Попробуйте изменить фильтры или добавить транзакцию')); return; }
+  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, true), i)));
+}
+
+function renderCategoryCard(g, c, summary) {
+  const item = summary?.categories?.find((x) => x.category_id === c.id) || null;
+  const spent = Number(item?.spent || 0);
+  const limit = Number(item?.limit ?? c.budget_limit ?? c.limit ?? 0);
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  return el('div', { class: 'card' }, [
+    el('div', { class: 'card-head' }, [
+      el('div', {}, [
+        el('div', { class: 'card-title' }, [c.name]),
+        el('div', { class: 'card-subtitle' }, [el('span', { class: `tag ${c.type === 'fixed' ? 'tag-primary' : 'tag-mute'}` }, [c.type === 'fixed' ? 'Постоянная' : 'Спонтанная'])]),
+      ]),
+      el('div', { class: 'item-actions' }, [
+        el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Редактировать', onclick: () => openEditCategoryModal(g, c) }, [icon('edit', 18)]),
+        el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить', onclick: () => confirmDelete(`Удалить «${c.name}»?`, async () => { try { await apiCall('DELETE', `/groups/${g.id}/categories/${c.id}`); toast('Удалено', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } }) }, [icon('trash', 18)]),
+      ]),
+    ]),
+    el('div', { class: 'row-between text-sm' }, [el('span', { class: 'text-2' }, ['Потрачено']), el('span', { class: 'mono' }, [fmtMoney(spent)])]),
+    el('div', { class: 'row-between text-sm mt-8' }, [el('span', { class: 'text-2' }, ['Лимит']), el('span', { class: 'mono' }, [fmtMoney(limit)])]),
+    el('div', { class: 'progress mt-12' }, [el('div', { class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`, style: 'width:0%' })]),
+  ]);
+}
+
+function renderTransactionRow(t, cats, swipe = true) {
+  const g = activeGroup();
+  const cat = cats.find((c) => c.id === t.category_id);
+  const isMe = state.user && t.user_id === state.user.id;
+  const userName = t.user_full_name || t.full_name || t.user?.full_name || '';
+  const type = txType(t);
+  const content = el('div', { class: 'item swipeable-content', 'data-tx-id': t.id }, [
+    el('div', { class: 'avatar-sm', style: `background:${colorFromId(t.category_id || t.id)}` }, [icon(type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle', 18)]),
+    el('div', { class: 'flex-1' }, [
+      el('div', { class: 'item-title' }, [t.description || cat?.name || 'Без описания']),
+      el('div', { class: 'item-sub' }, [[cat ? cat.name : 'Без категории', fmtDateTime(t.date), userName ? (isMe ? 'вы' : userName) : ''].filter(Boolean).join(' · ')]),
+    ]),
+    el('div', { class: `mono ${type === 'income' ? 'amount-positive' : 'amount-negative'}`, style: 'margin-right:8px;' }, [`${type === 'income' ? '+' : '−'}${fmtMoney(t.amount)}`]),
+    el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить транзакцию', onclick: () => handleDeleteTransaction(t, g) }, [icon('trash', 18)]),
+  ]);
+  if (!swipe) return content;
+  const wrapper = el('div', { class: 'swipeable' }, [
+    el('div', { class: 'swipeable-actions' }, [el('div', { class: 'swipe-action' }, ['Удалить'])]),
+    content,
+  ]);
+  makeSwipeable(wrapper, () => handleDeleteTransaction(t, g));
+  return wrapper;
+}
+
+function handleDeleteTransaction(t, g) {
+  if (!g) return;
+  const wrapper = $(`[data-tx-id="${t.id}"]`)?.closest('.swipeable');
+  if (wrapper) wrapper.style.display = 'none';
+  deleteWithUndo({
+    label: `Транзакция «${t.description || 'Без описания'}»`,
+    onConfirm: async () => {
+      try {
+        await apiCall('DELETE', `/groups/${g.id}/transactions/${t.id}`);
+        await renderActiveView();
+      } catch (err) {
+        toast(err.message, 'error');
+        resetSwipeRow(t.id);
+      }
+    },
+    onCancel: () => resetSwipeRow(t.id),
+  });
+}
+
+async function exportTransactionsCsv(g) {
+  try {
+    const res = await fetch(`${API}/groups/${g.id}/transactions/export`, { headers: { Authorization: `Bearer ${state.token}` }, credentials: 'include' });
+    if (!res.ok) throw new Error('Не удалось экспортировать');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = el('a', { href: url, download: `zunno-transactions-${new Date().toISOString().slice(0, 10)}.csv` });
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('CSV скачан', 'success');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function openCreateCategoryModal(g) {
+  const name = el('input', { class: 'input', name: 'name', required: true, maxlength: 100, placeholder: 'Еда' });
+  const type = el('select', { class: 'input', name: 'type', required: true }, [el('option', { value: 'fixed' }, ['Постоянная (еда, дом)']), el('option', { value: 'spontaneous' }, ['Спонтанная'])]);
+  const limit = el('input', { class: 'input', name: 'budget_limit', type: 'number', min: 0, step: '0.01', value: 0, required: true });
+  openModal({
+    title: 'Новая категория',
+    body: el('div', {}, [field('Название', name), field('Тип', type), field(`Лимит в месяц (${currencySymbol()})`, limit)]),
+    onSave: async () => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/categories`, { name: name.value.trim(), type: type.value, budget_limit: Number(limit.value) });
+        toast('Создано', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openEditCategoryModal(g, c) {
+  const name = el('input', { class: 'input', name: 'name', required: true, maxlength: 100, value: c.name });
+  const type = el('select', { class: 'input', name: 'type', required: true }, [el('option', { value: 'fixed', selected: c.type === 'fixed' }, ['Постоянная']), el('option', { value: 'spontaneous', selected: c.type !== 'fixed' }, ['Спонтанная'])]);
+  const limit = el('input', { class: 'input', name: 'budget_limit', type: 'number', min: 0, step: '0.01', value: Number(c.budget_limit ?? c.limit ?? 0), required: true });
+  openModal({
+    title: 'Редактировать категорию',
+    body: el('div', {}, [field('Название', name), field('Тип', type), field(`Лимит в месяц (${currencySymbol()})`, limit)]),
+    onSave: async () => {
+      try {
+        await apiCall('PATCH', `/groups/${g.id}/categories/${c.id}`, { name: name.value.trim(), type: type.value, budget_limit: Number(limit.value), version: Number(c.version ?? 0) });
+        toast('Обновлено', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openTransactionModal(g, presetType = 'expense') {
+  safeApi(apiCall('GET', `/groups/${g.id}/categories`), []).then((cats) => {
+    if (!cats.length) { toast('Сначала создайте категорию в разделе Бюджет', 'warning'); switchView('budget'); return; }
+    let type = presetType;
+    const amountInput = el('input', { type: 'number', step: '0.01', min: '0.01', required: true, placeholder: `Сумма (${currencySymbol()})`, class: 'input', style: 'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;' });
+    const presets = [100, 500, 1000, 5000];
+    const presetsRow = el('div', { class: 'row', style: 'gap:6px;flex-wrap:wrap;' }, presets.map((p) => el('button', { type: 'button', class: 'preset-btn', onclick: () => { amountInput.value = p; amountInput.focus(); } }, [`${p} ${currencySymbol()}`])));
+    const expenseBtn = el('button', { type: 'button', class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`, onclick: () => { type = 'expense'; expenseBtn.className = 'btn btn-danger btn-sm flex-1'; incomeBtn.className = 'btn btn-ghost btn-sm flex-1'; } }, ['Расход']);
+    const incomeBtn = el('button', { type: 'button', class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`, onclick: () => { type = 'income'; expenseBtn.className = 'btn btn-ghost btn-sm flex-1'; incomeBtn.className = 'btn btn-primary btn-sm flex-1'; } }, ['Доход']);
+    const catSelect = el('select', { class: 'input', required: true }, cats.map((c) => el('option', { value: c.id }, [c.name])));
+    const dateInput = el('input', { class: 'input', type: 'datetime-local', value: toLocalInput(new Date().toISOString()), required: true });
+    const descInput = el('input', { type: 'text', placeholder: 'Описание (необязательно)', maxlength: '255', class: 'input' });
+    openModal({
+      title: '⚡ Быстрая запись',
+      body: el('div', {}, [amountInput, presetsRow, el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]), field('Категория', catSelect), field('Дата', dateInput), field('Описание', descInput)]),
+      saveLabel: 'Добавить',
+      onSave: async () => {
+        const amount = parseFloat(amountInput.value);
+        if (!amount || amount <= 0) throw new Error('Введите сумму');
+        try {
+          const res = await apiCall('POST', `/groups/${g.id}/transactions`, {
+            category_id: catSelect.value,
+            amount,
+            type,
+            date: fromLocalInput(dateInput.value) || new Date().toISOString(),
+            description: descInput.value.trim(),
+          });
+          rememberTxType(res.data?.id, type);
+          toast('Добавлено!', 'success');
+          await renderActiveView();
+        } catch (err) { toast(err.message, 'error'); throw err; }
+      },
+    });
+  });
+}
+
+function openSplitTransactionModal(g, cats, members) {
+  if (!cats.length) { toast('Сначала создайте категорию', 'warning'); switchView('budget'); return; }
+  const participants = members.filter((m) => m.user_id !== state.user?.id);
+  if (!participants.length) { toast('Нет других участников для разделения', 'warning'); return; }
+  const amountInput = el('input', { class: 'input', type: 'number', min: '0.01', step: '0.01', required: true, placeholder: `Сумма (${currencySymbol()})` });
+  const catSelect = el('select', { class: 'input', required: true }, cats.map((c) => el('option', { value: c.id }, [c.name])));
+  const dateInput = el('input', { class: 'input', type: 'datetime-local', value: toLocalInput(new Date().toISOString()), required: true });
+  const descInput = el('input', { class: 'input', type: 'text', maxlength: 255, placeholder: 'Описание' });
+  const checkboxList = el('div', { class: 'list' }, participants.map((m) => el('label', { class: 'item', style: 'cursor:pointer;' }, [
+    el('input', { type: 'checkbox', value: m.user_id, class: 'split-participant', style: 'width:auto;' }),
+    el('div', { class: 'avatar-sm', style: `background:${colorFromId(m.user_id)}` }, [initials(m.full_name)]),
+    el('div', { class: 'item-main' }, [el('div', { class: 'item-title' }, [m.full_name || 'Участник']), el('div', { class: 'item-sub' }, [m.phone_number || shortId(m.user_id)])]),
+  ])));
+  openModal({
+    title: 'Разделить расход',
+    body: el('div', {}, [
+      el('p', { class: 'text-sm text-2' }, ['Выберите участников, кроме себя. Сумма разделится поровну.']),
+      field('Сумма', amountInput),
+      field('Категория', catSelect),
+      field('Дата', dateInput),
+      field('Описание', descInput),
+      el('div', { class: 'field-label mt-8' }, ['Участники']),
+      checkboxList,
+    ]),
+    saveLabel: 'Разделить',
+    onSave: async () => {
+      const amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0) throw new Error('Введите сумму');
+      const participantIds = $$('.split-participant:checked').map((x) => x.value);
+      if (!participantIds.length) throw new Error('Выберите участников');
+      try {
+        const res = await apiCall('POST', `/groups/${g.id}/transactions/split`, {
+          category_id: catSelect.value,
+          amount,
+          date: fromLocalInput(dateInput.value) || new Date().toISOString(),
+          description: descInput.value.trim(),
+          participant_ids: participantIds,
+        });
+        rememberTxType(res.data?.transaction?.id, 'expense');
+        toast(`Расход разделён на ${participantIds.length + 1}`, 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function renderDebtsSection(debts, members, compact) {
+  const memberMap = new Map((members || []).map((m) => [m.user_id, m]));
+  const resolveName = (id, name) => name || memberMap.get(id)?.full_name || (id ? `Участник ${shortId(id)}` : '—');
+  const incoming = debts?.incoming || [];
+  const outgoing = debts?.outgoing || [];
+  const renderList = (arr, direction) => {
+    if (!arr.length) return miniEmpty(direction === 'incoming' ? 'Нет долгов вам' : 'Вы никому не должны');
+    return el('div', { class: 'list' }, arr.map((d, i) => stagger(el('div', { class: 'debt-item' }, [
+      el('div', { class: 'avatar-sm', style: `background:${colorFromId(direction === 'incoming' ? d.debtor_id : d.creditor_id)}` }, [initials(resolveName(direction === 'incoming' ? d.debtor_id : d.creditor_id, direction === 'incoming' ? d.debtor_name : d.creditor_name))]),
+      el('div', { class: 'debt-main' }, [
+        el('div', { class: 'item-title' }, [direction === 'incoming' ? resolveName(d.debtor_id, d.debtor_name) : resolveName(d.creditor_id, d.creditor_name)]),
+        el('div', { class: 'item-sub' }, [fmtDate(d.created_at), d.is_paid ? ' · оплачено' : '']),
+      ]),
+      el('div', { class: `debt-amount ${direction === 'incoming' ? 'text-success' : 'text-danger'}` }, [fmtMoney(d.amount)]),
+      direction === 'incoming' && !d.is_paid && d.creditor_id === state.user?.id
+        ? el('button', { type: 'button', class: 'btn btn-primary btn-xs', onclick: async () => { try { await apiCall('POST', `/groups/${activeGroup()?.id}/debts/${d.id}/pay`); toast('Долг закрыт', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } } }, ['Получено'])
+        : d.is_paid ? el('span', { class: 'tag tag-success' }, ['Закрыт']) : null,
+    ].filter(Boolean)), i)));
+  };
+  return sectionBlock('Долги', `Вам должны: ${incoming.length} · Вы должны: ${outgoing.length}`, null, el('div', { class: 'debts-grid' }, [
+    el('div', { class: 'card' }, [el('div', { class: 'card-title mb-8' }, ['Мне должны']), renderList(incoming, 'incoming')]),
+    el('div', { class: 'card' }, [el('div', { class: 'card-title mb-8' }, ['Я должен']), renderList(outgoing, 'outgoing')]),
+  ]), { id: compact ? 'debts-preview' : 'debts-section' });
+}
+
+/* =============================================================
+VIEW: PLANS
+============================================================= */
+async function renderPlans(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+  if (!g) { container.appendChild(noGroupBanner()); return; }
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+  const to = new Date(now.getFullYear(), now.getMonth() + 3, 0).toISOString();
+  const plans = await safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []);
+  const toggle = el('div', { class: 'view-toggle' }, [
+    el('button', { type: 'button', class: calendarState.view === 'list' ? 'active' : '', onclick: () => { calendarState.view = 'list'; renderActiveView(); } }, ['Список']),
+    el('button', { type: 'button', class: calendarState.view === 'calendar' ? 'active' : '', onclick: () => { calendarState.view = 'calendar'; renderActiveView(); } }, ['Календарь']),
+  ]);
+  container.appendChild(sectionHead('События', `${plans.length} ${plural(plans.length, 'событие', 'события', 'событий')}`, el('div', { class: 'row', style: 'gap:8px;' }, [
+    toggle,
+    el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openCreatePlanModal(g) }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Событие'])]),
+  ])));
+  if (calendarState.view === 'calendar') {
+    const calFrom = new Date(calendarState.year, calendarState.month - 1, 1).toISOString();
+    const calTo = new Date(calendarState.year, calendarState.month + 2, 0).toISOString();
+    const calPlans = await safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${calFrom}&to=${calTo}`), []);
+    container.appendChild(renderCalendar(g, calPlans));
+    return;
+  }
+  if (!plans.length) { container.appendChild(emptyState('calendar', 'Пока нет планов', 'Создайте первое событие — пикник, поездку, вечеринку')); return; }
+  const grid = el('div', { class: 'grid-auto' });
+  const cards = await Promise.all(plans.map((p) => renderPlanCard(g, p)));
+  cards.forEach((card, i) => grid.appendChild(stagger(card, i)));
+  container.appendChild(grid);
+}
+
+async function renderPlanCard(g, p) {
+  const [items, rsvpRaw, commentsRaw] = await Promise.all([
+    safeApi(apiCall('GET', `/groups/${g.id}/plans/${p.id}/checklist`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/plans/${p.id}/rsvp`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/plans/${p.id}/comments`), []),
+  ]);
+  const done = items.filter((i) => i.is_checked ?? i.checked).length;
+  const pct = items.length ? (done / items.length) * 100 : 0;
+  const rsvps = normalizeRsvp(rsvpRaw);
+  const comments = normalizeComments(commentsRaw);
+  const card = el('div', { class: 'card' + (p.is_done ? ' is-done' : '') });
+  card.appendChild(el('div', { class: 'card-head' }, [
+    el('div', { class: 'row', style: 'gap:10px;' }, [
+      progressRing(pct),
+      el('div', {}, [
+        el('div', { class: 'card-title' }, [p.title, p.recurrence_rule ? el('span', { class: 'tag tag-primary recurrence-tag' }, [recurrenceLabel(p.recurrence_rule)]) : null]),
+        el('div', { class: 'card-subtitle' }, [`${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`]),
+      ]),
+    ]),
+    el('div', { class: 'item-actions' }, [
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Редактировать', onclick: () => openEditPlanModal(g, p) }, [icon('edit', 18)]),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': p.is_done ? 'Вернуть в активные' : 'Отметить выполненным', onclick: () => togglePlan(g, p) }, [icon(p.is_done ? 'clock' : 'check', 18)]),
+      el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить', onclick: () => confirmDelete('Удалить событие?', async () => { try { await apiCall('DELETE', `/groups/${g.id}/plans/${p.id}`); toast('Удалено', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } }) }, [icon('trash', 18)]),
+    ]),
+  ]));
+  if (p.description) card.appendChild(el('div', { class: 'text-sm text-2', style: 'margin-bottom:8px;' }, [p.description]));
+  card.appendChild(renderRsvpRow(g, p, rsvps));
+  card.appendChild(renderCommentsSection(g, p, comments));
+  if (items.length) {
+    card.appendChild(el('div', { class: 'text-xs text-3 mt-8' }, [`${done} / ${items.length} пунктов`]));
+    const list = el('div', { class: 'list mt-12' });
+    items.forEach((it, i) => {
+      const isChecked = !!(it.is_checked ?? it.checked);
+      const check = el('button', { type: 'button', class: 'check' + (isChecked ? ' on' : ''), 'aria-label': isChecked ? 'Отменить выполнение' : 'Отметить выполненным', onclick: () => toggleChecklistItem(g, it, check) });
+      list.appendChild(stagger(el('div', { class: 'item' + (isChecked ? ' is-done' : '') }, [
+        check,
+        el('div', { class: 'item-main' }, [el('div', { class: 'item-title', style: 'font-size:13px;font-weight:650;' }, [it.text])]),
+        el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить', onclick: async () => { try { await apiCall('DELETE', `/groups/${g.id}/checklist/${it.id}`); toast('Удалено', 'success'); await renderActiveView(); } catch (err) { toast(err.message, 'error'); } } }, [icon('trash', 18)]),
+      ]), i));
+    });
+    card.appendChild(list);
+  }
+  card.appendChild(el('button', { type: 'button', class: 'btn btn-ghost btn-sm btn-block mt-12', onclick: () => openCreateChecklistModal(g, p) }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Пункт'])]));
+  return card;
+}
+
+function normalizeRsvp(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.map((x) => ({ userId: x.UserID || x.user_id, status: x.Status || x.status || 'maybe' }));
+}
+function normalizeComments(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.map((x) => ({ id: x.ID || x.id, userId: x.UserID || x.user_id, fullName: x.FullName || x.full_name || 'Участник', text: x.Text || x.text, createdAt: x.CreatedAt || x.created_at }));
+}
+function recurrenceLabel(rule) {
+  return { daily: 'Ежедневно', weekly: 'Еженедельно', monthly: 'Ежемесячно' }[rule] || rule;
+}
+
+function renderRsvpRow(g, p, rsvps) {
+  const counts = { going: 0, maybe: 0, not_going: 0 };
+  rsvps.forEach((r) => { if (counts[r.status] != null) counts[r.status]++; });
+  const mine = rsvps.find((r) => r.userId === state.user?.id)?.status || '';
+  const btn = (status, label, cls) => el('button', { type: 'button', class: `rsvp-btn ${mine === status ? cls : ''}`, onclick: () => setPlanRsvp(g, p, status) }, [`${label} ${counts[status] || 0}`]);
+  return el('div', { class: 'rsvp-row' }, [
+    btn('going', 'Иду', 'active-going'),
+    btn('maybe', 'Возможно', 'active-maybe'),
+    btn('not_going', 'Не иду', 'active-not'),
+  ]);
+}
+
+async function setPlanRsvp(g, p, status) {
+  try {
+    await apiCall('POST', `/groups/${g.id}/plans/${p.id}/rsvp`, { status });
+    await renderActiveView();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function renderCommentsSection(g, p, comments) {
+  const list = el('div', { class: 'comment-list' }, comments.slice(-10).reverse().map((c) => el('div', { class: 'comment-item' }, [
+    el('div', { class: 'comment-meta' }, [el('strong', {}, [c.fullName]), el('span', {}, [fmtRelative(c.createdAt)])]),
+    el('div', { class: 'comment-text' }, [c.text]),
+  ])));
+  if (!comments.length) list.appendChild(miniEmpty('Комментариев пока нет'));
+  const input = el('input', { class: 'input', type: 'text', maxlength: 500, placeholder: 'Написать комментарий...' });
+  const form = el('form', { class: 'comment-form', onsubmit: async (e) => { e.preventDefault(); const text = input.value.trim(); if (!text) return; try { await apiCall('POST', `/groups/${g.id}/plans/${p.id}/comments`, { text }); input.value = ''; await renderActiveView(); } catch (err) { toast(err.message, 'error'); } } }, [input, el('button', { type: 'submit', class: 'btn btn-primary btn-sm' }, [icon('send', 18)])]);
+  return el('div', { class: 'mt-12' }, [el('div', { class: 'text-xs text-3' }, ['Обсуждение']), list, form]);
+}
+
+async function togglePlan(g, p) {
+  const next = !p.is_done;
+  try {
+    await apiCall('PATCH', `/groups/${g.id}/plans/${p.id}`, { title: p.title, description: p.description || '', event_date: p.event_date, is_done: next, version: Number(p.version ?? 0) });
+    toast(next ? 'Событие выполнено' : 'Событие возвращено в планы', 'success');
+    await renderActiveView();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function toggleChecklistItem(g, item, checkNode) {
+  const current = !!(item.is_checked ?? item.checked);
+  const next = !current;
+  item.is_checked = next;
+  item.checked = next;
+  checkNode.classList.toggle('on', next);
+  try {
+    await apiCall('PATCH', `/groups/${g.id}/checklist/${item.id}`, { text: item.text, is_checked: next, version: Number(item.version ?? 0) });
+    await renderActiveView();
+  } catch (err) {
+    item.is_checked = current;
+    item.checked = current;
+    checkNode.classList.toggle('on', current);
+    toast(err.message, 'error');
+  }
+}
+
+function openCreatePlanModal(g, presetDate = null) {
+  const title = el('input', { class: 'input', name: 'title', required: true, maxlength: 200, placeholder: 'Пикник в парке' });
+  const description = el('textarea', { class: 'input', name: 'description', placeholder: 'Необязательно' });
+  const eventDate = el('input', { class: 'input', name: 'event_date', type: 'datetime-local', value: presetDate ? toLocalInput(new Date(presetDate.getFullYear(), presetDate.getMonth(), presetDate.getDate(), 12, 0).toISOString()) : toLocalInput(new Date().toISOString()), required: true });
+  const rule = el('select', { class: 'input', name: 'recurrence_rule' }, [el('option', { value: '' }, ['Без повтора']), el('option', { value: 'daily' }, ['Ежедневно']), el('option', { value: 'weekly' }, ['Еженедельно']), el('option', { value: 'monthly' }, ['Ежемесячно'])]);
+  const until = el('input', { class: 'input', name: 'recurrence_until', type: 'date' });
+  openModal({
+    title: 'Новое событие',
+    body: el('div', {}, [field('Название', title), field('Описание', description), field('Дата и время', eventDate), field('Повтор', rule), field('Повторять до (необязательно)', until)]),
+    onSave: async () => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/plans`, {
+          title: title.value.trim(),
+          description: description.value.trim(),
+          event_date: fromLocalInput(eventDate.value),
+          recurrence_rule: rule.value || null,
+          recurrence_until: rule.value ? dateToEndISO(until.value) : null,
+        });
+        toast('Создано', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openEditPlanModal(g, plan) {
+  const title = el('input', { class: 'input', name: 'title', required: true, maxlength: 200, value: plan.title });
+  const description = el('textarea', { class: 'input', name: 'description' }, [plan.description || '']);
+  const eventDate = el('input', { class: 'input', name: 'event_date', type: 'datetime-local', value: toLocalInput(plan.event_date), required: true });
+  openModal({
+    title: 'Редактировать событие',
+    body: el('div', {}, [field('Название', title), field('Описание', description), field('Дата и время', eventDate)]),
+    onSave: async () => {
+      try {
+        await apiCall('PATCH', `/groups/${g.id}/plans/${plan.id}`, { title: title.value.trim(), description: description.value.trim(), event_date: fromLocalInput(eventDate.value), is_done: !!plan.is_done, version: Number(plan.version ?? 0) });
+        toast('Обновлено', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openCreateChecklistModal(g, p) {
+  const text = el('input', { class: 'input', name: 'text', required: true, maxlength: 500, placeholder: 'Взять плед' });
+  openModal({
+    title: 'Новый пункт',
+    body: field('Текст', text),
+    onSave: async () => {
+      try {
+        await apiCall('POST', `/groups/${g.id}/plans/${p.id}/checklist`, { text: text.value.trim() });
+        toast('Добавлено', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+/* =============================================================
+VIEW: PROFILE
+============================================================= */
+async function renderProfile(container) {
+  const me = await apiCall('GET', '/users/me');
+  state.user = me.data;
+  renderTopbarUser();
+  renderSidebarUser();
+  container.innerHTML = '';
+  const u = state.user;
+  const wrap = el('div', { style: 'max-width:680px;' });
+  wrap.appendChild(el('div', { class: 'card' }, [
+    el('div', { class: 'row', style: 'gap:14px;margin-bottom:18px;' }, [
+      el('div', { class: 'avatar', style: 'width:58px;height:58px;font-size:18px;border-radius:20px;' }, [initials(u.full_name)]),
+      el('div', {}, [
+        el('div', { style: 'font-size:16px;font-weight:850;' }, [u.full_name || '—']),
+        el('div', { class: 'text-sm text-3' }, [u.phone_number || '—']),
+      ]),
+    ]),
+    el('form', { class: 'form', onsubmit: async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        const res = await apiCall('PATCH', '/users/me', {
+          full_name: String(fd.get('full_name') || '').trim(),
+          age: Number(fd.get('age')),
+          phone_number: String(fd.get('phone_number') || '').trim(),
+          currency: String(fd.get('currency') || 'RUB').trim(),
+          version: Number(u.version ?? 0),
+        });
+        state.user = res.data;
+        toast('Профиль обновлён', 'success');
+        renderShell();
+        await renderProfile(container);
+      } catch (err) { toast(err.message, 'error'); }
+    } }, [
+      field('Имя', el('input', { class: 'input', name: 'full_name', value: u.full_name || '', required: true, minlength: 3, maxlength: 100 })),
+      field('Возраст', el('input', { class: 'input', name: 'age', type: 'number', value: u.age ?? '', min: 18, max: 100, required: true })),
+      field('Телефон', el('input', { class: 'input', name: 'phone_number', type: 'tel', value: u.phone_number || '', required: true })),
+      field('Валюта', el('select', { class: 'input', name: 'currency' }, [
+        el('option', { value: 'RUB', selected: (u.currency || 'RUB') === 'RUB' }, ['₽ Рубль']),
+        el('option', { value: 'USD', selected: u.currency === 'USD' }, ['$ Доллар']),
+        el('option', { value: 'EUR', selected: u.currency === 'EUR' }, ['€ Евро']),
+        el('option', { value: 'KZT', selected: u.currency === 'KZT' }, ['₸ Тенге']),
+        el('option', { value: 'BYN', selected: u.currency === 'BYN' }, ['Br Белорусский рубль']),
+      ])),
+      el('button', { type: 'submit', class: 'btn btn-primary btn-block mt-8' }, ['Сохранить']),
+    ]),
+    el('div', { class: 'text-xs text-3 mt-16' }, [`Создан: ${fmtDate(u.created_at)}${u.version != null ? ` · версия ${u.version}` : ''}`]),
+  ]));
+  if (state.groups.length) {
+    wrap.appendChild(el('div', { class: 'card mt-16' }, [
+      sectionHead('Мои группы', `${state.groups.length} ${plural(state.groups.length, 'группа', 'группы', 'групп')}`),
+      el('div', { class: 'list' }, state.groups.map((g, i) => stagger(el('button', { type: 'button', class: 'item', onclick: () => switchGroup(g.id) }, [
+        el('div', { class: 'avatar-sm', style: `background:${colorFromId(g.id)}` }, [initials(g.name)]),
+        el('div', { class: 'item-main' }, [
+          el('div', { class: 'item-title' }, [g.name]),
+          el('div', { class: 'item-sub' }, [isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`]),
+        ]),
+        g.id === state.activeGroupId ? el('span', { class: 'tag tag-primary' }, ['активна']) : null,
+      ].filter(Boolean)), i))),
+    ]));
+  }
+  wrap.appendChild(el('div', { class: 'card mt-16' }, [
+    el('div', { class: 'card-title' }, ['Аккаунт и безопасность']),
+    el('div', { class: 'text-sm text-3 mt-8' }, ['Управление паролем, Telegram-уведомлениями и опасные действия.']),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-block mt-12', onclick: openChangePasswordModal }, [el('span', { 'data-icon': 'key', 'data-size': 'sm' }), el('span', {}, ['Сменить пароль'])]),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-block mt-8', onclick: openTelegramLinkModal }, [el('span', { 'data-icon': 'send', 'data-size': 'sm' }), el('span', {}, ['Привязать Telegram'])]),
+    el('button', { type: 'button', class: 'btn btn-danger-ghost btn-block mt-8', onclick: () => confirmDelete('Отвязать Telegram?', async () => { try { await apiCall('DELETE', '/users/me/telegram'); toast('Telegram отвязан', 'success'); } catch (err) { toast(err.message, 'error'); } }) }, [el('span', { 'data-icon': 'x', 'data-size': 'sm' }), el('span', {}, ['Отвязать Telegram'])]),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-block mt-8', onclick: () => startOnboardingTour(true) }, [el('span', { 'data-icon': 'sparkles', 'data-size': 'sm' }), el('span', {}, ['Пройти тур заново'])]),
+    el('div', { class: 'card-title mt-16', style: 'color: var(--danger);' }, ['Опасная зона']),
+    el('button', { type: 'button', class: 'btn btn-danger btn-block mt-12', onclick: openDeleteAccountModal }, [el('span', { 'data-icon': 'trash', 'data-size': 'sm' }), el('span', {}, ['Удалить аккаунт'])]),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-block mt-8', onclick: logout }, [el('span', { 'data-icon': 'logout', 'data-size': 'sm' }), el('span', {}, ['Выйти из аккаунта'])]),
+  ]));
+  container.appendChild(wrap);
+}
+
+function openChangePasswordModal() {
+  const oldPwd = el('input', { class: 'input', type: 'password', placeholder: 'Текущий пароль' });
+  const newPwd = el('input', { class: 'input', type: 'password', placeholder: 'Новый пароль (мин. 8 символов)' });
+  openModal({
+    title: 'Смена пароля',
+    body: el('div', {}, [el('p', { class: 'text-sm text-2', style: 'margin-bottom:12px;' }, ['Введите старый и новый пароль.']), field('Текущий пароль', oldPwd), field('Новый пароль', newPwd)]),
+    saveLabel: 'Сохранить',
+    onSave: async () => {
+      if (!oldPwd.value || !newPwd.value) throw new Error('Заполните все поля');
+      try { await apiCall('PATCH', '/users/me/password', { old_password: oldPwd.value, new_password: newPwd.value }); toast('Пароль успешно изменён', 'success'); }
+      catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+async function openTelegramLinkModal() {
+  try {
+    const res = await apiCall('POST', '/users/me/telegram/link');
+    const data = res.data || {};
+    openModal({
+      title: 'Привязка Telegram',
+      body: el('div', {}, [
+        el('p', { class: 'text-sm text-2' }, [data.instruction || 'Откройте Telegram-бота и отправьте код.']),
+        field('Код', el('input', { class: 'copy-input', type: 'text', value: data.code || '', readonly: true, onclick: (e) => e.target.select() })),
+        el('div', { class: 'row gap-8 mt-12' }, [
+          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => copyText(data.code || '', 'Код скопирован') }, [icon('copy', 18), el('span', {}, ['Копировать'])]),
+          el('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => window.open(`https://t.me/zunno_notify_bot?start=${encodeURIComponent(data.code || '')}`, '_blank') }, [icon('send', 18), el('span', {}, ['Открыть бота'])]),
+        ]),
+        data.expires_at ? el('div', { class: 'text-xs text-3 mt-8' }, [`Код действует до ${fmtDateTime(data.expires_at)}`]) : null,
+      ].filter(Boolean)),
+      saveLabel: 'Готово',
+      onSave: async () => {},
+    });
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function openDeleteAccountModal() {
+  const password = el('input', { class: 'input', name: 'password', type: 'password', required: true });
+  openModal({
+    title: 'Удалить аккаунт?',
+    body: el('div', {}, [el('p', { class: 'text-2 text-sm' }, ['Это действие необратимо. Введите пароль для подтверждения.']), field('Пароль', password)]),
+    saveLabel: 'Удалить навсегда',
+    danger: true,
+    onSave: async () => {
+      try { await apiCall('DELETE', '/users/me', { password: password.value }); toast('Аккаунт удалён', 'success'); logout(); }
+      catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+/* =============================================================
+MODAL
+============================================================= */
+function openModal({ title, body, onSave, saveLabel = 'Сохранить', danger = false }) {
+  const root = $('#modal-root');
+  if (!root) return;
+  closeModal();
+  ui.modalPrevFocus = document.activeElement;
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
+  const modal = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
+  modal.appendChild(el('div', { class: 'modal-title' }, [title]));
+  const form = el('form', { class: 'modal-body', novalidate: true });
+  appendContent(form, body);
+  const submit = el('button', { type: 'submit', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}` }, [saveLabel]);
+  form.appendChild(el('div', { class: 'modal-actions' }, [
+    el('button', { type: 'button', class: 'btn btn-ghost', onclick: closeModal }, ['Отмена']),
+    submit,
+  ]));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const oldLabel = submit.textContent;
+    submit.disabled = true;
+    submit.textContent = '…';
+    try { await onSave(new FormData(form)); closeModal(); }
+    catch (err) { toast(err.message || 'Ошибка', 'error'); }
+    finally { submit.disabled = false; submit.textContent = oldLabel; }
+  });
+  modal.appendChild(form);
+  modal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const focusable = $$('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])', modal).filter((node) => node.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  backdrop.appendChild(modal);
+  root.appendChild(backdrop);
+  hydrateIcons(modal);
+  const first = modal.querySelector('input, select, textarea, button');
+  if (first) setTimeout(() => first.focus(), 80);
+}
+
+function closeModal() {
+  const root = $('#modal-root');
+  if (!root) return;
+  root.innerHTML = '';
+  if (ui.modalPrevFocus && ui.modalPrevFocus.isConnected) ui.modalPrevFocus.focus();
+  ui.modalPrevFocus = null;
+}
+
+function confirmDelete(message, onConfirm, confirmLabel = 'Удалить') {
+  openModal({ title: 'Подтверждение', body: el('div', { class: 'confirm-text' }, [message]), saveLabel: confirmLabel, danger: true, onSave: async () => { await onConfirm(); } });
+}
+
+/* =============================================================
+UNDO DELETE
+============================================================= */
+function deleteWithUndo({ label, onConfirm, onCancel }) {
+  const root = $('#toasts');
+  if (!root) { onConfirm(); return; }
+  let timer;
+  const node = el('div', { class: 'toast toast-warning', role: 'status' }, [
+    el('div', { class: 'toast-ico' }, [icon('alert', 16)]),
+    el('div', { class: 'toast-msg', style: 'flex:1;' }, [`${label} удалено`]),
+    el('button', { type: 'button', class: 'btn btn-xs', style: 'background:transparent;border:1px solid currentColor;color:inherit;padding:4px 8px;font-size:11px;border-radius:8px;margin-left:4px;', onclick: () => { clearTimeout(timer); node.classList.add('hide'); setTimeout(() => node.remove(), 240); onCancel?.(); toast('Отменено', 'info', 1500); } }, ['Отменить']),
+  ]);
+  root.appendChild(node);
+  timer = setTimeout(() => { node.classList.add('hide'); setTimeout(() => node.remove(), 240); onConfirm(); }, 5000);
+}
+
+/* =============================================================
+GROUP MODALS
+============================================================= */
+function openCreateGroupModal() {
+  const name = el('input', { class: 'input', name: 'name', required: true, maxlength: 100, placeholder: 'Например, Семья' });
+  openModal({
+    title: 'Новая группа',
+    body: field('Название', name),
+    onSave: async () => {
+      try {
+        const res = await apiCall('POST', '/groups', { name: name.value.trim() });
+        state.groups.push(res.data);
+        state.activeGroupId = res.data.id;
+        localStorage.setItem('active_group', res.data.id);
+        renderShell();
+        await renderActiveView();
+        toast('Группа создана', 'success');
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openJoinGroupModal() {
+  const groupId = el('input', { class: 'copy-input', name: 'group_id', required: true, placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' });
+  openModal({
+    title: 'Присоединиться по ID',
+    body: el('div', {}, [el('p', { class: 'text-2 text-sm' }, ['Введите ID группы, который вам прислал администратор.']), field('Group ID', groupId)]),
+    saveLabel: 'Присоединиться',
+    onSave: async () => {
+      const gid = groupId.value.trim();
+      try { await apiCall('POST', `/groups/${gid}/join`); toast('Вы присоединились', 'success'); await bootstrapApp(); }
+      catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+}
+
+function openInviteModal(g) {
+  const phone = el('input', { class: 'input', type: 'tel', placeholder: '+79991234567', inputmode: 'tel' });
+  openModal({
+    title: 'Пригласить в группу',
+    body: el('div', {}, [
+      el('p', { class: 'text-2 text-sm' }, ['Введите телефон пользователя. Если он зарегистрирован, получит приглашение.']),
+      field('Телефон', phone),
+      el('div', { class: 'row gap-8 mt-12' }, [
+        el('input', { class: 'copy-input flex-1', type: 'text', value: g.id, readonly: true, onclick: (e) => e.target.select() }),
+        el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => copyText(g.id, 'ID группы скопирован') }, [icon('copy', 18)]),
+      ]),
+      el('p', { class: 'text-xs text-3 mt-8' }, ['Альтернатива: отправьте другу ID группы, он нажмёт «Присоединиться».']),
+    ]),
+    saveLabel: 'Отправить приглашение',
+    onSave: async () => {
+      const value = phone.value.replace(/\s+/g, '').trim();
+      if (!value) throw new Error('Введите телефон');
+      try { await apiCall('POST', `/groups/${g.id}/invite`, { phone_number: value }); toast('Приглашение отправлено', 'success'); }
+      catch (err) { if (err.status === 404) throw new Error('Пользователь с таким телефоном не найден'); throw err; }
+    },
+  });
+}
+
+/* =============================================================
+COMMAND PALETTE
+============================================================= */
+function getCommands() {
+  const cmds = [];
+  const g = activeGroup();
+  for (const [key, view] of Object.entries(VIEWS)) cmds.push({ id: `view-${key}`, title: view.title, hint: 'Раздел', icon: view.icon, run: () => switchView(key) });
+  for (const group of state.groups) cmds.push({ id: `group-${group.id}`, title: group.name, hint: 'Группа', icon: 'users', run: () => switchGroup(group.id) });
+  cmds.push({ id: 'action-create-group', title: 'Создать группу', hint: 'Действие', icon: 'plus', run: openCreateGroupModal });
+  cmds.push({ id: 'action-join-group', title: 'Присоединиться по ID', hint: 'Действие', icon: 'login', run: openJoinGroupModal });
+  if (g) {
+    cmds.push(
+      { id: 'action-expense', title: 'Добавить расход', hint: 'Действие', icon: 'arrowDownCircle', run: () => openTransactionModal(g, 'expense') },
+      { id: 'action-income', title: 'Добавить доход', hint: 'Действие', icon: 'arrowUpCircle', run: () => openTransactionModal(g, 'income') },
+      { id: 'action-split', title: 'Разделить расход', hint: 'Действие', icon: 'split', run: async () => { const cats = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []); const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []); openSplitTransactionModal(g, cats, members); } },
+      { id: 'action-plan', title: 'Создать событие', hint: 'Действие', icon: 'calendarPlus', run: () => openCreatePlanModal(g) },
+      { id: 'action-goal', title: 'Создать категорию целей', hint: 'Действие', icon: 'target', run: () => openCreateGoalCategoryModal(g) },
+      { id: 'action-invite', title: 'Пригласить в группу', hint: 'Действие', icon: 'invite', run: () => openInviteModal(g) },
+      { id: 'action-copy-group-id', title: 'Скопировать ID группы', hint: 'Действие', icon: 'copy', run: () => copyText(g.id, 'ID группы скопирован') },
+      { id: 'action-debts', title: 'Открыть долги', hint: 'Бюджет', icon: 'coins', run: () => { switchView('budget'); setTimeout(() => $('#debts-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); } }
+    );
+  }
+  cmds.push({ id: 'action-toggle-theme', title: 'Переключить тему', hint: 'Интерфейс', icon: THEME_META[document.documentElement.dataset.theme || 'dark'].icon, run: cycleTheme });
+  if (state.user) cmds.push({ id: 'action-logout', title: 'Выйти из аккаунта', hint: 'Аккаунт', icon: 'logout', run: logout });
+  return cmds;
+}
+
+function openCommandPalette() {
+  if (ui.command.open) return;
+  ui.command.open = true;
+  const root = $('#command-palette');
+  const input = $('#command-input');
+  root?.classList.remove('hidden');
+  if (input) { input.value = ''; setTimeout(() => input.focus(), 30); }
+  renderCommands('');
+}
+
+function closeCommandPalette() {
+  if (!ui.command.open) return;
+  ui.command.open = false;
+  $('#command-palette')?.classList.add('hidden');
+}
+
+function renderCommands(query = '') {
+  const list = $('#command-list');
+  if (!list) return;
+  const all = getCommands();
+  const q = query.trim().toLowerCase();
+  ui.command.filtered = q ? all.filter((cmd) => `${cmd.title} ${cmd.hint}`.toLowerCase().includes(q)) : all;
+  if (ui.command.selected >= ui.command.filtered.length) ui.command.selected = Math.max(0, ui.command.filtered.length - 1);
+  list.innerHTML = '';
+  if (!ui.command.filtered.length) { list.appendChild(el('div', { class: 'cmdk-empty' }, ['Ничего не найдено'])); return; }
+  ui.command.filtered.forEach((cmd, index) => {
+    const item = el('button', {
+      type: 'button',
+      class: 'cmdk-item' + (index === ui.command.selected ? ' is-selected' : ''),
+      onclick: () => { closeCommandPalette(); cmd.run(); },
+      onmouseenter: () => { ui.command.selected = index; updateCommandSelection(); },
+    }, [
+      el('span', { class: 'cmdk-item-icon' }, [icon(cmd.icon || 'info', 18)]),
+      el('span', { class: 'cmdk-item-main' }, [
+        el('span', { class: 'cmdk-item-title' }, [cmd.title]),
+        el('span', { class: 'cmdk-item-hint' }, [cmd.hint || '']),
+      ]),
+    ]);
+    list.appendChild(item);
+  });
+}
+
+function updateCommandSelection() {
+  const items = $$('#command-list .cmdk-item');
+  items.forEach((node, index) => node.classList.toggle('is-selected', index === ui.command.selected));
+  items[ui.command.selected]?.scrollIntoView({ block: 'nearest' });
+}
+
+function moveCommandSelection(delta) {
+  if (!ui.command.filtered.length) return;
+  ui.command.selected = (ui.command.selected + delta + ui.command.filtered.length) % ui.command.filtered.length;
+  updateCommandSelection();
+}
+
+function initCommandPalette() {
+  $('#command-btn')?.addEventListener('click', () => { ui.command.open ? closeCommandPalette() : openCommandPalette(); });
+  $('#command-input')?.addEventListener('input', (e) => { ui.command.selected = 0; renderCommands(e.target.value); });
+  $('#command-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveCommandSelection(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveCommandSelection(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const cmd = ui.command.filtered[ui.command.selected]; if (cmd) { closeCommandPalette(); cmd.run(); } }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeCommandPalette(); }
+  });
+  $('#command-palette')?.addEventListener('click', (e) => { if (e.target.id === 'command-palette') closeCommandPalette(); });
+}
+
+/* =============================================================
+RIPPLE
+============================================================= */
+function initRipple() {
+  document.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip,.theme-option,.rsvp-btn');
+    if (!btn || btn.disabled) return;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const span = el('span', { class: 'ripple' });
+    span.style.width = `${size}px`;
+    span.style.height = `${size}px`;
+    span.style.left = `${e.clientX - rect.left - size / 2}px`;
+    span.style.top = `${e.clientY - rect.top - size / 2}px`;
+    btn.appendChild(span);
+    setTimeout(() => span.remove(), 600);
+  });
+}
+
+/* =============================================================
+GLOBAL KEYS
+============================================================= */
+function initGlobalKeys() {
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const appVisible = !$('#screen-app')?.classList.contains('hidden');
+      if (!appVisible) return;
+      ui.command.open ? closeCommandPalette() : openCommandPalette();
+      return;
     }
     if (e.key === 'Escape') {
-      document.getElementById('command-palette').style.display = 'none';
-      document.getElementById('command-palette').style.pointerEvents = 'none';
-      closeModal();
+      if (ui.command.open) { closeCommandPalette(); return; }
+      if ($('#modal-root')?.children.length) { closeModal(); return; }
+      if (ui.popover) { closePopover(); return; }
+      if (ui.fabOpen) closeFab();
     }
-  });
-
-  document.getElementById('command-palette').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('command-palette')) {
-      document.getElementById('command-palette').style.display = 'none';
-      document.getElementById('command-palette').style.pointerEvents = 'none';
-    }
-  });
-
-  // Command palette search
-  document.getElementById('cmd-input').addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    const actions = [
-      { label: 'Обзор', action: () => { state.view = 'dashboard'; renderView(); } },
-      { label: 'Бюджет', action: () => { state.view = 'budget'; renderView(); } },
-      { label: 'Планы', action: () => { state.view = 'plans'; renderView(); } },
-      { label: 'Цели', action: () => { state.view = 'goals'; renderView(); } },
-      { label: 'Долги', action: () => { state.view = 'debts'; renderView(); } },
-      { label: 'Профиль', action: () => { state.view = 'profile'; renderView(); } },
-      { label: 'Добавить трату', action: showTransactionModal },
-      { label: 'Разделить счёт', action: showSplitModal },
-      { label: 'Новый план', action: showPlanModal },
-      { label: 'Экспорт CSV', action: exportCSV },
-    ];
-    const filtered = actions.filter(a => a.label.toLowerCase().includes(query));
-    document.getElementById('cmd-results').innerHTML = filtered.map(a => `
-      <button class="sidebar-item" data-cmd="${a.label}">${a.label}</button>
-    `).join('');
-    document.querySelectorAll('[data-cmd]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = actions.find(a => a.label === btn.dataset.cmd);
-        if (action) action.action();
-        document.getElementById('command-palette').style.display = 'none';
-        document.getElementById('command-palette').style.pointerEvents = 'none';
-        document.getElementById('cmd-input').value = '';
-      });
-    });
   });
 }
 
-// Start
-document.addEventListener('DOMContentLoaded', init);
+/* =============================================================
+INIT
+============================================================= */
+function initApp() {
+  hydrateIcons();
+  initTooltip();
+  initRipple();
+  initAuthScreen();
+  initSidebar();
+  initTopbar();
+  initFab();
+  initCommandPalette();
+  initGlobalKeys();
+  $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+  $$('.mobile-nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+  $$('[data-theme-toggle]').forEach((btn) => btn.addEventListener('click', cycleTheme));
+}
+
+async function main() {
+  applyTheme(localStorage.getItem('zunno-theme') || getPreferredTheme());
+  initApp();
+  if (state.token) {
+    try { await bootstrapApp(); } catch { showScreen('auth'); }
+  } else {
+    showScreen('auth');
+  }
+  setBusy(false);
+}
+
+main();
