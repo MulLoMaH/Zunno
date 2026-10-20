@@ -1,7 +1,3 @@
-/* =============================================================
-   ZUNNO · Premium SPA
-   Glassmorphism / Neumorphism edition
-   ============================================================= */
 'use strict';
 
 const API = '/api/v1';
@@ -29,17 +25,37 @@ const ui = {
 };
 
 let viewAnimators = [];
+let uidCounter = 0;
+
 let calendarState = {
   view: 'list',
   month: new Date().getMonth(),
   year: new Date().getFullYear(),
 };
 
-/* =============================================================
-   DOM HELPERS
-   ============================================================= */
+const THEMES = ['dark', 'light', 'pink'];
+const THEME_COLORS = {
+  dark: '#070912',
+  light: '#eef2f8',
+  pink: '#fff7fa',
+};
+const THEME_ICONS = {
+  dark: 'moon',
+  light: 'sun',
+  pink: 'heart',
+};
+const THEME_LABELS = {
+  dark: 'Тёмная',
+  light: 'Светлая',
+  pink: 'Розовая',
+};
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function uid() {
+  return `u${++uidCounter}`;
+}
 
 function appendContent(parent, content) {
   if (content == null || content === false) return;
@@ -114,13 +130,19 @@ function debounce(fn, delay = 300) {
   };
 }
 
-function isVisible(selector) {
-  const node = typeof selector === 'string' ? document.querySelector(selector) : selector;
-  return !!node && node.offsetParent !== null;
-}
-
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function isVisible(target) {
+  const node = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!node) return false;
+
+  const style = getComputedStyle(node);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+
+  const rect = node.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
 }
 
 function animateLater(fn) {
@@ -144,9 +166,6 @@ function flushAnimators() {
   });
 }
 
-/* =============================================================
-   ICONS
-   ============================================================= */
 const ICONS = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
@@ -171,6 +190,8 @@ const ICONS = {
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   sun:
     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  heart:
+    '<path d="M12 20.5s-6.8-4.2-9.1-8.7A5.1 5.1 0 0 1 12 6.8a5.1 5.1 0 0 1 9.1 5c-2.3 4.5-9.1 8.7-9.1 8.7z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -239,6 +260,8 @@ function hydrateIcons(root = document) {
     if (node.dataset.hydrated === '1') return;
 
     const name = node.dataset.icon;
+    if (!name) return;
+
     const size = node.dataset.size === 'sm' ? 18 : node.dataset.size === 'lg' ? 24 : 20;
 
     node.innerHTML = '';
@@ -247,9 +270,6 @@ function hydrateIcons(root = document) {
   });
 }
 
-/* =============================================================
-   FORMATTERS
-   ============================================================= */
 const CURRENCY_SYMBOLS = {
   RUB: '₽',
   USD: '$',
@@ -282,6 +302,22 @@ function fmtMoney(n) {
       maximumFractionDigits: 2,
     }).format(num);
     return `${symbol}${formatted}`;
+  }
+}
+
+function fmtMoneyShort(n) {
+  const num = Number(n) || 0;
+  const code = String(state.user?.currency || 'RUB').toUpperCase();
+
+  try {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: code,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(num);
+  } catch {
+    return fmtMoney(num);
   }
 }
 
@@ -416,42 +452,36 @@ function setBusy(busy) {
   if (preloader) preloader.classList.toggle('hide', !busy);
 }
 
-/* =============================================================
-   THEME
-   ============================================================= */
 function getPreferredTheme() {
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 function applyTheme(theme) {
+  const safeTheme = THEMES.includes(theme) ? theme : 'dark';
   const root = document.documentElement;
-  root.dataset.theme = theme;
-  localStorage.setItem('zunno-theme', theme);
+
+  root.dataset.theme = safeTheme;
+  localStorage.setItem('zunno-theme', safeTheme);
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.setAttribute(
-      'aria-label',
-      theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'
-    );
+    btn.setAttribute('aria-label', `Тема: ${THEME_LABELS[safeTheme]}. Переключить`);
   });
 
   $$('[data-theme-icon]').forEach((slot) => {
     slot.innerHTML = '';
-    slot.appendChild(icon(theme === 'dark' ? 'moon' : 'sun'));
+    slot.appendChild(icon(THEME_ICONS[safeTheme] || 'moon'));
   });
 
   const meta = $('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'dark' ? '#070912' : '#eef2f8');
+  if (meta) meta.setAttribute('content', THEME_COLORS[safeTheme] || THEME_COLORS.dark);
 }
 
-function toggleTheme() {
+function cycleTheme() {
   const current = document.documentElement.dataset.theme || 'dark';
-  applyTheme(current === 'dark' ? 'light' : 'dark');
+  const idx = THEMES.indexOf(current);
+  applyTheme(THEMES[(idx + 1) % THEMES.length]);
 }
 
-/* =============================================================
-   TOASTS
-   ============================================================= */
 function toast(message, type = 'info', timeout = 3600) {
   const root = $('#toasts');
   if (!root) return;
@@ -487,16 +517,15 @@ function toast(message, type = 'info', timeout = 3600) {
   }, timeout);
 }
 
-/* =============================================================
-   TOOLTIP
-   ============================================================= */
 function initTooltip() {
   let hideTimer;
+  let touchTimer;
+  let touchActive = false;
 
   function ensureTooltip() {
     if (ui.tooltipEl) return ui.tooltipEl;
     ui.tooltipEl = el('div', { class: 'app-tooltip', role: 'tooltip' });
-    $('#tooltip-root').appendChild(ui.tooltipEl);
+    $('#tooltip-root')?.appendChild(ui.tooltipEl);
     return ui.tooltipEl;
   }
 
@@ -532,6 +561,7 @@ function initTooltip() {
   function hide() {
     if (!ui.tooltipEl) return;
     ui.tooltipEl.classList.remove('visible');
+    touchActive = false;
   }
 
   document.addEventListener('mouseover', (e) => {
@@ -551,36 +581,40 @@ function initTooltip() {
 
   document.addEventListener('focusout', () => hide());
 
-  let touchTimer;
   document.addEventListener(
     'touchstart',
     (e) => {
       const target = e.target.closest('[data-tip]');
+
+      if (touchActive && !target) {
+        hide();
+      }
+
+      clearTimeout(touchTimer);
+
       if (!target) return;
 
-      touchTimer = setTimeout(() => show(target), 400);
+      touchTimer = setTimeout(() => {
+        show(target);
+        touchActive = true;
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, 400);
     },
     { passive: true }
   );
 
-  document.addEventListener('touchend', () => {
-    clearTimeout(touchTimer);
-    hide();
-  });
+  document.addEventListener('touchend', () => clearTimeout(touchTimer));
 
   document.addEventListener('touchmove', () => {
     clearTimeout(touchTimer);
-    hide();
+    if (touchActive) hide();
   });
 
   window.addEventListener('scroll', hide, true);
   window.addEventListener('resize', hide);
 }
 
-/* =============================================================
-   POPOVER
-   ============================================================= */
-function openPopover(anchor, content, opts = {}) {
+function openPopover(anchor, content) {
   closePopover();
 
   const panel = el('div', {
@@ -592,13 +626,13 @@ function openPopover(anchor, content, opts = {}) {
   panel.appendChild(el('div', { class: 'popover-arrow' }));
   appendContent(panel, content);
 
-  $('#popover-root').appendChild(panel);
+  $('#popover-root')?.appendChild(panel);
   hydrateIcons(panel);
 
-  ui.popover = { anchor, panel, opts };
+  ui.popover = { anchor, panel };
 
   requestAnimationFrame(() => {
-    positionPopover(anchor, panel, opts);
+    positionPopover(anchor, panel);
     panel.classList.add('open');
   });
 
@@ -609,7 +643,7 @@ function openPopover(anchor, content, opts = {}) {
   }, 0);
 }
 
-function positionPopover(anchor, panel, opts = {}) {
+function positionPopover(anchor, panel) {
   const a = anchor.getBoundingClientRect();
   const p = panel.getBoundingClientRect();
   const gap = 10;
@@ -657,7 +691,7 @@ function onPopoverPointer(e) {
 
 function onPopoverReposition() {
   if (!ui.popover) return;
-  positionPopover(ui.popover.anchor, ui.popover.panel, ui.popover.opts);
+  positionPopover(ui.popover.anchor, ui.popover.panel);
 }
 
 function onPopoverScroll(e) {
@@ -694,9 +728,6 @@ function popoverEmpty(text) {
   return el('div', { class: 'popover-empty' }, [text]);
 }
 
-/* =============================================================
-   CLIPBOARD
-   ============================================================= */
 function copyText(text, successMsg = 'Скопировано') {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard
@@ -755,9 +786,6 @@ function showCopyFallback(text) {
   });
 }
 
-/* =============================================================
-   API CLIENT
-   ============================================================= */
 async function apiCall(method, path, body, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -841,9 +869,6 @@ async function safeApi(promise, fallback) {
   }
 }
 
-/* =============================================================
-   AUTH
-   ============================================================= */
 async function login(phone, password) {
   const res = await apiCall(
     'POST',
@@ -882,6 +907,15 @@ async function logout() {
     // ignore
   }
 
+  if (ui.tour) {
+    try {
+      ui.tour.destroy();
+    } catch {
+      // ignore
+    }
+    ui.tour = null;
+  }
+
   state.token = '';
   state.user = null;
   state.groups = [];
@@ -895,9 +929,6 @@ async function logout() {
   showScreen('auth');
 }
 
-/* =============================================================
-   SCREENS
-   ============================================================= */
 function showScreen(name) {
   $('#screen-auth')?.classList.toggle('hidden', name !== 'auth');
   $('#screen-app')?.classList.toggle('hidden', name !== 'app');
@@ -915,9 +946,6 @@ function closeAllOverlays() {
   closeFab();
 }
 
-/* =============================================================
-   AUTH SCREEN
-   ============================================================= */
 function initAuthScreen() {
   const tabs = $$('.segmented-btn');
   const thumb = $('.segmented-thumb');
@@ -968,9 +996,6 @@ function initAuthScreen() {
   });
 }
 
-/* =============================================================
-   BOOTSTRAP
-   ============================================================= */
 async function bootstrapApp() {
   try {
     setBusy(true);
@@ -1020,9 +1045,6 @@ function renderShell() {
   hydrateIcons();
 }
 
-/* =============================================================
-   SIDEBAR
-   ============================================================= */
 function isPersonalGroup(g) {
   if (!g) return false;
   if (g.is_personal === true || g.type === 'personal') return true;
@@ -1066,7 +1088,7 @@ function renderSidebarGroups() {
 
   if (!state.groups.length) {
     box.appendChild(
-      el('div', { class: 'text-xs text-3', style: 'padding: 8px 10px;' }, ['Нет групп'])
+      el('div', { class: 'text-xs text-3 nav-label', style: 'padding: 8px 10px;' }, ['Нет групп'])
     );
     return;
   }
@@ -1121,7 +1143,9 @@ function renderSidebarGroupItem(g, personal) {
     [
       el('span', {
         class: 'group-dot',
-        style: personal ? 'background: linear-gradient(135deg, var(--primary), var(--accent));' : `background:${colorFromId(g.id)}`,
+        style: personal
+          ? 'background: linear-gradient(135deg, var(--primary), var(--accent));'
+          : `background:${colorFromId(g.id)}`,
       }),
       el('span', { class: 'sidebar-group-item-name nav-label' }, [g.name]),
     ]
@@ -1140,9 +1164,6 @@ function initSidebar() {
   });
 }
 
-/* =============================================================
-   TOPBAR
-   ============================================================= */
 function renderTopbarGroup() {
   const g = activeGroup();
 
@@ -1173,7 +1194,7 @@ function renderTopbarGroup() {
 }
 
 function renderTopbarUser() {
-  const btn = $('#topbar-user-btn');
+  const btn = $('#user-menu-btn');
   if (!btn) return;
   btn.textContent = initials(state.user?.full_name);
 }
@@ -1197,25 +1218,29 @@ function switchGroup(id) {
   state.activeGroupId = id;
   localStorage.setItem('active_group', id);
 
+  closePopover();
+  closeCommandPalette();
+  closeFab();
+
   renderSidebarGroups();
   renderTopbarGroup();
   renderActiveView();
-
-  closePopover();
-  closeCommandPalette();
 }
 
 function initTopbar() {
   $('#group-switcher-btn')?.addEventListener('click', (e) => {
-    openGroupPopover(e.currentTarget);
+    if (ui.popover?.anchor === e.currentTarget) closePopover();
+    else openGroupPopover(e.currentTarget);
   });
 
   $('#invitations-btn')?.addEventListener('click', (e) => {
-    openInvitationsPopover(e.currentTarget);
+    if (ui.popover?.anchor === e.currentTarget) closePopover();
+    else openInvitationsPopover(e.currentTarget);
   });
 
   $('#user-menu-btn')?.addEventListener('click', (e) => {
-    openUserPopover(e.currentTarget);
+    if (ui.popover?.anchor === e.currentTarget) closePopover();
+    else openUserPopover(e.currentTarget);
   });
 
   $('#btn-new-group')?.addEventListener('click', openCreateGroupModal);
@@ -1241,10 +1266,14 @@ function openGroupPopover(anchor) {
               },
             },
             [
-              el('span', {
-                class: 'group-avatar',
-                style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
-              }, [initials(group.name)]),
+              el(
+                'span',
+                {
+                  class: 'group-avatar',
+                  style: `width:30px;height:30px;border-radius:11px;background:linear-gradient(135deg, ${colorFromId(group.id)}, var(--accent));`,
+                },
+                [initials(group.name)]
+              ),
               el('span', { class: 'popover-item-main' }, [
                 el('span', { class: 'popover-item-title' }, [group.name]),
                 el('span', { class: 'popover-item-sub' }, [
@@ -1280,6 +1309,7 @@ function openGroupPopover(anchor) {
 
 function openUserPopover(anchor) {
   const u = state.user;
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
 
   openPopover(
     anchor,
@@ -1296,8 +1326,8 @@ function openUserPopover(anchor) {
       el('div', { class: 'popover-divider' }),
       el('div', { class: 'popover-actions' }, [
         popoverAction('user', 'Мой профиль', () => switchView('profile')),
-        popoverAction('bell', 'Приглашения', () => openInvitationsPopover(anchor)),
-        popoverAction(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon', 'Переключить тему', toggleTheme),
+        popoverAction('bell', 'Приглашения', () => openInvitationsPopover($('#invitations-btn'))),
+        popoverAction(THEME_ICONS[currentTheme] || 'moon', `Тема: ${THEME_LABELS[currentTheme]}`, cycleTheme),
         popoverAction('logout', 'Выйти', logout, true),
       ]),
     ])
@@ -1305,12 +1335,15 @@ function openUserPopover(anchor) {
 }
 
 function openInvitationsPopover(anchor) {
+  const target = anchor || $('#invitations-btn');
+  if (!target) return;
+
   const items = state.invitations?.length
     ? state.invitations.map((inv) => renderInvitationRow(inv))
     : [popoverEmpty('Новых приглашений нет')];
 
   openPopover(
-    anchor,
+    target,
     el('div', {}, [
       popoverHeader('Приглашения', state.invitations?.length ? `${state.invitations.length} новых` : ''),
       el('div', { class: 'popover-list' }, items),
@@ -1318,9 +1351,6 @@ function openInvitationsPopover(anchor) {
   );
 }
 
-/* =============================================================
-   VIEW ROUTER
-   ============================================================= */
 const VIEWS = {
   dashboard: { title: 'Обзор', icon: 'dashboard', render: renderDashboard },
   goals: { title: 'Цели', icon: 'target', render: renderGoals },
@@ -1359,10 +1389,10 @@ async function renderActiveView() {
 
 function switchView(name) {
   state.view = name;
-  renderActiveView();
   closePopover();
   closeCommandPalette();
   closeFab();
+  renderActiveView();
 }
 
 function renderSkeleton(container) {
@@ -1389,9 +1419,6 @@ function renderError(container, err) {
   );
 }
 
-/* =============================================================
-   UI HELPERS
-   ============================================================= */
 function field(label, control, hint) {
   const children = [el('span', { class: 'field-label' }, [label]), control];
   if (hint) children.push(el('span', { class: 'field-hint' }, [hint]));
@@ -1456,7 +1483,7 @@ function animateNumber(node, value, formatter) {
     return;
   }
 
-  const duration = 900;
+  const duration = 850;
   const start = performance.now();
 
   function tick(now) {
@@ -1481,9 +1508,10 @@ function progressRing(percent, size = 48, stroke = 5) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (clamp(percent, 0, 100) / 100) * c;
+  const gradId = `ringGrad-${uid()}`;
 
   const defs = svgEl('defs', {}, [
-    svgEl('linearGradient', { id: 'ringGradient', x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
+    svgEl('linearGradient', { id: gradId, x1: '0%', y1: '0%', x2: '100%', y2: '100%' }, [
       svgEl('stop', { offset: '0%', 'stop-color': 'var(--primary)' }),
       svgEl('stop', { offset: '100%', 'stop-color': 'var(--accent)' }),
     ]),
@@ -1504,6 +1532,7 @@ function progressRing(percent, size = 48, stroke = 5) {
     cy: size / 2,
     r,
     fill: 'none',
+    stroke: `url(#${gradId})`,
     'stroke-width': stroke,
     transform: `rotate(-90 ${size / 2} ${size / 2})`,
     style: `stroke-dasharray:${c}; stroke-dashoffset:${c};`,
@@ -1516,9 +1545,6 @@ function progressRing(percent, size = 48, stroke = 5) {
   return svgEl('svg', { class: 'progress-ring', viewBox: `0 0 ${size} ${size}` }, [defs, bg, fg]);
 }
 
-/* =============================================================
-   CHARTS
-   ============================================================= */
 function donutChart(items, options = {}) {
   const valid = items
     .map((item) => ({
@@ -1565,7 +1591,7 @@ function donutChart(items, options = {}) {
     return circle;
   });
 
-  const centerValue = options.centerValue === false ? String(valid.length) : fmtMoney(total);
+  const centerValue = options.centerValue === false ? String(valid.length) : fmtMoneyShort(total);
 
   const svgNode = svgEl(
     'svg',
@@ -1735,18 +1761,22 @@ function trendChart(items) {
     });
   });
 
-  const svg = svgEl('svg', {
-    viewBox: `0 0 ${w} ${h}`,
-    class: 'line-svg',
-    preserveAspectRatio: 'none',
-  }, [
-    svgEl('path', { d: areaPath, class: 'chart-area' }),
-    expenseLine,
-    incomeLine,
-    ...expenseDots,
-    ...incomeDots,
-    ...labels,
-  ]);
+  const svg = svgEl(
+    'svg',
+    {
+      viewBox: `0 0 ${w} ${h}`,
+      class: 'line-svg',
+      preserveAspectRatio: 'xMidYMid meet',
+    },
+    [
+      svgEl('path', { d: areaPath, class: 'chart-area' }),
+      expenseLine,
+      incomeLine,
+      ...expenseDots,
+      ...incomeDots,
+      ...labels,
+    ]
+  );
 
   const legend = el('div', { class: 'chart-legend', style: 'margin-top:10px;' }, [
     el('div', { class: 'legend-item' }, [
@@ -1762,9 +1792,6 @@ function trendChart(items) {
   return el('div', {}, [el('div', { class: 'line-chart-wrap' }, [svg]), legend]);
 }
 
-/* =============================================================
-   INVITATIONS
-   ============================================================= */
 function getInvitationTitle(inv) {
   return (
     inv.group_name ||
@@ -1796,10 +1823,16 @@ function getInvitationTask(inv) {
   return title && title !== getInvitationTitle(inv) ? title : '';
 }
 
+function getInvitationRoleLabel(inv) {
+  const role = String(inv.role || '').toLowerCase();
+  return role === 'admin' ? 'Администратор' : 'Участник';
+}
+
 function renderInvitationRow(inv) {
   const title = getInvitationTitle(inv);
   const inviter = getInviterName(inv);
-  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+  const roleLabel = getInvitationRoleLabel(inv);
+  const disabled = !inv.group_id;
 
   const meta = [
     roleLabel,
@@ -1821,7 +1854,8 @@ function renderInvitationRow(inv) {
         {
           type: 'button',
           class: 'btn btn-primary btn-sm',
-          onclick: () => respondInvitation(inv, true),
+          disabled: disabled || undefined,
+          onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')),
         },
         ['Принять']
       ),
@@ -1830,7 +1864,8 @@ function renderInvitationRow(inv) {
         {
           type: 'button',
           class: 'btn btn-ghost btn-sm',
-          onclick: () => respondInvitation(inv, false),
+          disabled: disabled || undefined,
+          onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')),
         },
         ['Отклонить']
       ),
@@ -1842,7 +1877,8 @@ function renderInvitationCard(inv) {
   const title = getInvitationTitle(inv);
   const inviter = getInviterName(inv);
   const task = getInvitationTask(inv);
-  const roleLabel = inv.role === 'admin' ? 'Администратор' : 'Участник';
+  const roleLabel = getInvitationRoleLabel(inv);
+  const disabled = !inv.group_id;
 
   const meta = [
     roleLabel,
@@ -1865,6 +1901,7 @@ function renderInvitationCard(inv) {
         {
           type: 'button',
           class: 'btn btn-primary btn-sm',
+          disabled: disabled || undefined,
           onclick: (e) => respondInvitation(inv, true, e.currentTarget.closest('.invite-item')),
         },
         ['Принять']
@@ -1874,6 +1911,7 @@ function renderInvitationCard(inv) {
         {
           type: 'button',
           class: 'btn btn-ghost btn-sm',
+          disabled: disabled || undefined,
           onclick: (e) => respondInvitation(inv, false, e.currentTarget.closest('.invite-item')),
         },
         ['Отклонить']
@@ -1901,9 +1939,6 @@ async function respondInvitation(inv, accept, row = null) {
   }
 }
 
-/* =============================================================
-   ONBOARDING TOUR
-   ============================================================= */
 function startOnboardingTour(force = false) {
   if (!window.driver || !window.driver.js) {
     toast('Модуль тура не загружен', 'warning');
@@ -2030,9 +2065,6 @@ function startOnboardingTour(force = false) {
   ui.tour.drive();
 }
 
-/* =============================================================
-   DRAG & DROP
-   ============================================================= */
 function createSortable(container, options) {
   if (!window.Sortable || !container) return null;
 
@@ -2101,9 +2133,6 @@ function initSortableCategories(groupID, containerEl) {
   });
 }
 
-/* =============================================================
-   FAB
-   ============================================================= */
 function initFab() {
   const wrap = $('#fab');
   const main = $('#fab-main');
@@ -2122,9 +2151,22 @@ function initFab() {
     });
   });
 
-  document.addEventListener('pointerdown', (e) => {
-    if (ui.fabOpen && !wrap.contains(e.target)) closeFab();
-  });
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!ui.fabOpen) return;
+
+      if (
+        e.target.closest('#fab-main') ||
+        e.target.closest('.fab-item')
+      ) {
+        return;
+      }
+
+      closeFab();
+    },
+    true
+  );
 }
 
 function openFab() {
@@ -2154,9 +2196,6 @@ function handleFabAction(action) {
   if (action === 'goal') openCreateGoalCategoryModal(g);
 }
 
-/* =============================================================
-   CALENDAR
-   ============================================================= */
 function shiftCalendarMonth(delta) {
   calendarState.month += delta;
   if (calendarState.month < 0) {
@@ -2193,24 +2232,36 @@ function renderCalendar(g, plans) {
   const head = el('div', { class: 'calendar-head' }, [
     el('div', { class: 'calendar-title' }, [monthName]),
     el('div', { class: 'calendar-nav' }, [
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': 'Предыдущий месяц',
-        onclick: () => shiftCalendarMonth(-1),
-      }, [icon('chevronLeft', 18)]),
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': 'Сегодня',
-        onclick: resetCalendarMonth,
-      }, [icon('clock', 18)]),
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': 'Следующий месяц',
-        onclick: () => shiftCalendarMonth(1),
-      }, [icon('chevronRight', 18)]),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'icon-btn sm',
+          'data-tip': 'Предыдущий месяц',
+          onclick: () => shiftCalendarMonth(-1),
+        },
+        [icon('chevronLeft', 18)]
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'icon-btn sm',
+          'data-tip': 'Сегодня',
+          onclick: resetCalendarMonth,
+        },
+        [icon('clock', 18)]
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'icon-btn sm',
+          'data-tip': 'Следующий месяц',
+          onclick: () => shiftCalendarMonth(1),
+        },
+        [icon('chevronRight', 18)]
+      ),
     ]),
   ]);
 
@@ -2322,18 +2373,17 @@ function openCreatePlanModalWithDate(g, date) {
   });
 }
 
-/* =============================================================
-   SWIPE GESTURES
-   ============================================================= */
 function makeSwipeable(node, onSwipeLeft) {
   let startX = 0;
   let startY = 0;
   let currentX = 0;
   let isDragging = false;
-  let isHorizontal = null;
+  let direction = null;
 
   const content = node.querySelector('.swipeable-content') || node;
   const THRESHOLD = 80;
+  const START_THRESHOLD = 12;
+  const RATIO = 1.35;
 
   node.addEventListener(
     'touchstart',
@@ -2342,7 +2392,9 @@ function makeSwipeable(node, onSwipeLeft) {
       startY = e.touches[0].clientY;
       currentX = 0;
       isDragging = false;
-      isHorizontal = null;
+      direction = null;
+      content.style.transform = '';
+      node.classList.remove('dragging');
     },
     { passive: true }
   );
@@ -2353,12 +2405,25 @@ function makeSwipeable(node, onSwipeLeft) {
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
 
-      if (isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-        isHorizontal = Math.abs(dx) > Math.abs(dy);
+      if (direction === null) {
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+
+        if (absX < START_THRESHOLD && absY < START_THRESHOLD) {
+          return;
+        }
+
+        direction = absX > absY * RATIO ? 'horizontal' : 'vertical';
       }
 
-      if (!isHorizontal) return;
-      if (dx >= 0) return;
+      if (direction !== 'horizontal') {
+        return;
+      }
+
+      if (dx >= 0) {
+        content.style.transform = 'translateX(0)';
+        return;
+      }
 
       isDragging = true;
       currentX = dx;
@@ -2371,7 +2436,12 @@ function makeSwipeable(node, onSwipeLeft) {
   );
 
   node.addEventListener('touchend', () => {
-    if (!isDragging) return;
+    if (!isDragging) {
+      node.classList.remove('dragging');
+      content.style.transform = '';
+      direction = null;
+      return;
+    }
 
     node.classList.remove('dragging');
 
@@ -2385,7 +2455,14 @@ function makeSwipeable(node, onSwipeLeft) {
     }
 
     isDragging = false;
-    isHorizontal = null;
+    direction = null;
+  });
+
+  node.addEventListener('touchcancel', () => {
+    node.classList.remove('dragging');
+    content.style.transform = 'translateX(0)';
+    isDragging = false;
+    direction = null;
   });
 }
 
@@ -2419,9 +2496,6 @@ function noGroupBanner() {
   ]);
 }
 
-/* =============================================================
-   VIEW: DASHBOARD
-   ============================================================= */
 async function renderDashboard(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -2436,16 +2510,15 @@ async function renderDashboard(container) {
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-  const [summary, membersSpent, plans, members, analytics, recentTx] = await Promise.all([
+  const [summary, membersSpent, plans, members, analytics, recentTx, cats] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=5`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
   ]);
-
-  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
 
   container.appendChild(renderHero(g, members.length, plans.length));
 
@@ -2475,22 +2548,21 @@ async function renderDashboard(container) {
   );
 
   if (limit > 0) {
+    const fill = el('div', {
+      class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
+      style: 'width:0%',
+    });
+
     container.appendChild(
       el('div', { class: 'card mt-16' }, [
         el('div', { class: 'row-between' }, [
           el('div', { class: 'text-sm text-2' }, ['Общий прогресс месяца']),
           el('div', { class: 'text-sm mono' }, [`${pct.toFixed(0)}%`]),
         ]),
-        el('div', { class: 'progress mt-12' }, [
-          el('div', {
-            class: `progress-fill${pct >= 100 && spent > limit ? ' danger' : ''}`,
-            style: 'width:0%',
-          }),
-        ]),
+        el('div', { class: 'progress mt-12' }, [fill]),
       ])
     );
 
-    const fill = container.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -2572,15 +2644,23 @@ async function renderDashboard(container) {
           { class: 'list' },
           upcoming.map((p, i) =>
             stagger(
-              el('div', { class: 'item' }, [
-                el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
-                el('div', { class: 'item-main' }, [
-                  el('div', { class: 'item-title' }, [p.title]),
-                  el('div', { class: 'item-sub' }, [
-                    `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
+              el(
+                'button',
+                {
+                  type: 'button',
+                  class: 'item',
+                  onclick: () => openEditPlanModal(g, p),
+                },
+                [
+                  el('div', { class: 'avatar-sm', style: `background:${colorFromId(p.id)}` }, [icon('calendar', 16)]),
+                  el('div', { class: 'item-main' }, [
+                    el('div', { class: 'item-title' }, [p.title]),
+                    el('div', { class: 'item-sub' }, [
+                      `${fmtDateTime(p.event_date)} · ${fmtRelative(p.event_date)}`,
+                    ]),
                   ]),
-                ]),
-              ]),
+                ]
+              ),
               i
             )
           )
@@ -2606,7 +2686,7 @@ async function renderDashboard(container) {
         el(
           'div',
           { class: 'list' },
-          recentTx.map((t, i) => stagger(renderTransactionRow(t, categories, false), i))
+          recentTx.map((t, i) => stagger(renderTransactionRow(t, cats, g, false, members), i))
         )
       )
     );
@@ -2618,6 +2698,7 @@ function renderHero(g, membersCount, plansCount) {
   const hour = new Date().getHours();
   const greet = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
   const dateStr = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+  const personal = isPersonalGroup(g);
 
   return el('section', { class: 'card hero-card' }, [
     el('div', { class: 'hero-bg' }),
@@ -2632,7 +2713,7 @@ function renderHero(g, membersCount, plansCount) {
           el('div', {}, [
             el('strong', {}, [g.name]),
             el('small', {}, [
-              isPersonalGroup(g)
+              personal
                 ? 'Личное пространство'
                 : `${membersCount} ${plural(membersCount, 'участник', 'участника', 'участников')} · ${plansCount} ${plural(plansCount, 'план', 'плана', 'планов')}`,
             ]),
@@ -2643,8 +2724,8 @@ function renderHero(g, membersCount, plansCount) {
         chip('arrowDownCircle', 'Расход', () => openTransactionModal(g, 'expense')),
         chip('arrowUpCircle', 'Доход', () => openTransactionModal(g, 'income')),
         chip('calendarPlus', 'Событие', () => openCreatePlanModal(g)),
-        chip('invite', 'Пригласить', () => openInviteModal(g)),
-      ]),
+        !personal ? chip('invite', 'Пригласить', () => openInviteModal(g)) : null,
+      ].filter(Boolean)),
     ]),
   ]);
 }
@@ -2876,9 +2957,6 @@ function openRenameGroupModal(g) {
   });
 }
 
-/* =============================================================
-   VIEW: GOALS
-   ============================================================= */
 async function renderGoals(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3164,9 +3242,6 @@ function openCreateGoalItemModal(g, c) {
   });
 }
 
-/* =============================================================
-   VIEW: BUDGET
-   ============================================================= */
 async function renderBudget(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3179,18 +3254,23 @@ async function renderBudget(container) {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const [cats, txs, summary, membersSpent, analytics] = await Promise.all([
+  const [cats, txs, summary, membersSpent, analytics, members] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
   ]);
 
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);
     const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+    const fill = el('div', {
+      class: `progress-fill${spent > limit ? ' danger' : ''}`,
+      style: 'width:0%',
+    });
 
     container.appendChild(
       el('div', { class: 'card' }, [
@@ -3205,17 +3285,11 @@ async function renderBudget(container) {
           ]),
         ]),
         limit > 0
-          ? el('div', { class: 'progress mt-16' }, [
-              el('div', {
-                class: `progress-fill${spent > limit ? ' danger' : ''}`,
-                style: 'width:0%',
-              }),
-            ])
+          ? el('div', { class: 'progress mt-16' }, [fill])
           : null,
       ].filter(Boolean))
     );
 
-    const fill = container.querySelector('.progress-fill');
     animateLater(() => {
       fill.style.width = `${pct}%`;
     });
@@ -3295,7 +3369,7 @@ async function renderBudget(container) {
     { class: 'input' },
     [
       el('option', { value: '' }, ['Все участники']),
-      ...membersSpent.map((m) =>
+      ...members.map((m) =>
         el('option', { value: m.user_id }, [m.full_name || 'Участник'])
       ),
     ]
@@ -3321,12 +3395,17 @@ async function renderBudget(container) {
     if (searchInput.value.trim()) params.append('q', searchInput.value.trim());
     if (catSelect.value) params.append('category_id', catSelect.value);
     if (userSelect.value) params.append('user_id', userSelect.value);
-    if (typeSelect.value) params.append('type', typeSelect.value);
     params.append('limit', '50');
 
     try {
       const res = await apiCall('GET', `/groups/${g.id}/transactions?${params.toString()}`);
-      renderTransactionRows(list, res.data || [], cats);
+      let data = res.data || [];
+
+      if (typeSelect.value) {
+        data = data.filter((t) => (t.type || 'expense') === typeSelect.value);
+      }
+
+      renderTransactionRows(list, data, cats, g, members);
     } catch (err) {
       list.innerHTML = '';
       list.appendChild(el('div', { class: 'mini-empty text-danger' }, [err.message || 'Ошибка']));
@@ -3365,10 +3444,10 @@ async function renderBudget(container) {
     )
   );
 
-  renderTransactionRows(list, txs, cats);
+  renderTransactionRows(list, txs, cats, g, members);
 }
 
-function renderTransactionRows(list, txs, cats) {
+function renderTransactionRows(list, txs, cats, g, members = []) {
   list.innerHTML = '';
 
   if (!txs.length) {
@@ -3378,7 +3457,7 @@ function renderTransactionRows(list, txs, cats) {
     return;
   }
 
-  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, true), i)));
+  txs.forEach((t, i) => list.appendChild(stagger(renderTransactionRow(t, cats, g, true, members), i)));
 }
 
 function renderCategoryCard(g, c, summary) {
@@ -3386,6 +3465,14 @@ function renderCategoryCard(g, c, summary) {
   const spent = Number(item?.spent || 0);
   const limit = Number(c.budget_limit ?? c.limit ?? 0);
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  const fill = el('div', {
+    class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`,
+    style: 'width:0%',
+  });
+
+  animateLater(() => {
+    fill.style.width = `${pct}%`;
+  });
 
   return el('div', { class: 'card' }, [
     el('div', { class: 'card-head' }, [
@@ -3439,20 +3526,15 @@ function renderCategoryCard(g, c, summary) {
       el('span', { class: 'text-2' }, ['Лимит']),
       el('span', { class: 'mono' }, [fmtMoney(limit)]),
     ]),
-    el('div', { class: 'progress mt-12' }, [
-      el('div', {
-        class: `progress-fill${spent > limit && limit > 0 ? ' danger' : ''}`,
-        style: 'width:0%',
-      }),
-    ]),
+    el('div', { class: 'progress mt-12' }, [fill]),
   ]);
 }
 
-function renderTransactionRow(t, cats, swipe = true) {
-  const g = activeGroup();
+function renderTransactionRow(t, cats, g, swipe = true, members = []) {
   const cat = cats.find((c) => c.id === t.category_id);
   const isMe = state.user && t.user_id === state.user.id;
-  const userName = t.user_full_name || t.full_name || t.user?.full_name || '';
+  const member = members.find((m) => m.user_id === t.user_id);
+  const userName = t.user_full_name || t.full_name || member?.full_name || '';
   const type = t.type || 'expense';
 
   const content = el(
@@ -3537,6 +3619,11 @@ async function exportTransactionsCsv(g) {
       credentials: 'include',
     });
 
+    if (res.status === 401) {
+      logout();
+      return;
+    }
+
     if (!res.ok) throw new Error('Не удалось экспортировать');
 
     const blob = await res.blob();
@@ -3615,7 +3702,7 @@ function openEditCategoryModal(g, c) {
     class: 'input',
     name: 'name',
     required: true,
-    maxlength: 100,
+    maxlength: '100',
     value: c.name,
   });
 
@@ -3632,9 +3719,9 @@ function openEditCategoryModal(g, c) {
     class: 'input',
     name: 'budget_limit',
     type: 'number',
-    min: 0,
+    min: '0',
     step: '0.01',
-    value: Number(c.budget_limit ?? c.limit ?? 0),
+    value: String(Number(c.budget_limit ?? c.limit ?? 0)),
     required: true,
   });
 
@@ -3665,132 +3752,132 @@ function openEditCategoryModal(g, c) {
 }
 
 function openTransactionModal(g, presetType = 'expense') {
-  safeApi(apiCall('GET', `/groups/${g.id}/categories`), []).then((cats) => {
-    if (!cats.length) {
-      toast('Сначала создайте категорию в разделе Бюджет', 'warning');
-      switchView('budget');
-      return;
-    }
+  safeApi(apiCall('GET', `/groups/${g.id}/categories`), [])
+    .then((cats) => {
+      if (!cats.length) {
+        toast('Сначала создайте категорию в разделе Бюджет', 'warning');
+        switchView('budget');
+        return;
+      }
 
-    let type = presetType;
+      let type = presetType;
 
-    const amountInput = el('input', {
-      type: 'number',
-      step: '0.01',
-      min: '0.01',
-      required: true,
-      placeholder: `Сумма (${currencySymbol()})`,
-      class: 'input',
-      style:
-        'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
-    });
+      const amountInput = el('input', {
+        type: 'number',
+        step: '0.01',
+        min: '0.01',
+        required: true,
+        placeholder: `Сумма (${currencySymbol()})`,
+        class: 'input',
+        style:
+          'width:100%;padding:16px;font-size:24px;text-align:center;font-weight:900;border-radius:16px;',
+      });
 
-    const presets = [100, 500, 1000, 5000];
-    const presetsRow = el(
-      'div',
-      { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
-      presets.map((p) =>
-        el(
-          'button',
-          {
-            type: 'button',
-            class: 'preset-btn',
-            onclick: () => {
-              amountInput.value = p;
-              amountInput.focus();
+      const presets = [100, 500, 1000, 5000];
+
+      const presetsRow = el(
+        'div',
+        { class: 'row', style: 'gap:6px;flex-wrap:wrap;' },
+        presets.map((p) =>
+          el(
+            'button',
+            {
+              type: 'button',
+              class: 'preset-btn',
+              onclick: () => {
+                amountInput.value = String(p);
+                amountInput.focus();
+              },
             },
-          },
-          [`${p} ${currencySymbol()}`]
+            [`${p} ${currencySymbol()}`]
+          )
         )
-      )
-    );
+      );
 
-    const expenseBtn = el(
-      'button',
-      {
-        type: 'button',
-        class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
-        onclick: () => {
-          type = 'expense';
-          expenseBtn.className = 'btn btn-danger btn-sm flex-1';
-          incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+      const expenseBtn = el(
+        'button',
+        {
+          type: 'button',
+          class: `btn ${type === 'expense' ? 'btn-danger' : 'btn-ghost'} btn-sm flex-1`,
+          onclick: () => {
+            type = 'expense';
+            expenseBtn.className = 'btn btn-danger btn-sm flex-1';
+            incomeBtn.className = 'btn btn-ghost btn-sm flex-1';
+          },
         },
-      },
-      ['Расход']
-    );
+        ['Расход']
+      );
 
-    const incomeBtn = el(
-      'button',
-      {
-        type: 'button',
-        class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
-        onclick: () => {
-          type = 'income';
-          expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
-          incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+      const incomeBtn = el(
+        'button',
+        {
+          type: 'button',
+          class: `btn ${type === 'income' ? 'btn-primary' : 'btn-ghost'} btn-sm flex-1`,
+          onclick: () => {
+            type = 'income';
+            expenseBtn.className = 'btn btn-ghost btn-sm flex-1';
+            incomeBtn.className = 'btn btn-primary btn-sm flex-1';
+          },
         },
-      },
-      ['Доход']
-    );
+        ['Доход']
+      );
 
-    const catSelect = el(
-      'select',
-      { class: 'input', required: true },
-      cats.map((c) => el('option', { value: c.id }, [c.name]))
-    );
+      const catSelect = el(
+        'select',
+        { class: 'input', required: true },
+        cats.map((c) => el('option', { value: c.id }, [c.name]))
+      );
 
-    const dateInput = el('input', {
-      class: 'input',
-      type: 'datetime-local',
-      value: toLocalInput(new Date().toISOString()),
-      required: true,
-    });
+      const dateInput = el('input', {
+        class: 'input',
+        type: 'datetime-local',
+        value: toLocalInput(new Date().toISOString()),
+        required: true,
+      });
 
-    const descInput = el('input', {
-      type: 'text',
-      placeholder: 'Описание (необязательно)',
-      maxlength: '255',
-      class: 'input',
-    });
+      const descInput = el('input', {
+        type: 'text',
+        placeholder: 'Описание (необязательно)',
+        maxlength: '255',
+        class: 'input',
+      });
 
-    openModal({
-      title: '⚡ Быстрая запись',
-      body: el('div', {}, [
-        amountInput,
-        presetsRow,
-        el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
-        field('Категория', catSelect),
-        field('Дата', dateInput),
-        field('Описание', descInput),
-      ]),
-      saveLabel: 'Добавить',
-      onSave: async () => {
-        const amount = parseFloat(amountInput.value);
-        if (!amount || amount <= 0) throw new Error('Введите сумму');
+      openModal({
+        title: '⚡ Быстрая запись',
+        body: el('div', {}, [
+          amountInput,
+          presetsRow,
+          el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
+          field('Категория', catSelect),
+          field('Дата', dateInput),
+          field('Описание', descInput),
+        ]),
+        saveLabel: 'Добавить',
+        onSave: async () => {
+          const amount = parseFloat(amountInput.value);
+          if (!amount || amount <= 0) throw new Error('Введите сумму');
 
-        try {
-          await apiCall('POST', `/groups/${g.id}/transactions`, {
-            category_id: catSelect.value,
-            amount,
-            type,
-            date: fromLocalInput(dateInput.value) || new Date().toISOString(),
-            description: descInput.value.trim(),
-          });
+          try {
+            await apiCall('POST', `/groups/${g.id}/transactions`, {
+              category_id: catSelect.value,
+              amount,
+              type,
+              date: fromLocalInput(dateInput.value) || new Date().toISOString(),
+              description: descInput.value.trim(),
+            });
 
-          toast('Добавлено!', 'success');
-          await renderActiveView();
-        } catch (err) {
-          toast(err.message, 'error');
-          throw err;
-        }
-      },
-    });
-  });
+            toast('Добавлено!', 'success');
+            await renderActiveView();
+          } catch (err) {
+            toast(err.message, 'error');
+            throw err;
+          }
+        },
+      });
+    })
+    .catch((err) => toast(err.message, 'error'));
 }
 
-/* =============================================================
-   VIEW: PLANS
-   ============================================================= */
 async function renderPlans(container) {
   const g = activeGroup();
   container.innerHTML = '';
@@ -3959,6 +4046,7 @@ async function renderPlanCard(g, p) {
 
     items.forEach((it, i) => {
       const isChecked = !!(it.is_checked ?? it.checked);
+
       const check = el(
         'button',
         {
@@ -4051,6 +4139,7 @@ async function toggleChecklistItem(g, item, checkNode) {
       is_checked: next,
       version: Number(item.version ?? 0),
     });
+
     await renderActiveView();
   } catch (err) {
     item.is_checked = current;
@@ -4065,7 +4154,7 @@ function openCreatePlanModal(g) {
     class: 'input',
     name: 'title',
     required: true,
-    maxlength: 200,
+    maxlength: '200',
     placeholder: 'Пикник в парке',
   });
 
@@ -4113,7 +4202,7 @@ function openEditPlanModal(g, plan) {
     class: 'input',
     name: 'title',
     required: true,
-    maxlength: 200,
+    maxlength: '200',
     value: plan.title,
   });
 
@@ -4162,7 +4251,7 @@ function openCreateChecklistModal(g, p) {
     class: 'input',
     name: 'text',
     required: true,
-    maxlength: 500,
+    maxlength: '500',
     placeholder: 'Взять плед',
   });
 
@@ -4185,9 +4274,6 @@ function openCreateChecklistModal(g, p) {
   });
 }
 
-/* =============================================================
-   VIEW: PROFILE
-   ============================================================= */
 async function renderProfile(container) {
   const me = await apiCall('GET', '/users/me');
   state.user = me.data;
@@ -4247,8 +4333,8 @@ async function renderProfile(container) {
               name: 'full_name',
               value: u.full_name || '',
               required: true,
-              minlength: 3,
-              maxlength: 100,
+              minlength: '3',
+              maxlength: '100',
             })
           ),
           field(
@@ -4258,8 +4344,8 @@ async function renderProfile(container) {
               name: 'age',
               type: 'number',
               value: u.age ?? '',
-              min: 18,
-              max: 100,
+              min: '18',
+              max: '100',
               required: true,
             })
           ),
@@ -4315,7 +4401,9 @@ async function renderProfile(container) {
                   ]),
                   el('div', { class: 'item-main' }, [
                     el('div', { class: 'item-title' }, [g.name]),
-                    el('div', { class: 'item-sub' }, [isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`]),
+                    el('div', { class: 'item-sub' }, [
+                      isPersonalGroup(g) ? 'Личное пространство' : `ID: ${shortId(g.id)}`,
+                    ]),
                   ]),
                   g.id === state.activeGroupId ? el('span', { class: 'tag tag-primary' }, ['активна']) : null,
                 ].filter(Boolean)
@@ -4471,9 +4559,6 @@ function openDeleteAccountModal() {
   });
 }
 
-/* =============================================================
-   MODAL
-   ============================================================= */
 function openModal({ title, body, onSave, saveLabel = 'Сохранить', danger = false }) {
   const root = $('#modal-root');
   if (!root) return;
@@ -4542,8 +4627,6 @@ function openModal({ title, body, onSave, saveLabel = 'Сохранить', dang
     }
   });
 
-  modal.appendChild(form);
-
   modal.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab') return;
 
@@ -4598,9 +4681,6 @@ function confirmDelete(message, onConfirm, confirmLabel = 'Удалить') {
   });
 }
 
-/* =============================================================
-   UNDO DELETE
-   ============================================================= */
 function deleteWithUndo({ label, onConfirm, onCancel }) {
   const root = $('#toasts');
   if (!root) {
@@ -4641,15 +4721,12 @@ function deleteWithUndo({ label, onConfirm, onCancel }) {
   }, 5000);
 }
 
-/* =============================================================
-   GROUP MODALS
-   ============================================================= */
 function openCreateGroupModal() {
   const name = el('input', {
     class: 'input',
     name: 'name',
     required: true,
-    maxlength: 100,
+    maxlength: '100',
     placeholder: 'Например, Семья',
   });
 
@@ -4768,9 +4845,6 @@ function openInviteModal(g) {
   });
 }
 
-/* =============================================================
-   COMMAND PALETTE
-   ============================================================= */
 function getCommands() {
   const cmds = [];
   const g = activeGroup();
@@ -4858,12 +4932,14 @@ function getCommands() {
     );
   }
 
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
+
   cmds.push({
     id: 'action-toggle-theme',
     title: 'Переключить тему',
-    hint: 'Интерфейс',
-    icon: document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
-    run: toggleTheme,
+    hint: `Текущая: ${THEME_LABELS[currentTheme] || currentTheme}`,
+    icon: THEME_ICONS[currentTheme] || 'moon',
+    run: cycleTheme,
   });
 
   if (state.user) {
@@ -5012,12 +5088,12 @@ function initCommandPalette() {
   });
 }
 
-/* =============================================================
-   RIPPLE
-   ============================================================= */
 function initRipple() {
   document.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip');
+    const btn = e.target.closest(
+      '.btn,.icon-btn,.nav-item,.mobile-nav-item,.popover-action,.popover-item,.fab-item,.fab-main,.preset-btn,.cmdk-item,.chip'
+    );
+
     if (!btn || btn.disabled) return;
 
     const rect = btn.getBoundingClientRect();
@@ -5034,18 +5110,17 @@ function initRipple() {
   });
 }
 
-/* =============================================================
-   GLOBAL KEYS
-   ============================================================= */
 function initGlobalKeys() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
+
       const appVisible = !$('#screen-app')?.classList.contains('hidden');
       if (!appVisible) return;
 
       if (ui.command.open) closeCommandPalette();
       else openCommandPalette();
+
       return;
     }
 
@@ -5072,9 +5147,6 @@ function initGlobalKeys() {
   });
 }
 
-/* =============================================================
-   INIT
-   ============================================================= */
 function initApp() {
   hydrateIcons();
   initTooltip();
@@ -5095,7 +5167,7 @@ function initApp() {
   });
 
   $$('[data-theme-toggle]').forEach((btn) => {
-    btn.addEventListener('click', toggleTheme);
+    btn.addEventListener('click', cycleTheme);
   });
 }
 
