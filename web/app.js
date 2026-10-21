@@ -671,6 +671,7 @@ async function logout() {
   localStorage.removeItem('zunno-tx-types');
   localStorage.removeItem('zunno-dismissed-invites');
   closeAllOverlays();
+  if (typeof closeCreditDetail === 'function') closeCreditDetail();
   showScreen('auth');
 }
 
@@ -1006,6 +1007,7 @@ const VIEWS = {
   goals: { title: 'Цели', icon: 'target', render: renderGoals },
   budget: { title: 'Бюджет', icon: 'wallet', render: renderBudget },
   plans: { title: 'Планы', icon: 'calendar', render: renderPlans },
+  credits: { title: 'Кредиты', icon: 'coins', render: renderCredits },
   profile: { title: 'Профиль', icon: 'user', render: renderProfile },
 };
 
@@ -1516,6 +1518,7 @@ function handleFabAction(action) {
   if (action === 'income') openTransactionModal(g, 'income');
   if (action === 'plan') openCreatePlanModal(g);
   if (action === 'goal') openCreateGoalCategoryModal(g);
+  if (action === 'credit') openCreateCreditModal(g);
 }
 
 /* =============================================================
@@ -2844,6 +2847,7 @@ function getCommands() {
       { id: 'action-split', title: 'Разделить расход', hint: 'Действие', icon: 'split', run: async () => { const cats = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []); const members = await safeApi(apiCall('GET', `/groups/${g.id}/members`), []); openSplitTransactionModal(g, cats, members); } },
       { id: 'action-plan', title: 'Создать событие', hint: 'Действие', icon: 'calendarPlus', run: () => openCreatePlanModal(g) },
       { id: 'action-goal', title: 'Создать категорию целей', hint: 'Действие', icon: 'target', run: () => openCreateGoalCategoryModal(g) },
+      { id: 'action-credit', title: 'Создать кредит', hint: 'Кредиты', icon: 'coins', run: () => openCreateCreditModal(g) },
       { id: 'action-invite', title: 'Пригласить в группу', hint: 'Действие', icon: 'invite', run: () => openInviteModal(g) },
       { id: 'action-copy-group-id', title: 'Скопировать ID группы', hint: 'Действие', icon: 'copy', run: () => copyText(g.id, 'ID группы скопирован') },
       { id: 'action-debts', title: 'Открыть долги', hint: 'Бюджет', icon: 'coins', run: () => { switchView('budget'); setTimeout(() => $('#debts-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); } }
@@ -2994,3 +2998,772 @@ if ('serviceWorker' in navigator) {
 }
 
 main();
+/* =============================================================
+CREDIT DETAIL
+============================================================= */
+let creditDetailState = {
+  overlay: null,
+  data: null,
+  activeTab: 'schedule',
+  creditId: null,
+  groupId: null,
+};
+
+async function openCreditDetail(g, creditId) {
+  closeCreditDetail();
+
+  creditDetailState.creditId = creditId;
+  creditDetailState.groupId = g.id;
+  creditDetailState.activeTab = 'schedule';
+
+  // Overlay
+  const overlay = el('div', { class: 'credit-detail-overlay', role: 'dialog', 'aria-modal': 'true' });
+  const header = el('div', { class: 'credit-detail-header' }, [
+    el('button', {
+      type: 'button',
+      class: 'icon-btn sm',
+      'data-tip': 'Назад',
+      onclick: closeCreditDetail,
+    }, [icon('chevronLeft', 20)]),
+    el('div', { class: 'credit-detail-title', id: 'credit-detail-title' }, ['Загрузка…']),
+    el('div', { style: 'width:36px;flex-shrink:0;' }), // балансир
+  ]);
+  const body = el('div', { class: 'credit-detail-body' }, [
+    el('div', { class: 'credit-detail-inner', id: 'credit-detail-inner' }, [
+      el('div', { class: 'skeleton skeleton-hero' }),
+      el('div', { class: 'skeleton-grid' }, [
+        el('div', { class: 'skeleton skeleton-stat' }),
+        el('div', { class: 'skeleton skeleton-stat' }),
+        el('div', { class: 'skeleton skeleton-stat' }),
+      ]),
+    ]),
+  ]);
+
+  overlay.appendChild(header);
+  overlay.appendChild(body);
+  document.body.appendChild(overlay);
+  creditDetailState.overlay = overlay;
+  hydrateIcons(overlay);
+
+  // Esc закрывает
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      closeCreditDetail();
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+  overlay._escHandler = escHandler;
+
+  // Загружаем данные
+  try {
+    const res = await apiCall('GET', `/groups/${g.id}/credits/${creditId}`);
+    creditDetailState.data = res.data;
+    renderCreditDetailInner(g);
+  } catch (err) {
+    toast(err.message || 'Не удалось загрузить кредит', 'error');
+    closeCreditDetail();
+  }
+}
+
+function closeCreditDetail() {
+  if (creditDetailState.overlay) {
+    if (creditDetailState.overlay._escHandler) {
+      document.removeEventListener('keydown', creditDetailState.overlay._escHandler);
+    }
+    creditDetailState.overlay.remove();
+  }
+  creditDetailState = {
+    overlay: null,
+    data: null,
+    activeTab: 'schedule',
+    creditId: null,
+    groupId: null,
+  };
+}
+
+function renderCreditDetailInner(g) {
+  const data = creditDetailState.data;
+  if (!data) return;
+  const c = data.credit;
+  const s = data.summary;
+
+  const titleEl = document.getElementById('credit-detail-title');
+  if (titleEl) titleEl.textContent = c.name;
+
+  const inner = document.getElementById('credit-detail-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+
+  // 1. Hero-карточка с прогрессом
+  inner.appendChild(
+    el('div', { class: 'card hero-card mb-16' }, [
+      el('div', { class: 'hero-bg' }),
+      el('div', { class: 'hero-content' }, [
+        el('div', { class: 'row', style: 'gap:14px;' }, [
+          progressRing(Math.min(100, s.progress_percent || 0), 64, 6),
+          el('div', { style: 'flex:1;min-width:0;' }, [
+            el('div', { style: 'font-size:18px;font-weight:900;' }, [c.name]),
+            el('div', { class: 'text-2 text-sm mt-8' }, [
+              c.is_closed ? 'Погашен' : `Ставка ${(c.annual_rate || 0).toFixed(2)}% · ${c.term_months} мес`,
+            ]),
+          ]),
+        ]),
+        el('div', { class: 'credit-summary-grid mt-16' }, [
+          el('div', { class: 'credit-summary-tile' }, [
+            el('div', { class: 'stat-label' }, ['Платёж в месяц']),
+            el('div', { class: 'credit-stat-value primary' }, [fmtMoney(s.monthly_payment || 0)]),
+          ]),
+          el('div', { class: 'credit-summary-tile' }, [
+            el('div', { class: 'stat-label' }, ['Осталось']),
+            el('div', { class: 'credit-stat-value ' + (s.remaining_principal > 0 ? 'danger' : 'success') }, [
+              fmtMoney(s.remaining_principal || 0),
+            ]),
+          ]),
+          el('div', { class: 'credit-summary-tile' }, [
+            el('div', { class: 'stat-label' }, ['Выплачено']),
+            el('div', { class: 'credit-stat-value success' }, [fmtMoney(s.paid_principal || 0)]),
+          ]),
+          el('div', { class: 'credit-summary-tile' }, [
+            el('div', { class: 'stat-label' }, ['Переплата']),
+            el('div', { class: 'credit-stat-value warning' }, [fmtMoney(s.total_overpayment || 0)]),
+          ]),
+        ]),
+      ]),
+    ])
+  );
+
+  // 2. Действия
+  if (!c.is_closed) {
+    inner.appendChild(
+      el('div', { class: 'row gap-8 mb-16', style: 'flex-wrap:wrap;' }, [
+        el('button', {
+          type: 'button',
+          class: 'btn btn-primary',
+          onclick: () => openCreditPayModal(g, c, s, false, () => reloadCreditDetail(g)),
+        }, [icon('check', 18), el('span', {}, ['Оплатить'])]),
+        el('button', {
+          type: 'button',
+          class: 'btn btn-ghost',
+          onclick: () => openCreditPayModal(g, c, s, true, () => reloadCreditDetail(g)),
+        }, [icon('trendUp', 18), el('span', {}, ['Досрочное погашение'])]),
+      ])
+    );
+  }
+
+  // 3. Табы
+  const tabs = [
+    { id: 'schedule', label: 'График' },
+    { id: 'payments', label: `История (${(data.payments || []).length})` },
+    { id: 'info', label: 'Инфо' },
+  ];
+
+  inner.appendChild(
+    el('div', { class: 'credit-tabs' }, tabs.map((t) =>
+      el('button', {
+        type: 'button',
+        class: 'credit-tab' + (creditDetailState.activeTab === t.id ? ' is-active' : ''),
+        onclick: () => {
+          creditDetailState.activeTab = t.id;
+          renderCreditDetailInner(g);
+        },
+      }, [t.label])
+    ))
+  );
+
+  // 4. Содержимое активного таба
+  const tabContent = el('div', { class: 'credit-tab-content' });
+  inner.appendChild(tabContent);
+
+  if (creditDetailState.activeTab === 'schedule') {
+    tabContent.appendChild(renderScheduleTab(g, c, data.schedule || []));
+  } else if (creditDetailState.activeTab === 'payments') {
+    tabContent.appendChild(renderPaymentsTab(g, c, data.payments || []));
+  } else {
+    tabContent.appendChild(renderInfoTab(c, s));
+  }
+
+  hydrateIcons(inner);
+}
+
+function renderScheduleTab(g, c, schedule) {
+  if (!schedule.length) {
+    return emptyState('calendar', 'График пуст', 'Проверьте параметры кредита');
+  }
+
+  // Найдём следующую неоплаченную строку
+  const now = Date.now();
+  let nextIndex = -1;
+  for (let i = 0; i < schedule.length; i++) {
+    if (!schedule[i].is_paid && new Date(schedule[i].date).getTime() >= now) {
+      nextIndex = i;
+      break;
+    }
+  }
+  if (nextIndex === -1) {
+    // берём первую неоплаченную
+    for (let i = 0; i < schedule.length; i++) {
+      if (!schedule[i].is_paid) { nextIndex = i; break; }
+    }
+  }
+
+  const rows = schedule.map((e, i) => {
+    const classes = [];
+    if (e.is_paid) classes.push('is-paid');
+    else if (e.is_past) classes.push('is-past');
+    if (i === nextIndex) classes.push('is-next');
+
+    return el('tr', { class: classes.join(' ') }, [
+      el('td', {}, [
+        el('span', { class: 'schedule-month-badge' }, [String(e.month)]),
+      ]),
+      el('td', {}, [fmtDate(e.date)]),
+      el('td', { class: 'amount' }, [fmtMoney(e.amount)]),
+      el('td', {}, [fmtMoney(e.interest_part)]),
+      el('td', {}, [fmtMoney(e.principal_part)]),
+      el('td', {}, [fmtMoney(e.remaining)]),
+    ]);
+  });
+
+  return el('div', { class: 'schedule-table-wrap' }, [
+    el('table', { class: 'schedule-table' }, [
+      el('thead', {}, [
+        el('tr', {}, [
+          el('th', {}, ['#']),
+          el('th', {}, ['Дата']),
+          el('th', {}, ['Платёж']),
+          el('th', {}, ['Проценты']),
+          el('th', {}, ['Тело']),
+          el('th', {}, ['Остаток']),
+        ]),
+      ]),
+      el('tbody', {}, rows),
+    ]),
+  ]);
+}
+
+function renderPaymentsTab(g, c, payments) {
+  if (!payments.length) {
+    return emptyState('wallet', 'Платежей пока нет', 'Отметьте первый платёж кнопкой «Оплатить»');
+  }
+
+  return el('div', { class: 'payments-list' },
+    payments.slice().reverse().map((p, i) =>
+      stagger(
+        el('div', { class: 'payment-row' + (p.type === 'early' ? ' early' : '') }, [
+          el('div', { class: 'payment-icon' }, [
+            icon(p.type === 'early' ? 'trendUp' : 'check', 18),
+          ]),
+          el('div', { class: 'item-main' }, [
+            el('div', { class: 'item-title' }, [
+              fmtMoney(p.amount),
+              p.type === 'early' ? el('span', { class: 'tag tag-warning', style: 'margin-left:8px;' }, ['Досрочный']) : null,
+            ].filter(Boolean)),
+            el('div', { class: 'item-sub' }, [
+              `${fmtDate(p.payment_date)} · тело ${fmtMoney(p.principal_part)} · проценты ${fmtMoney(p.interest_part)}`,
+              p.early_recalc ? ` · ${p.early_recalc === 'reduce_term' ? 'срок уменьшен' : 'платёж уменьшен'}` : '',
+            ]),
+          ]),
+          p.transaction_id
+            ? el('span', { class: 'tag tag-primary', 'data-tip': 'Есть транзакция в бюджете' }, ['в бюджете'])
+            : null,
+        ].filter(Boolean)),
+        i
+      )
+    )
+  );
+}
+
+function renderInfoTab(c, s) {
+  const rows = [
+    ['Название', c.name],
+    ['Сумма кредита', fmtMoney(c.principal)],
+    ['Ставка', `${(c.annual_rate || 0).toFixed(2)}% годовых`],
+    ['Срок', `${c.term_months} ${plural(c.term_months, 'месяц', 'месяца', 'месяцев')}`],
+    ['Тип платежа', c.payment_type === 'annuity' ? 'Аннуитетный' : 'Дифференцированный'],
+    ['Дата выдачи', fmtDate(c.start_date)],
+    ['Ожидаемое закрытие', fmtDate(s.expected_end_date)],
+    ['Платежей сделано', `${s.payments_count} из ~${c.term_months}`],
+    ['Валюта', c.currency],
+    ['Статус', c.is_closed ? 'Погашен' : 'Активен'],
+  ];
+
+  return el('div', { class: 'card' }, rows.map(([label, value]) =>
+    el('div', { class: 'info-row' }, [
+      el('div', { class: 'info-row-label' }, [label]),
+      el('div', { class: 'info-row-value' }, [String(value)]),
+    ])
+  ));
+}
+
+async function reloadCreditDetail(g) {
+  if (!creditDetailState.overlay) return;
+  try {
+    const res = await apiCall('GET', `/groups/${g.id}/credits/${creditDetailState.creditId}`);
+    creditDetailState.data = res.data;
+    renderCreditDetailInner(g);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* =============================================================
+CREDIT PAY MODAL
+============================================================= */
+async function openCreditPayModal(g, credit, summary, isEarly, onSuccess) {
+  // Загружаем категории для опциональной транзакции
+  const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
+  const creditCategory = categories.find((c) => /кредит/i.test(c.name));
+
+  const isDifferentiated = credit.payment_type === 'differentiated';
+  const monthly = isEarly ? 0 : Number(summary?.monthly_payment || 0);
+  const remaining = Number(summary?.remaining_principal || credit.principal || 0);
+
+  const amount = el('input', {
+    class: 'input',
+    type: 'number',
+    step: '0.01',
+    min: '0.01',
+    required: true,
+    value: monthly > 0 ? monthly.toFixed(2) : '',
+    placeholder: isEarly ? 'Сумма досрочки' : 'Сумма платежа',
+  });
+
+  const presetsRow = isEarly
+    ? el('div', { class: 'row', style: 'gap:6px;flex-wrap:wrap;margin-top:6px;' },
+        [10000, 50000, 100000, 500000].map((v) =>
+          el('button', {
+            type: 'button',
+            class: 'preset-btn',
+            onclick: () => { amount.value = v; recalcPreview(); },
+          }, [`${v.toLocaleString('ru-RU')} ₽`])
+        )
+      )
+    : null;
+
+  const dateInput = el('input', {
+    class: 'input',
+    type: 'datetime-local',
+    value: toLocalInput(new Date().toISOString()),
+    required: true,
+  });
+
+  // Стратегия пересчёта (только для досрочки и только для annuity — differentiated всегда reduce_term)
+  let recalcValue = 'reduce_term';
+  let recalcCards = null;
+
+  if (isEarly) {
+    if (isDifferentiated) {
+      recalcCards = el('div', { class: 'text-xs text-3 mt-8' }, [
+        'Для дифференцированного кредита досрочка уменьшает только срок.',
+      ]);
+    } else {
+      recalcCards = el('div', { class: 'radio-group' }, [
+        el('button', {
+          type: 'button',
+          class: 'radio-card is-active',
+          onclick: (e) => {
+            recalcValue = 'reduce_term';
+            e.currentTarget.parentElement.querySelectorAll('.radio-card').forEach((n) => n.classList.remove('is-active'));
+            e.currentTarget.classList.add('is-active');
+            recalcPreview();
+          },
+        }, [
+          el('strong', {}, ['Уменьшить срок']),
+          el('span', { class: 'text-3 text-xs' }, ['Платёж тот же, закроете раньше']),
+        ]),
+        el('button', {
+          type: 'button',
+          class: 'radio-card',
+          onclick: (e) => {
+            recalcValue = 'reduce_payment';
+            e.currentTarget.parentElement.querySelectorAll('.radio-card').forEach((n) => n.classList.remove('is-active'));
+            e.currentTarget.classList.add('is-active');
+            recalcPreview();
+          },
+        }, [
+          el('strong', {}, ['Уменьшить платёж']),
+          el('span', { class: 'text-3 text-xs' }, ['Срок тот же, платите меньше']),
+        ]),
+      ]);
+    }
+  }
+
+  const categorySelect = el('select', { class: 'input' }, [
+    el('option', { value: '' }, ['— Не учитывать в бюджете —']),
+    ...categories.map((c) =>
+      el('option', {
+        value: c.id,
+        selected: creditCategory && creditCategory.id === c.id,
+      }, [c.name])
+    ),
+  ]);
+
+  const description = el('input', {
+    class: 'input',
+    type: 'text',
+    maxlength: '255',
+    value: isEarly ? `Досрочное погашение: ${credit.name}` : `Платёж по кредиту: ${credit.name}`,
+  });
+
+  const preview = el('div', { class: 'credit-pay-preview' });
+
+  const recalcPreview = () => {
+    const amt = parseFloat(amount.value) || 0;
+    if (amt <= 0) {
+      preview.innerHTML = '<div class="preview-line"><span>Введите сумму</span></div>';
+      return;
+    }
+    const monthlyRate = (credit.annual_rate || 0) / 100 / 12;
+    const interestPart = Math.round(remaining * monthlyRate * 100) / 100;
+    const principalPart = Math.max(0, Math.round((amt - interestPart) * 100) / 100);
+    const tooSmall = isEarly && amt <= interestPart;
+
+    let html = `
+      <div class="preview-line"><span>Сумма платежа</span><strong>${fmtMoney(amt)}</strong></div>
+      <div class="preview-line"><span>Из них проценты (≈)</span><strong>${fmtMoney(interestPart)}</strong></div>
+      <div class="preview-line"><span>Из них в тело (≈)</span><strong>${fmtMoney(principalPart)}</strong></div>
+    `;
+    if (tooSmall) {
+      html += `<div class="preview-line" style="color:var(--danger);margin-top:4px;"><strong>Сумма меньше накопленных процентов (${fmtMoney(interestPart)})</strong></div>`;
+    }
+    if (isEarly && !isDifferentiated) {
+      html += `<div class="preview-line" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><span>Стратегия</span><strong>${recalcValue === 'reduce_term' ? 'Уменьшить срок' : 'Уменьшить платёж'}</strong></div>`;
+    }
+    preview.innerHTML = html;
+  };
+
+  amount.addEventListener('input', recalcPreview);
+  setTimeout(recalcPreview, 100);
+
+  openModal({
+    title: isEarly ? 'Досрочное погашение' : 'Оплатить кредит',
+    body: el('div', { class: 'form' }, [
+      el('div', { class: 'text-sm text-2', style: 'margin-bottom:4px;' }, [
+        `${credit.name} · остаток ${fmtMoney(remaining)}`,
+      ]),
+      field(isEarly ? 'Сумма досрочного платежа' : 'Сумма платежа', amount),
+      presetsRow,
+      field('Дата', dateInput),
+      isEarly ? field('Куда направить досрочку', recalcCards) : null,
+      preview,
+      field('Категория (для бюджета)', categorySelect, 'Если выбрана — создастся транзакция расхода'),
+      field('Описание', description),
+    ].filter(Boolean)),
+    saveLabel: isEarly ? 'Внести досрочку' : 'Оплатить',
+    onSave: async () => {
+      const amt = parseFloat(amount.value);
+      if (!amt || amt <= 0) throw new Error('Введите сумму > 0');
+      const payDate = fromLocalInput(dateInput.value) || new Date().toISOString();
+      const categoryID = categorySelect.value || null;
+      const accountInBudget = !!categoryID;
+
+      const path = isEarly
+        ? `/groups/${g.id}/credits/${credit.id}/early-pay`
+        : `/groups/${g.id}/credits/${credit.id}/pay`;
+
+      const body = {
+        amount: amt,
+        payment_date: payDate,
+        category_id: categoryID,
+        account_in_budget: accountInBudget,
+        description: description.value.trim(),
+      };
+      if (isEarly) body.early_recalc = recalcValue;
+
+      try {
+        await apiCall('POST', path, body);
+        toast(isEarly ? 'Досрочка внесена' : 'Платёж проведён', 'success');
+        if (onSuccess) await onSuccess();
+        if (!creditDetailState.overlay) await renderActiveView();
+      } catch (err) {
+        toast(err.message, 'error');
+        throw err;
+      }
+    },
+  });
+}
+
+/* =============================================================
+VIEW: CREDITS (restored)
+============================================================= */
+
+async function renderCredits(container) {
+  const g = activeGroup();
+  container.innerHTML = '';
+  if (!g) { container.appendChild(noGroupBanner()); return; }
+
+  const credits = await safeApi(apiCall('GET', `/groups/${g.id}/credits`), []);
+
+  container.appendChild(
+    sectionHead(
+      'Кредиты',
+      `${credits.length} ${plural(credits.length, 'кредит', 'кредита', 'кредитов')}`,
+      el('button', {
+        type: 'button',
+        class: 'btn btn-primary btn-sm',
+        onclick: () => openCreateCreditModal(g),
+      }, [
+        el('span', { 'data-icon': 'plus', 'data-size': 'sm' }),
+        el('span', {}, ['Кредит']),
+      ])
+    )
+  );
+
+  if (!credits.length) {
+    container.appendChild(
+      emptyState(
+        'coins',
+        'Пока нет кредитов',
+        'Добавьте ипотеку, автокредит или потребкредит — увидите переплату, график и остаток',
+        [
+          el('button', {
+            type: 'button',
+            class: 'btn btn-primary',
+            onclick: () => openCreateCreditModal(g),
+          }, ['Добавить кредит']),
+        ]
+      )
+    );
+    return;
+  }
+
+  const active = credits.filter((c) => !c.credit.is_closed);
+  if (active.length > 0) {
+    const totalRemaining = active.reduce((s, c) => s + Number(c.summary.remaining_principal || 0), 0);
+    const totalMonthly = active.reduce((s, c) => s + Number(c.summary.monthly_payment || 0), 0);
+    const totalOverpay = active.reduce((s, c) => s + Number(c.summary.total_overpayment || 0), 0);
+
+    container.appendChild(
+      el('div', { class: 'stat-grid mt-16' }, [
+        statTile('Долг (всего)', totalRemaining, 'danger'),
+        statTile('В месяц', totalMonthly, 'primary'),
+        statTile('Переплата (всего)', totalOverpay, 'warning'),
+        statTile('Кредитов', active.length, '', (n) => String(Math.round(n))),
+      ])
+    );
+  }
+
+  const list = el('div', { class: 'grid-auto mt-16' });
+  credits.forEach((c, i) => list.appendChild(stagger(renderCreditCard(g, c), i)));
+  container.appendChild(list);
+}
+
+function renderCreditCard(g, entry) {
+  const c = entry.credit;
+  const s = entry.summary;
+  const isClosed = c.is_closed;
+  const nextDate = s.next_payment_date ? new Date(s.next_payment_date) : null;
+  const daysToNext = nextDate ? Math.ceil((nextDate - Date.now()) / 86400000) : null;
+
+  return el('div', { class: 'card credit-card' + (isClosed ? ' is-closed' : '') }, [
+    el('div', { class: 'card-head' }, [
+      el('div', { class: 'row', style: 'gap:10px;' }, [
+        progressRing(Math.min(100, s.progress_percent || 0)),
+        el('div', {}, [
+          el('div', { class: 'card-title' }, [
+            c.name,
+            isClosed ? el('span', { class: 'tag tag-success', style: 'margin-left:8px;' }, ['Погашен']) : null,
+          ].filter(Boolean)),
+          el('div', { class: 'card-subtitle' }, [
+            `${(c.annual_rate || 0).toFixed(2)}% · ${c.term_months} мес · ${c.payment_type === 'annuity' ? 'Аннуитет' : 'Дифференцированный'}`,
+          ]),
+        ]),
+      ]),
+      el('div', { class: 'item-actions' }, [
+        el('button', {
+          type: 'button',
+          class: 'icon-btn sm',
+          'data-tip': 'Открыть',
+          onclick: () => openCreditDetail(g, c.id),
+        }, [icon('list', 18)]),
+        el('button', {
+          type: 'button',
+          class: 'icon-btn sm',
+          'data-tip': 'Удалить',
+          onclick: () => confirmDelete(`Удалить кредит «${c.name}»?`, async () => {
+            try {
+              await apiCall('DELETE', `/groups/${g.id}/credits/${c.id}`);
+              toast('Удалено', 'success');
+              await renderActiveView();
+            } catch (err) { toast(err.message, 'error'); }
+          }),
+        }, [icon('trash', 18)]),
+      ]),
+    ]),
+
+    el('div', { class: 'credit-stats' }, [
+      creditStat('Платёж в месяц', fmtMoney(s.monthly_payment || 0), 'primary'),
+      creditStat('Осталось', fmtMoney(s.remaining_principal || 0), s.remaining_principal > 0 ? 'danger' : 'success'),
+      creditStat('Переплата', fmtMoney(s.total_overpayment || 0), 'warning'),
+    ]),
+
+    el('div', { class: 'progress mt-12' }, [
+      el('div', {
+        class: `progress-fill${isClosed ? ' success' : ''}`,
+        style: `width:${Math.min(100, s.progress_percent || 0)}%`,
+      }),
+    ]),
+
+    el('div', { class: 'row-between text-xs text-3 mt-8' }, [
+      el('span', {}, [`Выплачено: ${fmtMoney(s.paid_principal || 0)} / ${fmtMoney(c.principal)}`]),
+      el('span', {}, [`${(s.progress_percent || 0).toFixed(1)}%`]),
+    ]),
+
+    nextDate && !isClosed
+      ? el('div', { class: 'credit-next mt-12' }, [
+          el('span', { 'data-icon': 'clock', 'data-size': 'sm' }),
+          el('span', {}, [
+            `Следующий платёж: ${fmtDate(nextDate)} · ${fmtMoney(s.next_payment_amount)}`,
+            daysToNext != null && daysToNext >= 0 ? ` · через ${daysToNext} ${plural(daysToNext, 'день', 'дня', 'дней')}` : '',
+          ]),
+        ])
+      : null,
+
+    !isClosed
+      ? el('div', { class: 'row gap-8 mt-12', style: 'flex-wrap:wrap;' }, [
+          el('button', {
+            type: 'button',
+            class: 'btn btn-primary btn-sm',
+            onclick: () => openCreditPayModal(g, c, s, false),
+          }, [icon('check', 16), el('span', {}, ['Оплатить'])]),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-sm',
+            onclick: () => openCreditPayModal(g, c, s, true),
+          }, [icon('trendUp', 16), el('span', {}, ['Досрочно'])]),
+        ])
+      : null,
+  ].filter(Boolean));
+}
+
+function creditStat(label, value, variant = '') {
+  return el('div', { class: 'credit-stat' }, [
+    el('div', { class: 'stat-label' }, [label]),
+    el('div', { class: `credit-stat-value ${variant}` }, [value]),
+  ]);
+}
+
+function openCreateCreditModal(g) {
+  const name = el('input', {
+    class: 'input', name: 'name', required: true, maxlength: 200,
+    placeholder: 'Ипотека на квартиру',
+  });
+
+  const principal = el('input', {
+    class: 'input', name: 'principal', type: 'number', step: '0.01', min: '0.01',
+    required: true, placeholder: '5 000 000',
+  });
+
+  const rate = el('input', {
+    class: 'input', name: 'annual_rate', type: 'number', step: '0.01', min: '0',
+    required: true, placeholder: '15.00',
+  });
+
+  const term = el('input', {
+    class: 'input', name: 'term_months', type: 'number', min: '1',
+    required: true, placeholder: '240',
+  });
+
+  const paymentType = el('select', { class: 'input', name: 'payment_type' }, [
+    el('option', { value: 'annuity' }, ['Аннуитетный (равный платёж)']),
+    el('option', { value: 'differentiated' }, ['Дифференцированный (уменьшается)']),
+  ]);
+
+  const startDate = el('input', {
+    class: 'input', name: 'start_date', type: 'date',
+    value: toDateInput(new Date().toISOString()), required: true,
+  });
+
+  const currency = el('select', { class: 'input', name: 'currency' }, [
+    el('option', { value: 'RUB', selected: (state.user?.currency || 'RUB') === 'RUB' }, ['₽ Рубль']),
+    el('option', { value: 'USD', selected: state.user?.currency === 'USD' }, ['$ Доллар']),
+    el('option', { value: 'EUR', selected: state.user?.currency === 'EUR' }, ['€ Евро']),
+    el('option', { value: 'KZT', selected: state.user?.currency === 'KZT' }, ['₸ Тенге']),
+  ]);
+
+  const preview = el('div', { class: 'credit-preview mt-12' }, ['Укажите сумму, ставку и срок']);
+
+  const recalc = () => {
+    const p = parseFloat(principal.value);
+    const r = parseFloat(rate.value);
+    const n = parseInt(term.value, 10);
+    if (!p || p <= 0 || !r || r < 0 || !n || n <= 0) {
+      preview.textContent = 'Укажите сумму, ставку и срок';
+      return;
+    }
+    const monthly = paymentType.value === 'annuity'
+      ? calculateAnnuityLocal(p, r, n)
+      : calculateDiffLocal(p, r, n);
+    const total = paymentType.value === 'annuity'
+      ? monthly * n
+      : (p + p * r / 100 / 12 * (n + 1) / 2);
+    const overpay = total - p;
+    preview.innerHTML = `Ежемесячно: <strong>${fmtMoney(monthly)}</strong> · Всего: ${fmtMoney(total)} · Переплата: <span style="color:var(--warning)">${fmtMoney(overpay)}</span>`;
+  };
+
+  [principal, rate, term].forEach((inp) => inp.addEventListener('input', recalc));
+  paymentType.addEventListener('change', recalc);
+
+  openModal({
+    title: 'Новый кредит',
+    body: el('div', {}, [
+      field('Название', name),
+      el('div', { class: 'credit-form-grid' }, [
+        field('Сумма', principal),
+        field('Ставка, % годовых', rate),
+      ]),
+      el('div', { class: 'credit-form-grid' }, [
+        field('Срок, месяцев', term),
+        field('Тип платежа', paymentType),
+      ]),
+      el('div', { class: 'credit-form-grid' }, [
+        field('Дата выдачи', startDate),
+        field('Валюта', currency),
+      ]),
+      preview,
+    ]),
+    saveLabel: 'Создать',
+    onSave: async () => {
+      const body = {
+        name: name.value.trim(),
+        principal: parseFloat(principal.value),
+        annual_rate: parseFloat(rate.value),
+        term_months: parseInt(term.value, 10),
+        payment_type: paymentType.value,
+        start_date: new Date(`${startDate.value}T12:00:00`).toISOString(),
+        currency: currency.value,
+      };
+      if (!body.name) throw new Error('Введите название');
+      if (!body.principal || body.principal <= 0) throw new Error('Сумма должна быть > 0');
+      if (body.annual_rate < 0) throw new Error('Ставка не может быть отрицательной');
+      if (!body.term_months || body.term_months <= 0) throw new Error('Срок должен быть > 0');
+      if (!startDate.value) throw new Error('Укажите дату выдачи');
+      if (!body.start_date || Number.isNaN(new Date(body.start_date).getTime())) {
+        throw new Error('Некорректная дата выдачи');
+      }
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/credits`, body);
+        toast('Кредит создан', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    },
+  });
+
+  setTimeout(recalc, 100);
+}
+
+function calculateAnnuityLocal(principal, annualRate, termMonths) {
+  if (termMonths <= 0 || principal <= 0) return 0;
+  if (annualRate === 0) return Math.round(principal / termMonths * 100) / 100;
+  const r = annualRate / 100 / 12;
+  const f = Math.pow(1 + r, termMonths);
+  return Math.round(principal * r * f / (f - 1) * 100) / 100;
+}
+
+function calculateDiffLocal(principal, annualRate, termMonths) {
+  if (termMonths <= 0 || principal <= 0) return 0;
+  const body = principal / termMonths;
+  const interest = principal * annualRate / 100 / 12;
+  return Math.round((body + interest) * 100) / 100;
+}

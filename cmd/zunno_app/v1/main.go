@@ -22,6 +22,9 @@ import (
 	auth_redis_repository "github.com/MulLoMaH/Zunno/internal/features/auth/repository/redis"
 	auth_service "github.com/MulLoMaH/Zunno/internal/features/auth/service"
 	auth_transport_http "github.com/MulLoMaH/Zunno/internal/features/auth/transport/http"
+	credits_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/credits/repository/postgres"
+	credits_service "github.com/MulLoMaH/Zunno/internal/features/credits/service"
+	credits_transport_http "github.com/MulLoMaH/Zunno/internal/features/credits/transport/http"
 	goals_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/goals/repository/postgres"
 	goal_service "github.com/MulLoMaH/Zunno/internal/features/goals/service"
 	goal_transport_http "github.com/MulLoMaH/Zunno/internal/features/goals/transport/http"
@@ -205,6 +208,18 @@ func main() {
 		tgClient,
 	)
 	budgetHTTP := budget_transport_http.NewBudgetHTTPHandler(budgetSvc)
+
+	// --- Credits ---
+	logger.Debug("initializing feature", zap.String("feature", "credits"))
+	creditsRepo := credits_postgres_repository.NewCreditsRepository(pool)
+	creditsSvc := credits_service.NewCreditService(creditsRepo, budgetRepo, logger)
+	creditsHTTP := credits_transport_http.NewCreditsHTTPHandler(creditsSvc)
+
+	creditsRoutes := creditsHTTP.Routes()
+	for i := range creditsRoutes {
+		creditsRoutes[i].Middlewares = append(creditsRoutes[i].Middlewares, jwtMw, groupContextMw)
+	}
+	apiV1Router.RegisterRoutes(creditsRoutes...)
 
 	budgetRoutes := budgetHTTP.Routes()
 	for i := range budgetRoutes {

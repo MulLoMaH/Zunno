@@ -42,7 +42,7 @@ type TransactionsFilter struct {
 	UserID     *uuid.UUID
 	Limit      int
 	Offset     int
-	Query *string
+	Query      *string
 }
 
 func (r *BudgetRepository) GetTransactions(ctx context.Context, f TransactionsFilter) ([]domain.Transaction, error) {

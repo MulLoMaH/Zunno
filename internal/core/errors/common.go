@@ -23,4 +23,5 @@ var (
 	ErrStatsTimeout         = errors.New("statistics not ready yet")
 	ErrPlanNotFound         = errors.New("plan not found")
 	ErrChecklistNotFound    = errors.New("checklist item not found")
+	ErrCreditNotFound       = errors.New("credit not found")
 )

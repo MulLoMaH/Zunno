@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	TransactionTypeIncome = "income"
-	TransactionTypeExpense = "expense"
+	TransactionTypeIncome   = "income"
+	TransactionTypeExpense  = "expense"
 	CategoryTypeFixed       = "fixed"
 	CategoryTypeSpontaneous = "spontaneous"
 )
@@ -24,7 +24,7 @@ type Category struct {
 }
 
 type Transaction struct {
-	Type string
+	Type        string
 	ID          uuid.UUID
 	Version     int64
 	GroupID     uuid.UUID
@@ -63,7 +63,6 @@ type BudgetSummaryItem struct {
 	Spent      float64
 	Overspent  bool
 }
-
 
 type MemberSpent struct {
 	UserID   uuid.UUID `json:"user_id"`

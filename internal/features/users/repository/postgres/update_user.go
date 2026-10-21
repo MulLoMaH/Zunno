@@ -65,12 +65,12 @@ func (r *UsersRepository) UpdateUser(
 	}
 
 	return domain.User{
-		ID:           u.ID,
-		Version:      u.Version,
-		FullName:     u.FullName,
-		Age:          u.Age,
-		PhoneNumber:  u.PhoneNumber,
-		Currency:     u.Currency,
-		CreatedAt:    u.CreatedAt,
+		ID:          u.ID,
+		Version:     u.Version,
+		FullName:    u.FullName,
+		Age:         u.Age,
+		PhoneNumber: u.PhoneNumber,
+		Currency:    u.Currency,
+		CreatedAt:   u.CreatedAt,
 	}, nil
 }
