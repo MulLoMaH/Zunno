@@ -17,6 +17,12 @@ type PlanEvent struct {
 	IsDone      bool
 	CreatedAt   time.Time
 	DoneAt      *time.Time
+
+	// RecurrenceRule — 'daily' | 'weekly' | 'monthly' или nil (разовое).
+	RecurrenceRule  *string
+	RecurrenceUntil *time.Time
+	// ParentPlanID != nil для материализованных дочерних вхождений серии.
+	ParentPlanID *uuid.UUID
 }
 
 type ChecklistItem struct {
@@ -26,4 +32,20 @@ type ChecklistItem struct {
 	Text      string
 	IsChecked bool
 	CheckedAt *time.Time
+}
+
+type PlanAttendee struct {
+	UserID    uuid.UUID
+	EventID   uuid.UUID
+	Status    string // "going", "not_going", "maybe"
+	UpdatedAt time.Time
+}
+
+type PlanComment struct {
+	ID        uuid.UUID
+	EventID   uuid.UUID
+	UserID    uuid.UUID
+	FullName  string
+	Text      string
+	CreatedAt time.Time
 }

@@ -16,7 +16,7 @@ func (r *UsersRepository) GetUser(ctx context.Context, id uuid.UUID) (domain.Use
 	defer cancel()
 
 	query := `
-		SELECT id, version, full_name, age, phone_number, created_at
+		SELECT id, version, full_name, age, phone_number, created_at, currency
 		FROM zunno.users
 		WHERE id = $1
 	`
@@ -31,6 +31,7 @@ func (r *UsersRepository) GetUser(ctx context.Context, id uuid.UUID) (domain.Use
 		&userModel.Age,
 		&userModel.PhoneNumber,
 		&userModel.CreatedAt,
+		&userModel.Currency,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

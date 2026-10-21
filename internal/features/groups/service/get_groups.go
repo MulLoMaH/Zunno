@@ -23,8 +23,7 @@ func (s *GroupService) GetUserGroups(
 func (s *GroupService) GetGroupMembers(
 	ctx context.Context,
 	requesterID, groupID uuid.UUID,
-) ([]domain.Membership, error) {
-	// Проверяем, что запрашивающий — активный участник группы
+) ([]domain.GroupMember, error) {
 	m, err := s.groups.GetMembership(ctx, requesterID, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("check requester membership: %w", err)

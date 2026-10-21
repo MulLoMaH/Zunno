@@ -19,6 +19,10 @@ type PlanDTOResponse struct {
 	IsDone      bool       `json:"is_done"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DoneAt      *time.Time `json:"done_at"`
+
+	RecurrenceRule  *string    `json:"recurrence_rule,omitempty"`
+	RecurrenceUntil *time.Time `json:"recurrence_until,omitempty"`
+	ParentPlanID    *uuid.UUID `json:"parent_plan_id,omitempty"`
 }
 
 type ChecklistDTOResponse struct {
@@ -42,6 +46,10 @@ func planDTOFromDomain(p domain.PlanEvent) PlanDTOResponse {
 		IsDone:      p.IsDone,
 		CreatedAt:   p.CreatedAt,
 		DoneAt:      p.DoneAt,
+
+		RecurrenceRule:  p.RecurrenceRule,
+		RecurrenceUntil: p.RecurrenceUntil,
+		ParentPlanID:    p.ParentPlanID,
 	}
 }
 

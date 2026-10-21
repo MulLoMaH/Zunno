@@ -3,9 +3,8 @@ package budget_postgres_repository
 import (
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
+	"github.com/google/uuid"
 )
 
 type CategoryModel struct {
@@ -28,6 +27,7 @@ type TransactionModel struct {
 	Date        time.Time
 	Description string
 	CreatedAt   time.Time
+	Type        string
 }
 
 func categoryFromModel(m CategoryModel) domain.Category {
@@ -53,5 +53,6 @@ func transactionFromModel(m TransactionModel) domain.Transaction {
 		Date:        m.Date,
 		Description: m.Description,
 		CreatedAt:   m.CreatedAt,
+		Type:        m.Type,
 	}
 }

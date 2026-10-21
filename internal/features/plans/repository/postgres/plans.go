@@ -18,14 +18,22 @@ func (r *PlansRepository) CreatePlan(ctx context.Context, p domain.PlanEvent) (d
 	defer cancel()
 
 	query := `
-		INSERT INTO zunno.plan_events (group_id, creator_id, title, description, event_date)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, version, group_id, creator_id, title, description, event_date, is_done, created_at, done_at
+		INSERT INTO zunno.plan_events
+		    (group_id, creator_id, title, description, event_date,
+		     recurrence_rule, recurrence_until, parent_plan_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, version, group_id, creator_id, title, description,
+		          event_date, is_done, created_at, done_at,
+		          recurrence_rule, recurrence_until, parent_plan_id
 	`
 	var m PlanModel
-	err := r.pool.QueryRow(ctx, query, p.GroupID, p.CreatorID, p.Title, p.Description, p.EventDate).Scan(
+	err := r.pool.QueryRow(ctx, query,
+		p.GroupID, p.CreatorID, p.Title, p.Description, p.EventDate,
+		p.RecurrenceRule, p.RecurrenceUntil, p.ParentPlanID,
+	).Scan(
 		&m.ID, &m.Version, &m.GroupID, &m.CreatorID, &m.Title, &m.Description,
 		&m.EventDate, &m.IsDone, &m.CreatedAt, &m.DoneAt,
+		&m.RecurrenceRule, &m.RecurrenceUntil, &m.ParentPlanID,
 	)
 	if err != nil {
 		return domain.PlanEvent{}, fmt.Errorf("create plan: %w", err)
@@ -42,7 +50,9 @@ func (r *PlansRepository) GetPlans(
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, creator_id, title, description, event_date, is_done, created_at, done_at
+		SELECT id, version, group_id, creator_id, title, description,
+		       event_date, is_done, created_at, done_at,
+		       recurrence_rule, recurrence_until, parent_plan_id
 		FROM zunno.plan_events
 		WHERE group_id = $1 AND event_date >= $2 AND event_date <= $3
 		ORDER BY event_date ASC
@@ -59,6 +69,7 @@ func (r *PlansRepository) GetPlans(
 		if err := rows.Scan(
 			&m.ID, &m.Version, &m.GroupID, &m.CreatorID, &m.Title, &m.Description,
 			&m.EventDate, &m.IsDone, &m.CreatedAt, &m.DoneAt,
+			&m.RecurrenceRule, &m.RecurrenceUntil, &m.ParentPlanID,
 		); err != nil {
 			return nil, fmt.Errorf("scan plan: %w", err)
 		}
@@ -75,7 +86,9 @@ func (r *PlansRepository) GetPlan(ctx context.Context, planID uuid.UUID) (domain
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, creator_id, title, description, event_date, is_done, created_at, done_at
+		SELECT id, version, group_id, creator_id, title, description,
+		       event_date, is_done, created_at, done_at,
+		       recurrence_rule, recurrence_until, parent_plan_id
 		FROM zunno.plan_events
 		WHERE id = $1
 	`
@@ -83,6 +96,7 @@ func (r *PlansRepository) GetPlan(ctx context.Context, planID uuid.UUID) (domain
 	err := r.pool.QueryRow(ctx, query, planID).Scan(
 		&m.ID, &m.Version, &m.GroupID, &m.CreatorID, &m.Title, &m.Description,
 		&m.EventDate, &m.IsDone, &m.CreatedAt, &m.DoneAt,
+		&m.RecurrenceRule, &m.RecurrenceUntil, &m.ParentPlanID,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {
@@ -113,12 +127,15 @@ func (r *PlansRepository) UpdatePlan(
 		    done_at     = CASE WHEN $4 THEN COALESCE(done_at, now()) ELSE NULL END,
 		    version     = version + 1
 		WHERE id = $5 AND version = $6
-		RETURNING id, version, group_id, creator_id, title, description, event_date, is_done, created_at, done_at
+		RETURNING id, version, group_id, creator_id, title, description,
+		          event_date, is_done, created_at, done_at,
+		          recurrence_rule, recurrence_until, parent_plan_id
 	`
 	var m PlanModel
 	err := r.pool.QueryRow(ctx, query, title, description, eventDate, isDone, planID, expectedVersion).Scan(
 		&m.ID, &m.Version, &m.GroupID, &m.CreatorID, &m.Title, &m.Description,
 		&m.EventDate, &m.IsDone, &m.CreatedAt, &m.DoneAt,
+		&m.RecurrenceRule, &m.RecurrenceUntil, &m.ParentPlanID,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {

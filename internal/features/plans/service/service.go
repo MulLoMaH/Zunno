@@ -4,16 +4,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
+	core_logger "github.com/MulLoMaH/Zunno/internal/core/logger"
+	"github.com/google/uuid"
 )
 
 type PlanService struct {
-	plans PlansRepository
+	plans  PlansRepository
+	logger *core_logger.Logger
 }
 
 type PlansRepository interface {
+	SetRSVP(ctx context.Context, eventID, userID uuid.UUID, status string) error
+	GetRSVPs(ctx context.Context, eventID uuid.UUID) ([]domain.PlanAttendee, error)
+	CreateComment(ctx context.Context, eventID, userID uuid.UUID, text string) (domain.PlanComment, error)
+	GetComments(ctx context.Context, eventID uuid.UUID) ([]domain.PlanComment, error)
 	CreatePlan(ctx context.Context, p domain.PlanEvent) (domain.PlanEvent, error)
 	GetPlans(ctx context.Context, groupID uuid.UUID, from, to time.Time) ([]domain.PlanEvent, error)
 	GetPlan(ctx context.Context, planID uuid.UUID) (domain.PlanEvent, error)
@@ -27,6 +32,6 @@ type PlansRepository interface {
 	DeleteChecklistItem(ctx context.Context, itemID uuid.UUID) error
 }
 
-func NewPlanService(plans PlansRepository) *PlanService {
-	return &PlanService{plans: plans}
+func NewPlanService(plans PlansRepository, logger *core_logger.Logger) *PlanService {
+	return &PlanService{plans: plans, logger: logger}
 }

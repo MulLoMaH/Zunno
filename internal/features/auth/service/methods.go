@@ -45,6 +45,11 @@ func (s *AuthService) Register(ctx context.Context, in RegisterInput) (AuthResul
 		return AuthResult{}, fmt.Errorf("register: %w", err)
 	}
 
+	// Автосоздание личной группы «Моё»
+	if _, err := s.groups.CreateGroup(ctx, user.ID, "Моё"); err != nil {
+		fmt.Printf("WARN: failed to create personal group: %v\n", err)
+	}
+
 	tokens, err := s.issueAndStore(ctx, user)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("register: %w", err)

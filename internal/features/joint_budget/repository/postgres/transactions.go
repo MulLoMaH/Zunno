@@ -7,30 +7,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_postgres_pool "github.com/MulLoMaH/Zunno/internal/core/repository/postgres"
+	"github.com/google/uuid"
 )
 
-func (r *BudgetRepository) CreateTransaction(
-	ctx context.Context,
-	t domain.Transaction,
-) (domain.Transaction, error) {
+func (r *BudgetRepository) CreateTransaction(ctx context.Context, t domain.Transaction) (domain.Transaction, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.pool.OpTimeout())
 	defer cancel()
 
 	query := `
-		INSERT INTO zunno.transactions (group_id, user_id, category_id, amount, date, description)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, version, group_id, user_id, category_id, amount, date, description, created_at
+		INSERT INTO zunno.transactions (group_id, user_id, category_id, amount, date, description, type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, version, group_id, user_id, category_id, amount, date, description, created_at, type
 	`
 	var m TransactionModel
 	err := r.pool.QueryRow(ctx, query,
-		t.GroupID, t.UserID, t.CategoryID, t.Amount, t.Date, t.Description,
+		t.GroupID, t.UserID, t.CategoryID, t.Amount, t.Date, t.Description, t.Type,
 	).Scan(
 		&m.ID, &m.Version, &m.GroupID, &m.UserID, &m.CategoryID,
-		&m.Amount, &m.Date, &m.Description, &m.CreatedAt,
+		&m.Amount, &m.Date, &m.Description, &m.CreatedAt, &m.Type,
 	)
 	if err != nil {
 		return domain.Transaction{}, fmt.Errorf("create transaction: %w", err)
@@ -46,24 +42,27 @@ type TransactionsFilter struct {
 	UserID     *uuid.UUID
 	Limit      int
 	Offset     int
+	Query *string
 }
 
-func (r *BudgetRepository) GetTransactions(
-	ctx context.Context,
-	f TransactionsFilter,
-) ([]domain.Transaction, error) {
+func (r *BudgetRepository) GetTransactions(ctx context.Context, f TransactionsFilter) ([]domain.Transaction, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.pool.OpTimeout())
 	defer cancel()
 
 	var sb strings.Builder
 	args := []any{f.GroupID}
 	sb.WriteString(`
-		SELECT id, version, group_id, user_id, category_id, amount, date, description, created_at
+		SELECT id, version, group_id, user_id, category_id, amount, date, description, created_at, type
 		FROM zunno.transactions
 		WHERE group_id = $1
 	`)
 
 	idx := 2
+	if f.Query != nil && *f.Query != "" {
+		sb.WriteString(fmt.Sprintf(" AND description ILIKE $%d", idx))
+		args = append(args, "%"+*f.Query+"%")
+		idx++
+	}
 	if f.From != nil {
 		sb.WriteString(fmt.Sprintf(" AND date >= $%d", idx))
 		args = append(args, *f.From)
@@ -108,7 +107,7 @@ func (r *BudgetRepository) GetTransactions(
 		var m TransactionModel
 		if err := rows.Scan(
 			&m.ID, &m.Version, &m.GroupID, &m.UserID, &m.CategoryID,
-			&m.Amount, &m.Date, &m.Description, &m.CreatedAt,
+			&m.Amount, &m.Date, &m.Description, &m.CreatedAt, &m.Type,
 		); err != nil {
 			return nil, fmt.Errorf("scan transaction: %w", err)
 		}
@@ -120,26 +119,18 @@ func (r *BudgetRepository) GetTransactions(
 	return txs, nil
 }
 
-// GetCategorySpent — сколько потрачено в категории за период [from, to)
-func (r *BudgetRepository) GetCategorySpent(
-	ctx context.Context,
-	categoryID uuid.UUID,
-	from, to time.Time,
-) (float64, error) {
+func (r *BudgetRepository) GetCategorySpent(ctx context.Context, categoryID uuid.UUID, from, to time.Time) (float64, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.pool.OpTimeout())
 	defer cancel()
 
 	query := `
 		SELECT COALESCE(SUM(amount), 0)
 		FROM zunno.transactions
-		WHERE category_id = $1 AND date >= $2 AND date < $3
+		WHERE category_id = $1 AND date >= $2 AND date < $3 AND type = 'expense'
 	`
 	var total float64
 	err := r.pool.QueryRow(ctx, query, categoryID, from, to).Scan(&total)
-	if err != nil {
-		if errors.Is(err, core_postgres_pool.ErrNoRows) {
-			return 0, nil
-		}
+	if err != nil && !errors.Is(err, core_postgres_pool.ErrNoRows) {
 		return 0, fmt.Errorf("sum spent: %w", err)
 	}
 	return total, nil

@@ -10,6 +10,7 @@ import (
 )
 
 type User struct {
+	Currency string
 	ID           uuid.UUID
 	Version      int64
 	FullName     string

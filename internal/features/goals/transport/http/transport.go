@@ -3,6 +3,7 @@ package goal_transport_http
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/MulLoMaH/Zunno/internal/core/domain"
 	core_http_server "github.com/MulLoMaH/Zunno/internal/core/transport/http/server"
@@ -14,6 +15,8 @@ type GoalsHTTPHandler struct {
 }
 
 type GoalService interface {
+	ReorderGoalItems(ctx context.Context, groupID, categoryID uuid.UUID, itemIDs []uuid.UUID) error
+	ReorderGoalCategories(ctx context.Context, groupID uuid.UUID, categoryIDs []uuid.UUID) error
 	CreateGoalCategory(ctx context.Context, groupID uuid.UUID, name string) (domain.GoalCategory, error)
 	GetGoalCategories(ctx context.Context, groupID uuid.UUID) ([]domain.GoalCategory, error)
 	UpdateGoalCategory(ctx context.Context, groupID, categoryID uuid.UUID, name string, expectedVersion int64) (domain.GoalCategory, error)
@@ -23,6 +26,9 @@ type GoalService interface {
 	GetGoalItems(ctx context.Context, groupID, categoryID uuid.UUID) ([]domain.GoalItem, error)
 	MarkGoalItemDone(ctx context.Context, groupID, itemID uuid.UUID, done bool, expectedVersion int64) (domain.GoalItem, error)
 	DeleteGoalItem(ctx context.Context, groupID, itemID uuid.UUID) error
+
+	// Дедлайн категории
+	SetGoalCategoryDueDate(ctx context.Context, groupID, categoryID uuid.UUID, dueDate *time.Time) (domain.GoalCategory, error)
 }
 
 func NewGoalsHTTPHandler(goalService GoalService) *GoalsHTTPHandler {
@@ -31,6 +37,17 @@ func NewGoalsHTTPHandler(goalService GoalService) *GoalsHTTPHandler {
 
 func (h *GoalsHTTPHandler) Routes() []core_http_server.Route {
 	return []core_http_server.Route{
+		{
+			Method:  http.MethodPost,
+			Path:    "/groups/{id}/goal-categories/reorder",
+			Handler: h.ReorderCategories,
+		},
+		{
+			Method:  http.MethodPost,
+			Path:    "/groups/{id}/goal-categories/{catId}/items/reorder",
+			Handler: h.ReorderItems,
+		},
+
 		{
 			Method:  http.MethodPost,
 			Path:    "/groups/{id}/goal-categories",
@@ -45,6 +62,11 @@ func (h *GoalsHTTPHandler) Routes() []core_http_server.Route {
 			Method:  http.MethodPatch,
 			Path:    "/groups/{id}/goal-categories/{catId}",
 			Handler: h.UpdateCategory,
+		},
+		{
+			Method:  http.MethodPut,
+			Path:    "/groups/{id}/goal-categories/{catId}/due",
+			Handler: h.SetDueDate,
 		},
 		{
 			Method:  http.MethodDelete,

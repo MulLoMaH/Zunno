@@ -11,12 +11,27 @@ import (
 
 type AuthService struct {
 	users   userService
+	groups  groupService
 	tokens  tokenManager
 	refresh refreshRepo
 }
 
-func NewAuthService(users userService, tokens tokenManager, refresh refreshRepo) *AuthService {
-	return &AuthService{users: users, tokens: tokens, refresh: refresh}
+func NewAuthService(
+	users userService,
+	groups groupService,
+	tokens tokenManager,
+	refresh refreshRepo,
+) *AuthService {
+	return &AuthService{
+		users:   users,
+		groups:  groups,
+		tokens:  tokens,
+		refresh: refresh,
+	}
+}
+
+type groupService interface {
+	CreateGroup(ctx context.Context, ownerID uuid.UUID, name string) (domain.Group, error)
 }
 
 type userService interface {

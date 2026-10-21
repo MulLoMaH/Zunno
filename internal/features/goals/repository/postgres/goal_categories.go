@@ -20,13 +20,14 @@ func (r *GoalsRepository) CreateGoalCategory(
 	defer cancel()
 
 	query := `
-		INSERT INTO zunno.goal_categories (group_id, name)
-		VALUES ($1, $2)
-		RETURNING id, version, group_id, name
+		INSERT INTO zunno.goal_categories (group_id, name, position)
+		VALUES ($1, $2, (SELECT COALESCE(MAX(position), -1) + 1 FROM zunno.goal_categories WHERE group_id = $1))
+		RETURNING id, version, group_id, name, position, due_date, notified_due_at
 	`
 	var m GoalCategoryModel
 	err := r.pool.QueryRow(ctx, query, cat.GroupID, cat.Name).Scan(
-		&m.ID, &m.Version, &m.GroupID, &m.Name,
+		&m.ID, &m.Version, &m.GroupID, &m.Name, &m.Position,
+		&m.DueDate, &m.NotifiedDueAt,
 	)
 	if err != nil {
 		return domain.GoalCategory{}, fmt.Errorf("create goal category: %w", err)
@@ -42,10 +43,10 @@ func (r *GoalsRepository) GetGoalCategories(
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, name
+		SELECT id, version, group_id, name, position, due_date, notified_due_at
 		FROM zunno.goal_categories
 		WHERE group_id = $1
-		ORDER BY name ASC
+		ORDER BY position ASC, name ASC
 	`
 	rows, err := r.pool.Query(ctx, query, groupID)
 	if err != nil {
@@ -56,7 +57,10 @@ func (r *GoalsRepository) GetGoalCategories(
 	var cats []domain.GoalCategory
 	for rows.Next() {
 		var m GoalCategoryModel
-		if err := rows.Scan(&m.ID, &m.Version, &m.GroupID, &m.Name); err != nil {
+		if err := rows.Scan(
+			&m.ID, &m.Version, &m.GroupID, &m.Name, &m.Position,
+			&m.DueDate, &m.NotifiedDueAt,
+		); err != nil {
 			return nil, fmt.Errorf("scan category: %w", err)
 		}
 		cats = append(cats, categoryFromModel(m))
@@ -75,12 +79,15 @@ func (r *GoalsRepository) GetGoalCategory(
 	defer cancel()
 
 	query := `
-		SELECT id, version, group_id, name
+		SELECT id, version, group_id, name, position, due_date, notified_due_at
 		FROM zunno.goal_categories
 		WHERE id = $1
 	`
 	var m GoalCategoryModel
-	err := r.pool.QueryRow(ctx, query, categoryID).Scan(&m.ID, &m.Version, &m.GroupID, &m.Name)
+	err := r.pool.QueryRow(ctx, query, categoryID).Scan(
+		&m.ID, &m.Version, &m.GroupID, &m.Name, &m.Position,
+		&m.DueDate, &m.NotifiedDueAt,
+	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {
 			return domain.GoalCategory{}, core_errors.ErrGoalCategoryNotFound
@@ -103,11 +110,12 @@ func (r *GoalsRepository) UpdateGoalCategory(
 		UPDATE zunno.goal_categories
 		SET name = $1, version = version + 1
 		WHERE id = $2 AND version = $3
-		RETURNING id, version, group_id, name
+		RETURNING id, version, group_id, name, position, due_date, notified_due_at
 	`
 	var m GoalCategoryModel
 	err := r.pool.QueryRow(ctx, query, name, categoryID, expectedVersion).Scan(
-		&m.ID, &m.Version, &m.GroupID, &m.Name,
+		&m.ID, &m.Version, &m.GroupID, &m.Name, &m.Position,
+		&m.DueDate, &m.NotifiedDueAt,
 	)
 	if err != nil {
 		if errors.Is(err, core_postgres_pool.ErrNoRows) {

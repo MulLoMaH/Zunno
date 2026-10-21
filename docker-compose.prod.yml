@@ -44,6 +44,10 @@ services:
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       KAFKA_HEAP_OPTS: "-Xmx128m -Xms128m"
       KAFKA_LOG_CLEANER_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 104857600
+      KAFKA_LOG_SEGMENT_BYTES: 33554432
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
     volumes:
       - ${PROJECT_ROOT}/out/kafka_data:/var/lib/kafka/data
     restart: unless-stopped
@@ -78,6 +82,7 @@ services:
       # Logger
       LOGGER_LEVEL: "INFO"
       LOGGER_FOLDER: "/app/out/logs"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
 
       # HTTP
       HTTP_ADDR: ":6060"

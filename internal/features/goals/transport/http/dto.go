@@ -13,6 +13,9 @@ type GoalCategoryDTOResponse struct {
 	Version int64     `json:"version"`
 	GroupID uuid.UUID `json:"group_id"`
 	Name    string    `json:"name"`
+
+	DueDate       *time.Time `json:"due_date,omitempty"`
+	NotifiedDueAt *time.Time `json:"notified_due_at,omitempty"`
 }
 
 type GoalItemDTOResponse struct {
@@ -32,6 +35,9 @@ func categoryDTOFromDomain(c domain.GoalCategory) GoalCategoryDTOResponse {
 		Version: c.Version,
 		GroupID: c.GroupID,
 		Name:    c.Name,
+
+		DueDate:       c.DueDate,
+		NotifiedDueAt: c.NotifiedDueAt,
 	}
 }
 
