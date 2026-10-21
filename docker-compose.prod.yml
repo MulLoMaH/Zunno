@@ -82,6 +82,7 @@ services:
       # Logger
       LOGGER_LEVEL: "INFO"
       LOGGER_FOLDER: "/app/out/logs"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
 
       # HTTP
       HTTP_ADDR: ":6060"

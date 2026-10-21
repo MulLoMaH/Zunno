@@ -32,7 +32,7 @@ func (r *BudgetRepository) GetUserDebts(ctx context.Context, userID uuid.UUID) (
 
 	query := `
 		SELECT 
-			d.id, d.group_id, d.transaction_id, d.amount, d.is_paid, d.created_at, d.paid_at,
+			d.id, d.group_id, d.transaction_id, d.creditor_id, d.debtor_id, d.amount, d.is_paid, d.created_at, d.paid_at,
 			c.full_name as creditor_name,
 			u.full_name as debtor_name
 		FROM zunno.debts d
@@ -51,7 +51,7 @@ func (r *BudgetRepository) GetUserDebts(ctx context.Context, userID uuid.UUID) (
 	for rows.Next() {
 		var d domain.Debt
 		if err := rows.Scan(
-			&d.ID, &d.GroupID, &d.TransactionID, &d.Amount, &d.IsPaid, &d.CreatedAt, &d.PaidAt,
+			&d.ID, &d.GroupID, &d.TransactionID, &d.CreditorID, &d.DebtorID, &d.Amount, &d.IsPaid, &d.CreatedAt, &d.PaidAt,
 			&d.CreditorName, &d.DebtorName,
 		); err != nil {
 			return nil, fmt.Errorf("scan debt: %w", err)

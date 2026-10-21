@@ -2039,9 +2039,6 @@ async function renderBudget(container) {
     safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
   ]);
   const debts = normalizeDebts(debtsRaw); 
-  if (debtsRaw) {
-    alert('Ответ сервера по долгам:\n' + JSON.stringify(debtsRaw));
-  }
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);

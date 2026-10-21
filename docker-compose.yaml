@@ -74,6 +74,8 @@ services:
   zunno_app:
     build: .
     container_name: zunno_env_app
+    env_file:
+      - .env
     depends_on:
       # ИСПРАВЛЕНО: Ссылаемся на правильное имя контейнера миграций
       zunno_migrate:
@@ -93,7 +95,6 @@ services:
       # ИСПРАВЛЕНО: Указан верный хост zunno_kafka и динамический внутренний порт
       KAFKA_BROKER: "zunno_kafka:${KAFKA_PORT_INTERNAL}"
       
-      JWT_SECRET: "change-me-in-production"
       SERVER_PORT: "8080"
     restart: unless-stopped
 

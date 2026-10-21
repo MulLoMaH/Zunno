@@ -1,0 +1,101 @@
+services:
+
+  zunno_postgres:
+    image: postgres:17-bookworm
+    container_name: zunno_env_postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - ${HOST_POSTGRES_PORT}:5432
+    volumes:
+      - ${PROJECT_ROOT}/out/pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  zunno_redis:
+    image: redis:7-alpine
+    container_name: zunno_env_redis
+    ports:
+      - ${HOST_REDIS_PORT}:6379
+    volumes:
+      - ${PROJECT_ROOT}/out/redis_data:/data
+    command: redis-server --appendonly yes                                # сохранять каждую операцию на диск
+    restart: unless-stopped
+
+  zunno_kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: zunno_env_kafka
+    ports:
+      - ${HOST_KAFKA_PORT}:9092
+    environment:
+    # --- Идентификация ноды ---
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID}                                     # уникальный ID в кластере
+      KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}                         # и хранит данные, и управляет
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}   # кто участвует в голосовании
+      KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES} # через какой слушатель голосуем
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+    # --- Слушатели ---
+      KAFKA_LISTENERS: "INTERNAL://0.0.0.0:${KAFKA_PORT_INTERNAL},EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:${KAFKA_PORT_CONTROLLER}" # Открываем порты внутри контейнера
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://zunno_kafka:${KAFKA_PORT_INTERNAL},EXTERNAL://localhost:${KAFKA_PORT_EXTERNAL}"                  # Сообщаем клиентам, как к нам обращаться
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"                                 # Указываем протоколы безопасности для каждого имени
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"                                                                                       # Через какой порт брокеры общаются между собой
+
+    # --- Топики ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1   # Сколько реплик
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"     # создать топик автоматически
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"       # где хранить метаданные
+    volumes:
+      - ${PROJECT_ROOT}/out/kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+
+  zunno_migrate:
+    image: migrate/migrate
+    container_name: zunno_env_migrate
+    depends_on: 
+      zunno_postgres:
+        condition: service_healthy
+    volumes:
+      - ${PROJECT_ROOT}/migrations:/migrations
+    command: 
+      - "-path"
+      - "/migrations"
+      - "-database"
+      - "${POSTGRES_STRING}"
+      - "up"
+    restart: "no"
+
+
+  zunno_app:
+    build: .
+    container_name: zunno_env_app
+    depends_on:
+      # ИСПРАВЛЕНО: Ссылаемся на правильное имя контейнера миграций
+      zunno_migrate:
+        condition: service_completed_successfully
+      # ИСПРАВЛЕНО: Ссылаемся на правильное имя контейнера Kafka
+      zunno_kafka:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      # ИСПРАВЛЕНО: Используем актуальные переменные и правильное имя хоста zunno_postgres
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@zunno_postgres:5432/${POSTGRES_DB}?sslmode=disable"
+      
+      # ИСПРАВЛЕНО: Указан верный хост zunno_redis
+      REDIS_ADDR: "zunno_redis:6379"
+      
+      # ИСПРАВЛЕНО: Указан верный хост zunno_kafka и динамический внутренний порт
+      KAFKA_BROKER: "zunno_kafka:${KAFKA_PORT_INTERNAL}"
+      
+      JWT_SECRET: "change-me-in-production"
+      SERVER_PORT: "8080"
+    restart: unless-stopped
+
+
+  

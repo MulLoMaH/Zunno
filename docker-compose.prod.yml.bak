@@ -1,0 +1,119 @@
+services:
+
+  zunno_postgres:
+    image: postgres:17-bookworm
+    container_name: zunno_prod_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ${PROJECT_ROOT}/out/pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [zunno]
+
+  zunno_redis:
+    image: redis:7-alpine
+    container_name: zunno_prod_redis
+    volumes:
+      - ${PROJECT_ROOT}/out/redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks: [zunno]
+
+  zunno_kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: zunno_prod_kafka
+    environment:
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID}
+      KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}
+      KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      KAFKA_LISTENERS: "INTERNAL://0.0.0.0:${KAFKA_PORT_INTERNAL},CONTROLLER://0.0.0.0:${KAFKA_PORT_CONTROLLER}"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://zunno_kafka:${KAFKA_PORT_INTERNAL}"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_HEAP_OPTS: "-Xmx128m -Xms128m"
+      KAFKA_LOG_CLEANER_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 104857600
+      KAFKA_LOG_SEGMENT_BYTES: 33554432
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+    volumes:
+      - ${PROJECT_ROOT}/out/kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+    networks: [zunno]
+
+  zunno_migrate:
+    image: migrate/migrate
+    container_name: zunno_prod_migrate
+    depends_on:
+      zunno_postgres:
+        condition: service_healthy
+    volumes:
+      - ${PROJECT_ROOT}/migrations:/migrations
+    command:
+      - "-path"
+      - "/migrations"
+      - "-database"
+      - "${POSTGRES_STRING}"
+      - "up"
+    restart: "no"
+    networks: [zunno]
+
+  zunno_app:
+    image: zunno_app:prod
+    container_name: zunno_prod_app
+    depends_on:
+      zunno_migrate:
+        condition: service_completed_successfully
+      zunno_redis:
+        condition: service_started
+    environment:
+      # Logger
+      LOGGER_LEVEL: "INFO"
+      LOGGER_FOLDER: "/app/out/logs"
+
+      # HTTP
+      HTTP_ADDR: ":6060"
+      HTTP_SHUTDOWN_TIMEOUT: "30s"
+
+      # Postgres
+      POSTGRES_HOST: zunno_postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_TIMEOUT: "30s"
+
+      # Redis
+      REDIS_ADDR: zunno_redis:6379
+
+      # Kafka
+      KAFKA_BROKERS: "zunno_kafka:29092"
+      KAFKA_TOPIC: budget-events
+      KAFKA_GROUP_ID: zunno-budget-consumer
+
+      # Auth
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: "true"
+    ports:
+      - "127.0.0.1:6060:6060"
+    volumes:
+      - ${PROJECT_ROOT}/out/logs:/app/out/logs
+    mem_limit: 200m
+    restart: unless-stopped
+    networks: [zunno]
+
+networks:
+  zunno:
+    driver: bridge
