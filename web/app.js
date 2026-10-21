@@ -1709,7 +1709,7 @@ async function renderDashboard(container) {
   const month = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  const [summary, membersSpent, plans, members, analyticsRaw, recentTx, debts] = await Promise.all([
+  const [summary, membersSpent, plans, members, analyticsRaw, recentTx, debtsRaw] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
@@ -1718,6 +1718,7 @@ async function renderDashboard(container) {
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
   ]);
+  const debts = normalizeDebts(debtsRaw);
   const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
   container.appendChild(renderHero(g, members.length, plans.length));
   if (state.invitations?.length) {
@@ -2303,6 +2304,30 @@ function openSplitTransactionModal(g, cats, members) {
       } catch (err) { toast(err.message, 'error'); throw err; }
     },
   });
+}
+
+function normalizeDebts(raw) {
+  if (!raw) return { incoming: [], outgoing: [] };
+  
+  // Если бэкенд вернул просто массив
+  if (Array.isArray(raw)) {
+    const myId = state.user?.id;
+    const incoming = [];
+    const outgoing = [];
+    raw.forEach(d => {
+      const debtor = d.debtor_id || d.debtor?.id || d.from_id;
+      const creditor = d.creditor_id || d.creditor?.id || d.to_id;
+      if (creditor === myId) incoming.push(d);
+      else if (debtor === myId) outgoing.push(d);
+    });
+    return { incoming, outgoing };
+  }
+  
+  // Если объект, но с другими ключами
+  return {
+    incoming: raw.incoming || raw.owed_to_me || raw.creditors || [],
+    outgoing: raw.outgoing || raw.i_owe || raw.debtors || []
+  };
 }
 
 function renderDebtsSection(debts, members, compact) {
@@ -2952,6 +2977,10 @@ async function main() {
     showScreen('auth');
   }
   setBusy(false);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 main();
