@@ -2039,6 +2039,9 @@ async function renderBudget(container) {
     safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
   ]);
   const debts = normalizeDebts(debtsRaw); 
+  if (debtsRaw) {
+    alert('Ответ сервера по долгам:\n' + JSON.stringify(debtsRaw));
+  }
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);
@@ -2310,21 +2313,30 @@ function openSplitTransactionModal(g, cats, members) {
 function normalizeDebts(raw) {
   if (!raw) return { incoming: [], outgoing: [] };
   
-  // Если бэкенд вернул просто массив
-  if (Array.isArray(raw)) {
-    const myId = state.user?.id;
+  // Приводим ID текущего юзера к строке для надежности
+  const myId = String(state.user?.id || ''); 
+
+  // Если бэкенд вернул массив (или объект с массивом внутри)
+  let arr = [];
+  if (Array.isArray(raw)) arr = raw;
+  else if (Array.isArray(raw.data)) arr = raw.data;
+  else if (Array.isArray(raw.debts)) arr = raw.debts;
+
+  if (arr.length > 0 || Array.isArray(raw)) {
     const incoming = [];
     const outgoing = [];
-    raw.forEach(d => {
-      const debtor = d.debtor_id || d.debtor?.id || d.from_id;
-      const creditor = d.creditor_id || d.creditor?.id || d.to_id;
+    arr.forEach(d => {
+      // Ищем ID во всех возможных полях и приводим к строке
+      const debtor = String(d.debtor_id || d.debtor?.id || d.from_id || d.from || '');
+      const creditor = String(d.creditor_id || d.creditor?.id || d.to_id || d.to || '');
+      
       if (creditor === myId) incoming.push(d);
       else if (debtor === myId) outgoing.push(d);
     });
     return { incoming, outgoing };
   }
   
-  // Если объект, но с другими ключами
+  // Если объект с готовыми ключами
   return {
     incoming: raw.incoming || raw.owed_to_me || raw.creditors || [],
     outgoing: raw.outgoing || raw.i_owe || raw.debtors || []
