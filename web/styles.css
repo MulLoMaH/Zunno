@@ -313,99 +313,32 @@ textarea:focus-visible,
 .popover-root { z-index: 9400; }
 .modal-root { z-index: 9700; }
 
-/* --- СОВРЕМЕННЫЙ ЭКРАН ЗАГРУЗКИ --- */
 .preloader {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   background: var(--bg);
-  transition: opacity 0.5s var(--ease), visibility 0.5s var(--ease);
+  transition: opacity 0.32s var(--ease);
 }
-.preloader.hide { 
-  opacity: 0; 
-  visibility: hidden;
-  pointer-events: none; 
-}
-.preloader-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-.preloader-logo-wrap {
+.preloader.hide { opacity: 0; pointer-events: none; }
+.preloader-orbit {
   position: relative;
-  width: 90px;
-  height: 90px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 58px;
+  height: 58px;
+  animation: spin 1.4s linear infinite;
 }
-.preloader-logo {
-  width: 90px;
-  height: 90px;
-  border-radius: 24px;
-  z-index: 2;
-  animation: logoPulse 2s ease-in-out infinite;
-  box-shadow: 0 10px 40px rgba(124, 92, 255, 0.4);
-}
-/* Свечение позади логотипа */
-.preloader-glow {
+.preloader-orbit span {
   position: absolute;
-  inset: -30px;
-  background: radial-gradient(circle, rgba(124, 92, 255, 0.3) 0%, transparent 70%);
-  z-index: 1;
-  animation: glowPulse 2s ease-in-out infinite;
+  inset: 0;
   border-radius: 50%;
+  border: 2px solid transparent;
 }
-.preloader-title {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  color: var(--text);
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-  animation: textFade 2s ease-in-out infinite alternate;
-}
-/* Полоса загрузки */
-.preloader-bar {
-  width: 140px;
-  height: 4px;
-  background: var(--surface-2);
-  border-radius: var(--r-full);
-  overflow: hidden;
-  position: relative;
-  margin-top: 8px;
-}
-.preloader-bar-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 50%;
-  background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
-  border-radius: inherit;
-  animation: loadingBar 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-}
-
-/* --- АНИМАЦИИ --- */
-@keyframes logoPulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 10px 40px rgba(124, 92, 255, 0.3); }
-  50% { transform: scale(1.06); box-shadow: 0 15px 50px rgba(124, 92, 255, 0.6); }
-}
-@keyframes glowPulse {
-  0%, 100% { transform: scale(1); opacity: 0.4; }
-  50% { transform: scale(1.15); opacity: 0.8; }
-}
-@keyframes textFade {
-  0% { opacity: 0.6; }
-  100% { opacity: 1; }
-}
-@keyframes loadingBar {
-  0% { transform: translateX(-200%); }
-  100% { transform: translateX(200%); }
-}
+.preloader-orbit span:nth-child(1) { border-top-color: var(--primary); animation: spin 1s linear infinite; }
+.preloader-orbit span:nth-child(2) { inset: 8px; border-right-color: var(--accent); animation: spin 1.35s linear infinite reverse; }
+.preloader-orbit span:nth-child(3) { inset: 16px; border-bottom-color: var(--success); animation: spin 1.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .toasts {
   position: fixed;
