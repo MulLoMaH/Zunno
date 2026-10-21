@@ -2029,7 +2029,7 @@ async function renderBudget(container) {
   if (!g) { container.appendChild(noGroupBanner()); return; }
   const now = new Date();
   const month = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
-  const [cats, txs, summary, membersSpent, analyticsRaw, members, debts] = await Promise.all([
+  const [cats, txs, summary, membersSpent, analyticsRaw, members, debtsRaw] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/categories`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=100`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
@@ -2038,6 +2038,7 @@ async function renderBudget(container) {
     safeApi(apiCall('GET', `/groups/${g.id}/members`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
   ]);
+  const debts = normalizeDebts(debtsRaw); 
   if (summary) {
     const spent = Number(summary.total_spent || 0);
     const limit = Number(summary.total_limit || 0);

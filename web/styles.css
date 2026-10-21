@@ -354,7 +354,7 @@ textarea:focus-visible,
 .toast {
   position: relative;
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -367,6 +367,8 @@ textarea:focus-visible,
   box-shadow: var(--shadow-soft);
   animation: toastIn 0.26s var(--ease-spring);
 }
+.toast 
+.btn { pointer-events: auto; }
 .toast.hide { animation: toastOut 0.22s var(--ease) forwards; }
 .toast::before {
   content: "";
@@ -1536,7 +1538,7 @@ kbd {
   flex-direction: column;
   align-items: flex-end;
   gap: 12px;
-  pointer-events: auto;
+  pointer-events: none;
 }
 body.app-active #fab { display: flex; }
 .fab-main {
@@ -1548,6 +1550,7 @@ body.app-active #fab { display: flex; }
   place-items: center;
   box-shadow: 0 16px 40px rgba(var(--primary-rgb), 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   transition: transform 0.24s var(--ease-spring), box-shadow 0.2s var(--ease);
+  pointer-events: auto; 
 }
 .fab-main:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 20px 48px rgba(var(--primary-rgb), 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
 .fab-main:active { transform: scale(0.95); }
