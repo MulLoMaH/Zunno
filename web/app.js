@@ -1733,6 +1733,9 @@ async function renderDashboard(container) {
   const limit = Number(summary?.total_limit || 0);
   const remaining = limit > 0 ? limit - spent : 0;
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  // Кошелёк и Копилки
+  await renderWalletAndSavings(g, container);
+
   // Расчет обязательных платежей и свободных денег
   const recIncome = (recurringsRaw || []).filter(r => r.is_active && r.type === 'income').reduce((s, r) => s + Number(r.amount), 0);
   const recExpense = (recurringsRaw || []).filter(r => r.is_active && r.type === 'expense').reduce((s, r) => s + Number(r.amount), 0);
@@ -2178,13 +2181,18 @@ function renderTransactionRow(t, cats, swipe = true) {
   const isMe = state.user && t.user_id === state.user.id;
   const userName = t.user_full_name || t.full_name || t.user?.full_name || '';
   const type = txType(t);
+  const isTransfer = type === 'savings_deposit' || type === 'savings_withdraw';
+  const isPositive = type === 'income' || type === 'savings_withdraw';
+  const iconName = isTransfer ? 'piggy-bank' : (type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle');
+  const bgColor = isTransfer ? 'var(--primary)' : colorFromId(t.category_id || t.id);
+  
   const content = el('div', { class: 'item swipeable-content', 'data-tx-id': t.id }, [
-    el('div', { class: 'avatar-sm', style: `background:${colorFromId(t.category_id || t.id)}` }, [icon(type === 'income' ? 'arrowUpCircle' : 'arrowDownCircle', 18)]),
+    el('div', { class: 'avatar-sm', style: `background:${bgColor}` }, [icon(iconName, 18)]),
     el('div', { class: 'flex-1' }, [
       el('div', { class: 'item-title' }, [t.description || cat?.name || 'Без описания']),
       el('div', { class: 'item-sub' }, [[cat ? cat.name : 'Без категории', fmtDateTime(t.date), userName ? (isMe ? 'вы' : userName) : ''].filter(Boolean).join(' · ')]),
     ]),
-    el('div', { class: `mono ${type === 'income' ? 'amount-positive' : 'amount-negative'}`, style: 'margin-right:8px;' }, [`${type === 'income' ? '+' : '−'}${fmtMoney(t.amount)}`]),
+    el('div', { class: `mono ${isPositive ? 'amount-positive' : 'amount-negative'}`, style: 'margin-right:8px;' }, [`${isPositive ? '+' : '−'}${fmtMoney(t.amount)}`]),
     el('button', { type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить транзакцию', onclick: () => handleDeleteTransaction(t, g) }, [icon('trash', 18)]),
   ]);
   if (!swipe) return content;
@@ -3912,6 +3920,140 @@ function openCreateRecurringModal(g, cats) {
           category_id: catSelect.value || null
         });
         toast('Шаблон создан', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    }
+  });
+}
+
+/* =============================================================
+WALLET & SAVINGS (Кошелёк и Копилки)
+============================================================= */
+
+async function renderWalletAndSavings(g, container) {
+  const [wallet, goals] = await Promise.all([
+    safeApi(apiCall('GET', `/groups/${g.id}/wallet`), null),
+    safeApi(apiCall('GET', `/groups/${g.id}/savings`), [])
+  ]);
+
+  if (!wallet) return;
+
+  // Карточка кошелька
+  const walletCard = el('div', { class: 'card wallet-card mt-16' }, [
+    el('div', { class: 'row-between' }, [
+      el('div', {}, [
+        el('div', { class: 'stat-label' }, ['Кошелёк (свободные деньги)']),
+        el('div', { class: `stat-value ${wallet.balance < 0 ? 'danger' : 'success'}`, style: 'font-size: 32px;' }, [fmtMoney(wallet.balance)])
+      ]),
+      el('div', { class: 'avatar-sm', style: 'background: var(--success); width: 52px; height: 52px;' }, [icon('wallet', 26)])
+    ]),
+    el('div', { class: 'row text-xs text-3 mt-16', style: 'gap: 16px; flex-wrap: wrap;' }, [
+      el('span', {}, [`Доходы: ${fmtMoney(wallet.total_income)}`]),
+      el('span', {}, [`Расходы: ${fmtMoney(wallet.total_expense)}`]),
+      el('span', {}, [`В копилках: ${fmtMoney(wallet.total_in_savings)}`])
+    ])
+  ]);
+  container.appendChild(walletCard);
+
+  // Секция копилок
+  const goalsSection = sectionBlock(
+    'Копилки',
+    'Откладывайте деньги на крупные цели',
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => openCreateSavingsModal(g) }, [
+      el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Копилка'])
+    ]),
+    goals.length 
+      ? el('div', { class: 'grid-auto' }, goals.map((goal, i) => stagger(renderSavingsCard(g, goal), i))) 
+      : miniEmpty('Пока нет копилок. Создайте первую!')
+  );
+  container.appendChild(goalsSection);
+}
+
+function renderSavingsCard(g, goal) {
+  return el('div', { class: 'card' }, [
+    el('div', { class: 'card-head' }, [
+      el('div', { class: 'row', style: 'gap:10px;' }, [
+        el('div', { class: 'avatar-sm', style: 'background:var(--primary);' }, [icon(goal.icon || 'piggy-bank', 18)]),
+        el('div', {}, [
+          el('div', { class: 'card-title' }, [goal.name]),
+          el('div', { class: 'card-subtitle' }, [`${fmtMoney(goal.current_amount)} из ${fmtMoney(goal.target_amount)}`])
+        ])
+      ]),
+      el('button', {
+        type: 'button', class: 'icon-btn sm', 'data-tip': 'Удалить',
+        onclick: () => confirmDelete(`Удалить копилку «${goal.name}»?`, async () => {
+          try {
+            await apiCall('DELETE', `/groups/${g.id}/savings/${goal.id}`);
+            toast('Копилка удалена', 'success');
+            await renderActiveView();
+          } catch (err) { toast(err.message, 'error'); }
+        })
+      }, [icon('trash', 16)])
+    ]),
+    el('div', { class: 'progress mt-12' }, [
+      el('div', { class: 'progress-fill success', style: `width:${goal.progress}%` })
+    ]),
+    el('div', { class: 'row-between text-xs text-3 mt-8' }, [
+      el('span', {}, [`${goal.progress.toFixed(1)}%`]),
+      el('span', {}, [`Осталось: ${fmtMoney(goal.target_amount - goal.current_amount)}`])
+    ]),
+    el('div', { class: 'row gap-8 mt-12' }, [
+      el('button', { type: 'button', class: 'btn btn-primary btn-sm flex-1', onclick: () => openTransferModal(g, goal, true) }, ['Пополнить']),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm flex-1', onclick: () => openTransferModal(g, goal, false) }, ['Снять'])
+    ])
+  ]);
+}
+
+function openCreateSavingsModal(g) {
+  const name = el('input', { class: 'input', type: 'text', placeholder: 'Например, На отпуск', required: true });
+  const target = el('input', { class: 'input', type: 'number', min: '1', step: '0.01', placeholder: 'Целевая сумма', required: true });
+  
+  openModal({
+    title: 'Новая копилка',
+    body: el('div', { class: 'form' }, [
+      field('Название', name),
+      field('Цель (сумма)', target)
+    ]),
+    saveLabel: 'Создать',
+    onSave: async () => {
+      const amt = parseFloat(target.value);
+      if (!name.value.trim()) throw new Error('Введите название');
+      if (!amt || amt <= 0) throw new Error('Введите сумму > 0');
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/savings`, {
+          name: name.value.trim(),
+          target_amount: amt
+        });
+        toast('Копилка создана', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    }
+  });
+}
+
+function openTransferModal(g, goal, isDeposit) {
+  const amount = el('input', { class: 'input', type: 'number', min: '0.01', step: '0.01', placeholder: 'Сумма', required: true });
+  
+  openModal({
+    title: isDeposit ? `Пополнить «${goal.name}»` : `Снять из «${goal.name}»`,
+    body: el('div', { class: 'form' }, [
+      isDeposit 
+        ? el('p', { class: 'text-sm text-2' }, ['Деньги будут списаны из Кошелька и добавлены в копилку.']) 
+        : el('p', { class: 'text-sm text-2' }, ['Деньги вернутся в Кошелёк из копилки.']),
+      field('Сумма', amount)
+    ]),
+    saveLabel: isDeposit ? 'Отложить' : 'Снять',
+    onSave: async () => {
+      const amt = parseFloat(amount.value);
+      if (!amt || amt <= 0) throw new Error('Введите сумму > 0');
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/savings/${goal.id}/transfer`, {
+          amount: amt,
+          is_deposit: isDeposit
+        });
+        toast(isDeposit ? 'Деньги отложены' : 'Деньги сняты', 'success');
         await renderActiveView();
       } catch (err) { toast(err.message, 'error'); throw err; }
     }

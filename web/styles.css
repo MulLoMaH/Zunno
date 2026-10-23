@@ -2276,3 +2276,9 @@ body {
     margin-bottom: 4px;
   }
 }
+
+/* Кошелёк на Обзоре */
+.wallet-card {
+  background: linear-gradient(135deg, rgba(var(--success-rgb), 0.12), transparent);
+  border: 1px solid rgba(var(--success-rgb), 0.3);
+}

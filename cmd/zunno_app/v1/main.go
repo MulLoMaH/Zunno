@@ -41,6 +41,9 @@ import (
 	recurring_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/recurring/repository/postgres"
 	recurring_service "github.com/MulLoMaH/Zunno/internal/features/recurring/service"
 	recurring_transport_http "github.com/MulLoMaH/Zunno/internal/features/recurring/transport/http"
+	savings_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/savings/repository/postgres"
+	savings_service "github.com/MulLoMaH/Zunno/internal/features/savings/service"
+	savings_transport_http "github.com/MulLoMaH/Zunno/internal/features/savings/transport/http"
 
 	users_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/users/repository/postgres"
 	user_service "github.com/MulLoMaH/Zunno/internal/features/users/service"
@@ -236,6 +239,18 @@ func main() {
 		recurringRoutes[i].Middlewares = append(recurringRoutes[i].Middlewares, jwtMw, groupContextMw)
 	}
 	apiV1Router.RegisterRoutes(recurringRoutes...)
+
+	// --- Savings & Wallet ---
+	logger.Debug("initializing feature", zap.String("feature", "savings"))
+	savingsRepo := savings_postgres_repository.NewSavingsRepository(pool)
+	savingsSvc := savings_service.NewSavingsService(savingsRepo, logger)
+	savingsHTTP := savings_transport_http.NewSavingsHTTPHandler(savingsSvc)
+
+	savingsRoutes := savingsHTTP.Routes()
+	for i := range savingsRoutes {
+		savingsRoutes[i].Middlewares = append(savingsRoutes[i].Middlewares, jwtMw, groupContextMw)
+	}
+	apiV1Router.RegisterRoutes(savingsRoutes...)
 
 	// Запуск фонового воркера (раз в час)
 	go recurringSvc.StartWorker(ctx)
