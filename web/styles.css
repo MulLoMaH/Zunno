@@ -2282,3 +2282,10 @@ body {
   background: linear-gradient(135deg, rgba(var(--success-rgb), 0.12), transparent);
   border: 1px solid rgba(var(--success-rgb), 0.3);
 }
+
+/* Фикс: кнопка FAB не должна перекрывать контент на мобилках */
+@media (max-width: 1024px) {
+  .view {
+    padding-bottom: calc(var(--mobile-nav-h) + 100px + env(safe-area-inset-bottom)) !important;
+  }
+}
