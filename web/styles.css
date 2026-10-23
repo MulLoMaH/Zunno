@@ -2207,3 +2207,72 @@ CREDITS — base card + tabs + next payment badge
   color: var(--text);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
+
+/* Фикс: перенос длинного текста в карточках и списках */
+.item-main {
+  min-width: 0; /* Важно для работы переносов внутри flex */
+}
+.item-title,
+.item-sub,
+.card-title {
+  white-space: normal !important;   /* Разрешаем перенос */
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere !important; /* Ломаем длинные слова, если надо */
+  word-break: break-word !important;
+  line-height: 1.4;
+}
+
+/* Фикс 2: остальные места, где может быть переполнение по горизонтали */
+
+/* Графики: длинные подписи */
+.bar-label,
+.legend-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Детали кредита: длинные значения в «Инфо» */
+.info-row-value {
+  text-align: right;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 60%;
+}
+
+/* Заголовок overlay кредита */
+.credit-detail-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Общая страховка: никакой горизонтальный скролл не ломает интерфейс */
+body {
+  overflow-x: hidden;
+}
+.view {
+  overflow-x: hidden;
+}
+
+/* На узких экранах (мобилка) — жёсткая подстраховка */
+@media (max-width: 640px) {
+  .screen-app,
+  .view,
+  .card,
+  .item,
+  .credit-detail-inner {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  /* chart-bar: на мобилке подписи под графиком, а не сбоку */
+  .bar-row {
+    grid-template-columns: 1fr auto;
+  }
+  .bar-label {
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+  }
+}

@@ -1712,7 +1712,7 @@ async function renderDashboard(container) {
   const month = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  const [summary, membersSpent, plans, members, analyticsRaw, recentTx, debtsRaw] = await Promise.all([
+  const [summary, membersSpent, plans, members, analyticsRaw, recentTx, debtsRaw, recurringsRaw, creditsRaw] = await Promise.all([
     safeApi(apiCall('GET', `/groups/${g.id}/budget/summary?month=${month}`), null),
     safeApi(apiCall('GET', `/groups/${g.id}/budget/members?month=${month}`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/plans?from=${from}&to=${to}`), []),
@@ -1720,6 +1720,8 @@ async function renderDashboard(container) {
     safeApi(apiCall('GET', `/groups/${g.id}/analytics`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/transactions?limit=50`), []),
     safeApi(apiCall('GET', `/groups/${g.id}/debts`), { incoming: [], outgoing: [] }),
+    safeApi(apiCall('GET', `/groups/${g.id}/recurring`), []),
+    safeApi(apiCall('GET', `/groups/${g.id}/credits`), []),
   ]);
   const debts = normalizeDebts(debtsRaw);
   const categories = await safeApi(apiCall('GET', `/groups/${g.id}/categories`), []);
@@ -1731,12 +1733,45 @@ async function renderDashboard(container) {
   const limit = Number(summary?.total_limit || 0);
   const remaining = limit > 0 ? limit - spent : 0;
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+  // Расчет обязательных платежей и свободных денег
+  const recIncome = (recurringsRaw || []).filter(r => r.is_active && r.type === 'income').reduce((s, r) => s + Number(r.amount), 0);
+  const recExpense = (recurringsRaw || []).filter(r => r.is_active && r.type === 'expense').reduce((s, r) => s + Number(r.amount), 0);
+  const creditExpense = (creditsRaw || []).filter(c => !c.credit.is_closed).reduce((s, c) => s + Number(c.summary.monthly_payment || 0), 0);
+  
+  const totalIncome = recIncome + Number(summary?.total_income || 0);
+  const totalFixed = recExpense + creditExpense;
+  const freeMoney = totalIncome - totalFixed;
+
   container.appendChild(el('div', { class: 'stat-grid' }, [
     statTile('Потрачено', spent, 'primary'),
     statTile('Лимит', limit, limit > 0 && spent > limit ? 'danger' : ''),
     statTile('Остаток', remaining, remaining < 0 ? 'danger' : 'success'),
     statTile('Участников', members.length, '', (n) => String(Math.round(n))),
   ]));
+
+  if (totalIncome > 0) {
+    container.appendChild(el('div', { class: 'card mt-16', style: 'border-color: rgba(var(--primary-rgb), 0.3); background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.05), transparent);' }, [
+      el('div', { class: 'card-title mb-16' }, ['Бюджет на месяц (план)']),
+      el('div', { class: 'row-between text-sm mb-8' }, [
+        el('span', { class: 'text-2' }, ['Доходы (Зарплата и др.)']),
+        el('span', { class: 'mono text-success', style: 'font-weight:800;' }, [`+${fmtMoney(totalIncome)}`])
+      ]),
+      el('div', { class: 'row-between text-sm mb-8' }, [
+        el('span', { class: 'text-2' }, ['Кредиты']),
+        el('span', { class: 'mono text-danger' }, [`−${fmtMoney(creditExpense)}`])
+      ]),
+      el('div', { class: 'row-between text-sm mb-12' }, [
+        el('span', { class: 'text-2' }, ['Обязательные расходы']),
+        el('span', { class: 'mono text-danger' }, [`−${fmtMoney(recExpense)}`])
+      ]),
+      el('div', { class: 'row-between', style: 'padding-top:12px; border-top:1px solid var(--border);' }, [
+        el('span', { style: 'font-weight:850;' }, ['Свободные деньги']),
+        el('span', { class: 'mono ' + (freeMoney < 0 ? 'text-danger' : 'text-success'), style: 'font-size:18px; font-weight:900;' }, [fmtMoney(freeMoney)])
+      ])
+    ]));
+  }
+
+
   if (limit > 0) {
     container.appendChild(el('div', { class: 'card mt-16' }, [
       el('div', { class: 'row-between' }, [
@@ -2106,6 +2141,7 @@ async function renderBudget(container) {
   ])));
   renderTransactionRows(list, txs, cats);
   container.appendChild(renderDebtsSection(debts, members, false));
+  container.appendChild(await renderRecurringSection(g, cats));
 }
 
 function renderTransactionRows(list, txs, cats) {
@@ -3766,4 +3802,118 @@ function calculateDiffLocal(principal, annualRate, termMonths) {
   const body = principal / termMonths;
   const interest = principal * annualRate / 100 / 12;
   return Math.round((body + interest) * 100) / 100;
+}
+
+/* =============================================================
+RECURRING TRANSACTIONS (Регулярные операции)
+============================================================= */
+
+async function renderRecurringSection(g, cats) {
+  const recurrings = await safeApi(apiCall('GET', `/groups/${g.id}/recurring`), []);
+  
+  const list = el('div', { class: 'list' }, recurrings.map((r, i) => {
+    const isIncome = r.type === 'income';
+    const catName = cats.find(c => c.id === r.category_id)?.name || 'Без категории';
+    
+    return stagger(el('div', { class: 'item' + (!r.is_active ? ' is-done' : '') }, [
+      el('div', { class: 'avatar-sm', style: `background:${isIncome ? 'var(--success)' : 'var(--danger)'}` }, [
+        icon(isIncome ? 'arrowUpCircle' : 'arrowDownCircle', 18)
+      ]),
+      el('div', { class: 'item-main' }, [
+        el('div', { class: 'item-title' }, [r.title]),
+        el('div', { class: 'item-sub' }, [`${isIncome ? 'Доход' : 'Расход'} · ${r.day_of_month}-е число · ${catName}`]),
+      ]),
+      el('div', { class: 'mono ' + (isIncome ? 'amount-positive' : 'amount-negative'), style: 'margin-right:8px; font-weight:800;' }, [
+        `${isIncome ? '+' : '−'}${fmtMoney(r.amount)}`
+      ]),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        'data-tip': r.is_active ? 'Отключить' : 'Включить',
+        onclick: async () => {
+          try {
+            await apiCall('PATCH', `/groups/${g.id}/recurring/${r.id}`, {
+              category_id: r.category_id, title: r.title, type: r.type, amount: r.amount, day_of_month: r.day_of_month, is_active: !r.is_active
+            });
+            await renderActiveView();
+          } catch (err) { toast(err.message, 'error'); }
+        }
+      }, [icon(r.is_active ? 'check' : 'x', 16)]),
+      el('button', {
+        type: 'button',
+        class: 'icon-btn sm',
+        'data-tip': 'Удалить',
+        onclick: () => confirmDelete(`Удалить шаблон «${r.title}»?`, async () => {
+          try {
+            await apiCall('DELETE', `/groups/${g.id}/recurring/${r.id}`);
+            toast('Удалено', 'success');
+            await renderActiveView();
+          } catch (err) { toast(err.message, 'error'); }
+        })
+      }, [icon('trash', 16)]),
+    ]), i);
+  }));
+
+  if (!recurrings.length) {
+    list.appendChild(miniEmpty('Нет регулярных операций. Добавьте зарплату или аренду.'));
+  }
+
+  return sectionBlock(
+    'Регулярные операции',
+    'Автоматические начисления и списания',
+    el('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-sm',
+      onclick: () => openCreateRecurringModal(g, cats)
+    }, [el('span', { 'data-icon': 'plus', 'data-size': 'sm' }), el('span', {}, ['Шаблон'])]),
+    list
+  );
+}
+
+function openCreateRecurringModal(g, cats) {
+  const title = el('input', { class: 'input', type: 'text', placeholder: 'Зарплата / Аренда / Подписка', required: true });
+  const amount = el('input', { class: 'input', type: 'number', step: '0.01', min: '0.01', placeholder: 'Сумма', required: true });
+  const day = el('input', { class: 'input', type: 'number', min: '1', max: '31', placeholder: 'День месяца (1-31)', required: true });
+  
+  let type = 'expense';
+  const expenseBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm flex-1', onclick: () => { type = 'expense'; expenseBtn.className = 'btn btn-danger btn-sm flex-1'; incomeBtn.className = 'btn btn-ghost btn-sm flex-1'; } }, ['Расход']);
+  const incomeBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm flex-1', onclick: () => { type = 'income'; expenseBtn.className = 'btn btn-ghost btn-sm flex-1'; incomeBtn.className = 'btn btn-primary btn-sm flex-1'; } }, ['Доход']);
+
+  const catSelect = el('select', { class: 'input', required: true }, [
+    el('option', { value: '' }, ['Выберите категорию']),
+    ...cats.map(c => el('option', { value: c.id }, [c.name]))
+  ]);
+
+  openModal({
+    title: 'Новая регулярная операция',
+    body: el('div', { class: 'form' }, [
+      field('Название', title),
+      el('div', { class: 'row gap-8' }, [expenseBtn, incomeBtn]),
+      field('Сумма', amount),
+      field('День месяца (1-31)', day),
+      field('Категория', catSelect, 'Обязательно — для бюджета'),
+      el('div', { class: 'text-xs text-3 mt-8' }, ['Операция будет создаваться автоматически каждый месяц в указанный день.'])
+    ]),
+    saveLabel: 'Создать',
+    onSave: async () => {
+      const amt = parseFloat(amount.value);
+      const d = parseInt(day.value, 10);
+      if (!title.value.trim()) throw new Error('Введите название');
+      if (!amt || amt <= 0) throw new Error('Введите сумму > 0');
+      if (!d || d < 1 || d > 31) throw new Error('День должен быть от 1 до 31');
+      if (!catSelect.value) throw new Error('Выберите категорию для бюджета');
+
+      try {
+        await apiCall('POST', `/groups/${g.id}/recurring`, {
+          title: title.value.trim(),
+          type,
+          amount: amt,
+          day_of_month: d,
+          category_id: catSelect.value || null
+        });
+        toast('Шаблон создан', 'success');
+        await renderActiveView();
+      } catch (err) { toast(err.message, 'error'); throw err; }
+    }
+  });
 }

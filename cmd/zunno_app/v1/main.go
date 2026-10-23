@@ -38,6 +38,9 @@ import (
 	plans_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/plans/repository/postgres"
 	plan_service "github.com/MulLoMaH/Zunno/internal/features/plans/service"
 	plan_transport_http "github.com/MulLoMaH/Zunno/internal/features/plans/transport/http"
+	recurring_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/recurring/repository/postgres"
+	recurring_service "github.com/MulLoMaH/Zunno/internal/features/recurring/service"
+	recurring_transport_http "github.com/MulLoMaH/Zunno/internal/features/recurring/transport/http"
 
 	users_postgres_repository "github.com/MulLoMaH/Zunno/internal/features/users/repository/postgres"
 	user_service "github.com/MulLoMaH/Zunno/internal/features/users/service"
@@ -220,6 +223,22 @@ func main() {
 		creditsRoutes[i].Middlewares = append(creditsRoutes[i].Middlewares, jwtMw, groupContextMw)
 	}
 	apiV1Router.RegisterRoutes(creditsRoutes...)
+
+	// --- Recurring ---
+	logger.Debug("initializing feature", zap.String("feature", "recurring"))
+	recurringRepo := recurring_postgres_repository.NewRecurringRepository(pool)
+	budgetAdapter := recurring_service.NewBudgetAdapter(budgetRepo)
+	recurringSvc := recurring_service.NewRecurringService(recurringRepo, budgetAdapter, logger)
+	recurringHTTP := recurring_transport_http.NewRecurringHTTPHandler(recurringSvc)
+
+	recurringRoutes := recurringHTTP.Routes()
+	for i := range recurringRoutes {
+		recurringRoutes[i].Middlewares = append(recurringRoutes[i].Middlewares, jwtMw, groupContextMw)
+	}
+	apiV1Router.RegisterRoutes(recurringRoutes...)
+
+	// Запуск фонового воркера (раз в час)
+	go recurringSvc.StartWorker(ctx)
 
 	budgetRoutes := budgetHTTP.Routes()
 	for i := range budgetRoutes {
