@@ -2293,6 +2293,7 @@ body {
 /* Жесткий отступ, чтобы FAB никогда не перекрывал контент */
 @media (max-width: 1024px) {
   .view {
-    padding-bottom: 140px !important; /* 70px навигация + 60px кнопка + запас */
+    /* Увеличиваем отступ: 70px меню + 60px кнопка + 50px запас */
+    padding-bottom: 180px !important;
   }
 }

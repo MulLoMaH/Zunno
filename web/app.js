@@ -3821,44 +3821,44 @@ async function renderRecurringSection(g, cats) {
   
   const list = el('div', { class: 'list' }, recurrings.map((r, i) => {
     const isIncome = r.type === 'income';
-    const catName = cats.find(c => c.id === r.category_id)?.name || 'Без категории';
     
-    return stagger(el('div', { class: 'item' + (!r.is_active ? ' is-done' : '') }, [
-      el('div', { class: 'avatar-sm', style: `background:${isIncome ? 'var(--success)' : 'var(--danger)'}` }, [
-        icon(isIncome ? 'arrowUpCircle' : 'arrowDownCircle', 18)
-      ]),
+    return stagger(el('div', { class: 'item' + (!r.is_active ? ' is-done' : ''), style: 'padding: 10px 12px;' }, [
       el('div', { class: 'item-main' }, [
-        el('div', { class: 'item-title' }, [r.title]),
-        el('div', { class: 'item-sub' }, [`${isIncome ? 'Доход' : 'Расход'} · ${r.day_of_month}-е число · ${catName}`]),
+        el('div', { class: 'item-title', style: 'font-size:13.5px; font-weight: 700; color: var(--text);' }, [r.title]),
+        el('div', { class: 'item-sub', style: 'font-size:11.5px;' }, [`${isIncome ? 'Доход' : 'Расход'} · ${r.day_of_month}-е число`]),
       ]),
-      el('div', { class: 'mono ' + (isIncome ? 'amount-positive' : 'amount-negative'), style: 'margin-right:8px; font-weight:800;' }, [
+      el('div', { class: 'mono ' + (isIncome ? 'amount-positive' : 'amount-negative'), style: 'margin: 0 8px; font-weight:800; font-size:13px; white-space:nowrap;' }, [
         `${isIncome ? '+' : '−'}${fmtMoney(r.amount)}`
       ]),
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': r.is_active ? 'Отключить' : 'Включить',
-        onclick: async () => {
-          try {
-            await apiCall('PATCH', `/groups/${g.id}/recurring/${r.id}`, {
-              category_id: r.category_id, title: r.title, type: r.type, amount: r.amount, day_of_month: r.day_of_month, is_active: !r.is_active
-            });
-            await renderActiveView();
-          } catch (err) { toast(err.message, 'error'); }
-        }
-      }, [icon(r.is_active ? 'check' : 'x', 16)]),
-      el('button', {
-        type: 'button',
-        class: 'icon-btn sm',
-        'data-tip': 'Удалить',
-        onclick: () => confirmDelete(`Удалить шаблон «${r.title}»?`, async () => {
-          try {
-            await apiCall('DELETE', `/groups/${g.id}/recurring/${r.id}`);
-            toast('Удалено', 'success');
-            await renderActiveView();
-          } catch (err) { toast(err.message, 'error'); }
-        })
-      }, [icon('trash', 16)]),
+      el('div', { class: 'row gap-4' }, [
+        el('button', {
+          type: 'button',
+          class: 'icon-btn sm',
+          style: 'width:30px; height:30px; min-width:30px;',
+          'data-tip': r.is_active ? 'Отключить' : 'Включить',
+          onclick: async () => {
+            try {
+              await apiCall('PATCH', `/groups/${g.id}/recurring/${r.id}`, {
+                category_id: r.category_id, title: r.title, type: r.type, amount: r.amount, day_of_month: r.day_of_month, is_active: !r.is_active
+              });
+              await renderActiveView();
+            } catch (err) { toast(err.message, 'error'); }
+          }
+        }, [icon(r.is_active ? 'check' : 'x', 14)]),
+        el('button', {
+          type: 'button',
+          class: 'icon-btn sm',
+          style: 'width:30px; height:30px; min-width:30px;',
+          'data-tip': 'Удалить',
+          onclick: () => confirmDelete(`Удалить шаблон «${r.title}»?`, async () => {
+            try {
+              await apiCall('DELETE', `/groups/${g.id}/recurring/${r.id}`);
+              toast('Удалено', 'success');
+              await renderActiveView();
+            } catch (err) { toast(err.message, 'error'); }
+          })
+        }, [icon('trash', 14)]),
+      ])
     ]), i);
   }));
 
